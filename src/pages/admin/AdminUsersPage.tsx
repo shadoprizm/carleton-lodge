@@ -2,8 +2,17 @@ import { useState, useEffect } from 'react';
 import { Shield, ShieldOff } from 'lucide-react';
 import { supabase, Profile } from '../../lib/supabase';
 
+type ProfileWithLastLogin = Profile & {
+  last_sign_in_at: string | null;
+};
+
+type LastSignInRow = {
+  id: string;
+  last_sign_in_at: string | null;
+};
+
 export const AdminUsersPage = () => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileWithLastLogin[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -12,11 +21,32 @@ export const AdminUsersPage = () => {
 
   const fetchProfiles = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setProfiles(data);
+
+    const [profilesRes, signInsRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase.rpc('get_admin_user_last_signins'),
+    ]);
+
+    if (profilesRes.data) {
+      const signInsById = new Map(
+        ((signInsRes.data as LastSignInRow[] | null) ?? []).map((row) => [row.id, row.last_sign_in_at])
+      );
+
+      setProfiles(
+        profilesRes.data.map((profile) => ({
+          ...profile,
+          last_sign_in_at: signInsById.get(profile.id) ?? null,
+        }))
+      );
+    }
+
+    if (signInsRes.error) {
+      console.warn('Could not load last login timestamps:', signInsRes.error.message);
+    }
+
     setLoading(false);
   };
 
@@ -45,6 +75,7 @@ export const AdminUsersPage = () => {
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Email</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Role</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Joined</th>
+                <th className="text-left py-3 px-4 font-semibold text-slate-600">Last Login</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -63,6 +94,17 @@ export const AdminUsersPage = () => {
                   </td>
                   <td className="py-3 px-4 text-slate-500">
                     {new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="py-3 px-4 text-slate-500">
+                    {profile.last_sign_in_at
+                      ? new Date(profile.last_sign_in_at).toLocaleString('en-CA', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
+                      : 'Never'}
                   </td>
                   <td className="py-3 px-4">
                     <button
