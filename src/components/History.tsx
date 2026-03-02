@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Calendar, ArrowRight } from 'lucide-react';
+import { getOptimizedAssetUrl } from '../utils/assetUrls';
 
 interface HistoryEra {
   id: string;
@@ -98,8 +99,10 @@ export const History = () => {
                       {era.image_url && (
                         <div className="h-48 overflow-hidden">
                           <img
-                            src={era.image_url}
+                            src={getOptimizedAssetUrl(era.image_url)}
                             alt={era.title}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                         </div>

@@ -54,8 +54,9 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
             className="flex items-center space-x-3 group flex-shrink-0"
           >
             <img
-              src="/Screenshot_2026-03-01_at_08.13.26.png"
+              src="/logo-mark.webp"
               alt="Carleton Lodge 465"
+              decoding="async"
               className="h-12 w-12 object-contain flex-shrink-0"
             />
             <span className="text-lg font-serif text-amber-100 tracking-tight group-hover:text-amber-200 transition-colors hidden lg:block whitespace-nowrap">

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Calendar, ArrowLeft, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getOptimizedAssetUrl } from '../utils/assetUrls';
 
 interface HistoryEra {
   id: string;
@@ -150,8 +151,10 @@ export const HistoryPage = () => {
                     {era.image_url && (
                       <div className="h-48 overflow-hidden">
                         <img
-                          src={era.image_url}
+                          src={getOptimizedAssetUrl(era.image_url)}
                           alt={era.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       </div>
@@ -175,13 +178,15 @@ export const HistoryPage = () => {
     );
   }
 
+  if (!era) return null;
+
   return (
     <div className="min-h-screen pt-20 bg-slate-50">
       <div
         className="h-96 bg-cover bg-center relative"
         style={{
           backgroundImage: era.image_url
-            ? `url(${era.image_url})`
+            ? `url(${getOptimizedAssetUrl(era.image_url)})`
             : 'linear-gradient(135deg, #92400e 0%, #b45309 100%)',
         }}
       >
@@ -266,8 +271,10 @@ export const HistoryPage = () => {
                   <p className="text-slate-600">{milestone.description}</p>
                   {milestone.image_url && (
                     <img
-                      src={milestone.image_url}
+                      src={getOptimizedAssetUrl(milestone.image_url)}
                       alt={milestone.title}
+                      loading="lazy"
+                      decoding="async"
                       className="mt-4 rounded-lg shadow-md max-w-md"
                     />
                   )}
