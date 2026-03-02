@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   profile: Profile | null;
   isAdmin: boolean;
   loading: boolean;
@@ -24,6 +25,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -43,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
+      setSession(session);
       if (session?.user) {
         const profileData = await fetchProfile(session.user.id);
         if (!mounted) return;
@@ -61,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (async () => {
         if (!mounted) return;
         setLoading(true);
+        setSession(session);
         if (session?.user) {
           const profileData = await fetchProfile(session.user.id);
           if (!mounted) return;
@@ -97,7 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin = profile?.is_admin ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

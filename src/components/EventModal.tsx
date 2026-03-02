@@ -32,15 +32,15 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
     setLoading(true);
 
     const { error } = await supabase.from('events').insert({
-      title,
-      description: description || null,
+      title: title.trim(),
+      description: (description ?? '').trim() || '',
       event_date: eventDate,
       event_time: eventTime || null,
       event_end_time: eventEndTime || null,
-      location,
-      location_address: locationAddress || null,
-      poc_name: pocName || null,
-      poc_contact: pocContact || null,
+      location: location.trim(),
+      location_address: locationAddress.trim() || null,
+      poc_name: pocName.trim() || null,
+      poc_contact: pocContact.trim() || null,
       created_by: user.id,
     });
 

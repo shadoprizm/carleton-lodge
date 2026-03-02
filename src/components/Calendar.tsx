@@ -104,9 +104,12 @@ export const Calendar = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-4xl md:text-5xl font-serif text-amber-100 text-center mb-12">
+          <h2 className="text-4xl md:text-5xl font-serif text-amber-100 text-center mb-4">
             Lodge Calendar
           </h2>
+          <p className="text-center text-amber-200/60 text-sm mb-12">
+            Click on a day to see scheduled events
+          </p>
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-amber-600/30 p-6 md:p-8">
             <div className="flex items-center justify-between mb-8">

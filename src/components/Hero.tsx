@@ -11,7 +11,7 @@ export const Hero = ({ onScrollToEvents }: HeroProps) => {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `url('/Gemini_Generated_Image_3y3hvn3y3hvn3y3h.png')`,
+          backgroundImage: `url('/hero-bg.webp')`,
         }}
       />
 

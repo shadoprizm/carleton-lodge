@@ -172,3 +172,51 @@ export type PhotoAlbumWithCover = PhotoAlbum & {
   cover_photo: Photo | null;
   photo_count?: number;
 };
+
+/**
+ * Get a proxy URL for a file that hides the Supabase storage URL.
+ * This returns a URL on the same domain (e.g., /file/bucket/path/to/file.pdf)
+ * instead of the full Supabase storage URL.
+ */
+export function getProxyFileUrl(bucket: string, path: string): string {
+  return `/file/${bucket}/${path}`;
+}
+
+/**
+ * Fetch a file through the proxy with authentication.
+ * Returns a Blob URL that can be used for previews/downloads.
+ * The URL will be on the same domain (blob: URL or proxied URL).
+ */
+export async function fetchFileThroughProxy(
+  bucket: string,
+  path: string,
+  sessionToken: string | null
+): Promise<{ url: string; blob?: Blob }> {
+  // Get a signed URL first (for authentication)
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 60);
+
+  if (error || !data?.signedUrl) {
+    throw new Error('Failed to get file URL');
+  }
+
+  // Fetch the file through our proxy to hide the Supabase URL
+  const proxyUrl = getProxyFileUrl(bucket, path);
+  const headers: Record<string, string> = {};
+  
+  if (sessionToken) {
+    headers['Authorization'] = `Bearer ${sessionToken}`;
+  }
+
+  const response = await fetch(proxyUrl, { headers });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch file');
+  }
+
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  
+  return { url: blobUrl, blob };
+}

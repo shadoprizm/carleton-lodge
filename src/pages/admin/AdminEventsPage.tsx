@@ -24,6 +24,7 @@ export const AdminEventsPage = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState(emptyForm);
@@ -44,16 +45,28 @@ export const AdminEventsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await supabase.from('events').insert({
+    if (!user?.id) {
+      setError('You must be logged in to create events.');
+      return;
+    }
+
+    setError(null);
+    const { error } = await supabase.from('events').insert({
       ...formData,
-      description: formData.description || null,
+      title: formData.title.trim(),
+      description: (formData.description ?? '').trim() || '',
+      location: formData.location.trim(),
       event_time: formData.event_time || null,
       event_end_time: formData.event_end_time || null,
-      location_address: formData.location_address || null,
-      poc_name: formData.poc_name || null,
-      poc_contact: formData.poc_contact || null,
-      created_by: user?.id,
+      location_address: formData.location_address.trim() || null,
+      poc_name: formData.poc_name.trim() || null,
+      poc_contact: formData.poc_contact.trim() || null,
+      created_by: user.id,
     });
+    if (error) {
+      setError(error.message);
+      return;
+    }
     setShowForm(false);
     setFormData(emptyForm);
     fetchEvents();
@@ -82,18 +95,25 @@ export const AdminEventsPage = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingId) return;
-    await supabase
+    setError(null);
+    const { error } = await supabase
       .from('events')
       .update({
         ...editData,
-        description: editData.description || null,
+        title: editData.title.trim(),
+        description: (editData.description ?? '').trim() || '',
+        location: editData.location.trim(),
         event_time: editData.event_time || null,
         event_end_time: editData.event_end_time || null,
-        location_address: editData.location_address || null,
-        poc_name: editData.poc_name || null,
-        poc_contact: editData.poc_contact || null,
+        location_address: editData.location_address.trim() || null,
+        poc_name: editData.poc_name.trim() || null,
+        poc_contact: editData.poc_contact.trim() || null,
       })
       .eq('id', editingId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
     setEditingId(null);
     setEditData(emptyForm);
     fetchEvents();
@@ -114,6 +134,7 @@ export const AdminEventsPage = () => {
         <div>
           <h2 className="text-xl font-serif text-slate-900">Events</h2>
           <p className="text-sm text-slate-500 mt-1">Schedule and manage lodge events</p>
+          {error && <p className="text-sm text-red-700 mt-2">{error}</p>}
         </div>
         <button
           onClick={() => { setShowForm(!showForm); setEditingId(null); }}

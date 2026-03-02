@@ -221,15 +221,54 @@ export const SummonsManager = () => {
   };
 
   const [openingPdf, setOpeningPdf] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const openPdf = useCallback(async (e: React.MouseEvent, pdfUrl: string) => {
     e.stopPropagation();
     setOpeningPdf(pdfUrl);
-    const path = extractStoragePath(pdfUrl);
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 300);
-    setOpeningPdf(null);
-    if (!error && data?.signedUrl) {
-      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    
+    try {
+      const path = extractStoragePath(pdfUrl);
+      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60);
+      
+      if (error || !data?.signedUrl) {
+        setOpeningPdf(null);
+        return;
+      }
+
+      // Fetch the PDF content to hide the Supabase URL
+      const response = await fetch(data.signedUrl);
+      if (!response.ok) {
+        setOpeningPdf(null);
+        return;
+      }
+
+      const blob = await response.blob();
+      
+      // Revoke previous blob URL if exists
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+      }
+      
+      const blobUrl = URL.createObjectURL(blob);
+      blobUrlRef.current = blobUrl;
+      
+      // Open in new tab - URL will be blob:... not the Supabase URL
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Error opening PDF:', err);
+    } finally {
+      setOpeningPdf(null);
     }
   }, []);
 

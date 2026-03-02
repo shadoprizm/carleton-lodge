@@ -9,31 +9,23 @@ interface AuthModalProps {
 }
 
 export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error } = isSignUp
-      ? await signUp(email, password)
-      : await signIn(email, password);
+    const { error } = await signIn(email, password);
 
     setLoading(false);
 
     if (error) {
-      if (isSignUp && (error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already been registered') || error.status === 422)) {
-        setIsSignUp(false);
-        setError('You already have an account. Please sign in instead.');
-      } else {
-        setError(error.message);
-      }
+      setError(error.message);
     } else {
       onClose();
       setEmail('');
@@ -66,12 +58,10 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
             </button>
 
             <h2 className="text-3xl font-serif text-gray-900 mb-2">
-              {isSignUp ? 'Join the Lodge' : 'Member Sign In'}
+              Member Sign In
             </h2>
             <p className="text-gray-600 mb-6">
-              {isSignUp
-                ? 'Create your account to access member content'
-                : 'Welcome back, Brother'}
+              Welcome back, Brother
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -112,23 +102,10 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                 disabled={loading}
                 className="w-full bg-blue-900 text-white py-3 rounded-md hover:bg-blue-800 transition-colors font-medium disabled:opacity-50"
               >
-                {loading ? 'Loading...' : isSignUp ? 'Create Account' : 'Sign In'}
+                {loading ? 'Loading...' : 'Sign In'}
               </button>
             </form>
 
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setError('');
-                }}
-                className="text-blue-900 hover:text-blue-700 text-sm font-medium transition-colors"
-              >
-                {isSignUp
-                  ? 'Already have an account? Sign in'
-                  : "Don't have an account? Sign up"}
-              </button>
-            </div>
           </motion.div>
         </div>
       )}

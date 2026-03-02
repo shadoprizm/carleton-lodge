@@ -81,7 +81,29 @@ export const LibraryPage = () => {
       .from(bucket)
       .createSignedUrl(doc.file_url, 60);
     if (data?.signedUrl) {
-      window.open(data.signedUrl, '_blank');
+      try {
+        // Fetch the file content to hide the Supabase URL
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) throw new Error('Failed to fetch file');
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = doc.file_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up the blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch (err) {
+        console.error('Error downloading file:', err);
+        // Fallback to opening in new tab
+        window.open(data.signedUrl, '_blank');
+      }
     }
   };
 

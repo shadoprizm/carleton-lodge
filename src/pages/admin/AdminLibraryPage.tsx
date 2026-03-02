@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Plus, Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
+  Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
   Tag, ChevronDown, ChevronRight, Folder, FolderOpen, AlertCircle
 } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../../lib/supabase';

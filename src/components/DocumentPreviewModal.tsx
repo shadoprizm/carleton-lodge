@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, ExternalLink, FileText, Loader2, AlertCircle, FileSpreadsheet, FileType } from 'lucide-react';
 import { supabase, DocumentWithCategory } from '../lib/supabase';
@@ -36,42 +36,79 @@ interface Props {
 }
 
 export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!doc) return;
-    setSignedUrl(null);
+    
+    // Clean up previous blob URL
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    
+    setDisplayUrl(null);
     setError(false);
     setIframeLoaded(false);
     setTextContent(null);
     setLoading(true);
 
     const bucket = doc.storage_bucket || 'lodge-documents';
-    supabase.storage
-      .from(bucket)
-      .createSignedUrl(doc.file_url, 300)
-      .then(async ({ data, error: err }) => {
-        if (err || !data?.signedUrl) {
+    
+    // Fetch file through proxy to hide Supabase URL
+    const fetchFile = async () => {
+      try {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(doc.file_url, 60);
+        
+        if (signedError || !signedData?.signedUrl) {
           setError(true);
           setLoading(false);
           return;
         }
-        setSignedUrl(data.signedUrl);
+
+        // Fetch the actual file content
+        const response = await fetch(signedData.signedUrl);
+        if (!response.ok) throw new Error('Failed to fetch file');
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        blobUrlRef.current = blobUrl;
+        setDisplayUrl(blobUrl);
+        
+        // For text files, also extract the content
         if (isText(doc.file_type)) {
           try {
-            const res = await fetch(data.signedUrl);
-            const text = await res.text();
+            const text = await blob.text();
             setTextContent(text);
           } catch {
             // fallback to iframe
           }
         }
+        
         setLoading(false);
-      });
+      } catch (err) {
+        console.error('Error fetching file:', err);
+        setError(true);
+        setLoading(false);
+      }
+    };
+
+    fetchFile();
+    
+    // Cleanup on unmount or when doc changes
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
   }, [doc?.id]);
 
   useEffect(() => {
@@ -121,9 +158,9 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
               </div>
 
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                {signedUrl && (
+                {displayUrl && (
                   <a
-                    href={signedUrl}
+                    href={displayUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -170,12 +207,12 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                 </div>
               )}
 
-              {!loading && !error && signedUrl && (
+              {!loading && !error && displayUrl && (
                 <>
                   {isImage(doc.file_type) ? (
                     <div className="flex items-center justify-center h-full p-6 overflow-auto">
                       <img
-                        src={signedUrl}
+                        src={displayUrl}
                         alt={doc.title}
                         className="max-w-full max-h-full object-contain rounded-lg shadow-md"
                       />
@@ -189,7 +226,7 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                         </div>
                       )}
                       <iframe
-                        src={signedUrl}
+                        src={displayUrl}
                         title={doc.title}
                         className="w-full h-full rounded-b-2xl border-0"
                         style={{ minHeight: '60vh' }}
@@ -218,7 +255,7 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                         </p>
                         <div className="flex flex-col sm:flex-row gap-2 justify-center">
                           <a
-                            href={signedUrl}
+                            href={displayUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"

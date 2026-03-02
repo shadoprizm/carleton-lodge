@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Clock, Plus } from 'lucide-react';
+import { Calendar, MapPin, Clock, Plus, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase, Event } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { EventModal } from './EventModal';
@@ -108,7 +109,7 @@ export const Events = () => {
             viewport={{ once: true }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
-            {events.map((event) => (
+            {events.slice(0, 3).map((event) => (
               <motion.div
                 key={event.id}
                 variants={item}
@@ -159,6 +160,24 @@ export const Events = () => {
                 </div>
               </motion.div>
             ))}
+          </motion.div>
+        )}
+
+        {!loading && events.length > 3 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="text-center mt-12"
+          >
+            <Link
+              to="/calendar"
+              className="inline-flex items-center space-x-2 px-8 py-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-all font-medium tracking-wide shadow-lg"
+            >
+              <span>View Full Calendar</span>
+              <ArrowRight size={18} />
+            </Link>
           </motion.div>
         )}
 
