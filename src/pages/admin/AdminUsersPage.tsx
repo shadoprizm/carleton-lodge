@@ -14,6 +14,7 @@ type LastSignInRow = {
 export const AdminUsersPage = () => {
   const [profiles, setProfiles] = useState<ProfileWithLastLogin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastLoginError, setLastLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfiles();
@@ -21,6 +22,7 @@ export const AdminUsersPage = () => {
 
   const fetchProfiles = async () => {
     setLoading(true);
+    setLastLoginError(null);
 
     const [profilesRes, signInsRes] = await Promise.all([
       supabase
@@ -45,6 +47,7 @@ export const AdminUsersPage = () => {
 
     if (signInsRes.error) {
       console.warn('Could not load last login timestamps:', signInsRes.error.message);
+      setLastLoginError(signInsRes.error.message);
     }
 
     setLoading(false);
@@ -63,6 +66,11 @@ export const AdminUsersPage = () => {
       <div className="mb-6">
         <h2 className="text-xl font-serif text-slate-900">User Management</h2>
         <p className="text-sm text-slate-500 mt-1">Manage user accounts and admin privileges</p>
+        {lastLoginError && (
+          <p className="text-xs text-amber-700 mt-2">
+            Last login data unavailable. Apply latest Supabase migrations and refresh.
+          </p>
+        )}
       </div>
 
       {loading ? (
