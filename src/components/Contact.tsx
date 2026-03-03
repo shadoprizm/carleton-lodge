@@ -99,7 +99,7 @@ export const Contact = () => {
               Masonic Links
             </Link>
           </div>
-          <div className="mt-6 flex items-center justify-center">
+          <div className="mt-10 flex items-center justify-center">
             <a
               href="https://www.facebook.com/CarletonLodge465"
               target="_blank"
@@ -110,7 +110,7 @@ export const Contact = () => {
               <span className="font-medium">Follow us on Facebook</span>
             </a>
           </div>
-          <div className="mt-8 flex justify-center">
+          <div className="mt-12 flex justify-center">
             <img 
               src="/ontario-masons-logo.png" 
               alt="Ontario Masons" 
