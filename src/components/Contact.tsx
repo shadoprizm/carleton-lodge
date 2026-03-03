@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { Mail, MapPin, Facebook } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ContactForm } from './ContactForm';
 
@@ -34,7 +34,7 @@ export const Contact = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto"
+          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto"
         >
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 backdrop-blur-sm">
@@ -52,20 +52,14 @@ export const Contact = () => {
               <Mail size={28} />
             </div>
             <h3 className="text-xl font-serif mb-2">Email</h3>
-            <p className="text-white/80 font-light">
-              info@carletonlodge465.org
-            </p>
+            <a 
+              href="mailto:carpmasons@gmail.com"
+              className="text-white/80 font-light hover:text-amber-300 transition-colors"
+            >
+              carpmasons@gmail.com
+            </a>
           </div>
 
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 backdrop-blur-sm">
-              <Phone size={28} />
-            </div>
-            <h3 className="text-xl font-serif mb-2">Phone</h3>
-            <p className="text-white/80 font-light">
-              Contact us for details
-            </p>
-          </div>
         </motion.div>
 
         <ContactForm />
@@ -78,7 +72,7 @@ export const Contact = () => {
           className="mt-16 text-center space-y-2"
         >
           <p className="text-white/60 text-sm font-light">
-            &copy; {new Date().getFullYear()} Carleton Lodge 465. All rights reserved.
+            &copy; {new Date().getFullYear()} Carleton Lodge No. 465. All rights reserved.
           </p>
           <p className="text-white/60 text-sm font-light">
             Ancient Free and Accepted Masons of Canada
@@ -97,8 +91,33 @@ export const Contact = () => {
             >
               Terms and Conditions
             </Link>
+            <span className="text-white/30 text-xs">|</span>
+            <Link
+              to="/links"
+              className="text-white/50 hover:text-white/80 text-xs font-light transition-colors"
+            >
+              Masonic Links
+            </Link>
           </div>
-          <p className="text-white/50 text-xs font-light mt-4">
+          <div className="mt-6 flex items-center justify-center">
+            <a
+              href="https://www.facebook.com/CarletonLodge465"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-md transition-colors"
+            >
+              <Facebook size={20} />
+              <span className="font-medium">Follow us on Facebook</span>
+            </a>
+          </div>
+          <div className="mt-8 flex justify-center">
+            <img 
+              src="/ontario-masons-logo.png" 
+              alt="Ontario Masons" 
+              className="h-16 object-contain opacity-90"
+            />
+          </div>
+          <p className="text-white/50 text-xs font-light mt-6">
             Custom Built by{' '}
             <a
               href="https://www.astrawebdev.com"

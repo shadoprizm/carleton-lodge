@@ -55,12 +55,12 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
           >
             <img
               src="/logo-mark.webp"
-              alt="Carleton Lodge 465"
+              alt="Carleton Lodge No. 465"
               decoding="async"
               className="h-12 w-12 object-contain flex-shrink-0"
             />
             <span className="text-lg font-serif text-amber-100 tracking-tight group-hover:text-amber-200 transition-colors hidden lg:block whitespace-nowrap">
-              Carleton Lodge 465
+              Carleton Lodge No. 465
             </span>
           </Link>
 

@@ -13,6 +13,7 @@ import { LibraryPage } from './pages/LibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/TermsAndConditionsPage';
+import { LinksPage } from './pages/LinksPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminMembersPage } from './pages/admin/AdminMembersPage';
@@ -45,6 +46,7 @@ function App() {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+          <Route path="/links" element={<LinksPage />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/users" replace />} />
             <Route path="users" element={<AdminUsersPage />} />

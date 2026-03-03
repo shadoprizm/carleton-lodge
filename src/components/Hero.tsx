@@ -38,7 +38,7 @@ export const Hero = ({ onScrollToEvents }: HeroProps) => {
           >
             <div className="inline-block px-4 py-2 border border-amber-400/40 rounded-full backdrop-blur-sm bg-amber-900/20">
               <p className="text-amber-200/90 text-sm tracking-[0.3em] uppercase font-light">
-                Est. January 12, 1904
+                Warranted 1904
               </p>
             </div>
           </motion.div>
@@ -49,7 +49,7 @@ export const Hero = ({ onScrollToEvents }: HeroProps) => {
             transition={{ duration: 1, delay: 0.7 }}
             className="text-4xl md:text-6xl lg:text-7xl font-serif text-white mb-4 leading-tight"
           >
-            Carleton Lodge 465
+            Carleton Masonic Lodge
           </motion.h1>
 
           <motion.p
