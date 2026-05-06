@@ -53,12 +53,20 @@ async function findAuthUserByEmail(
   return null;
 }
 
-function isMissingRpc(error: PostgrestMaybeMissingError | null) {
-  return error?.code === "PGRST202" || error?.message?.toLowerCase().includes("could not find the function");
+function isMissingColumn(error: PostgrestMaybeMissingError | null, columnName: string) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    error?.message?.includes(columnName)
+  );
 }
 
-function isMissingColumn(error: PostgrestMaybeMissingError | null, columnName: string) {
-  return error?.code === "42703" || error?.message?.includes(columnName);
+function isMissingRelation(error: PostgrestMaybeMissingError | null, relationName: string) {
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    error?.message?.includes(relationName)
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -102,21 +110,28 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const { data: canManage, error: permissionError } = await supabaseUser.rpc(
-      "has_admin_section_permission",
-      { target_section: "members", access_level: "write" },
-    );
+    const { data: currentProfile, error: currentProfileError } = await supabaseAdmin
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (currentProfileError) throw currentProfileError;
 
-    let allowed = canManage === true;
+    let allowed = currentProfile?.is_admin === true;
 
-    if (permissionError && !isMissingRpc(permissionError)) {
-      throw permissionError;
-    }
+    if (!allowed) {
+      const { data: sectionPermission, error: sectionPermissionError } = await supabaseAdmin
+        .from("admin_section_permissions")
+        .select("can_write")
+        .eq("profile_id", user.id)
+        .eq("section", "members")
+        .maybeSingle();
 
-    if (!allowed && permissionError && isMissingRpc(permissionError)) {
-      const { data: isAdmin, error: adminError } = await supabaseUser.rpc("is_admin");
-      if (adminError) throw adminError;
-      allowed = isAdmin === true;
+      if (sectionPermissionError && !isMissingRelation(sectionPermissionError, "admin_section_permissions")) {
+        throw sectionPermissionError;
+      }
+
+      allowed = sectionPermission?.can_write === true;
     }
 
     if (!allowed) {

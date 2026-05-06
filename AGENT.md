@@ -204,6 +204,7 @@ Other tenants also have edge functions deployed to Shared A. If you need to crea
 - `is_admin()` — Returns true if current authenticated user is a lodge admin
 - `handle_new_user_if_lodge_member()` — Auth trigger: creates profile only if email matches lodge_members
 - `handle_new_profile_notifications()` — Creates notification_preferences row on profile insert
+- `record_current_user_login()` — Stores app-level login timestamps on profiles
 - `get_admin_user_last_signins()` — Returns last sign-in timestamps for admin users
 - `update_updated_at_column()` — Generic BEFORE UPDATE trigger for updated_at columns
 - `update_photo_albums_updated_at()` — Photo albums timestamp trigger
