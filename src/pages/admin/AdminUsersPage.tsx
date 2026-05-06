@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff } from 'lucide-react';
+import { Shield, ShieldOff, ChevronRight, ChevronDown } from 'lucide-react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_SECTIONS, AdminSection, AdminSectionPermission } from '../../lib/adminPermissions';
@@ -19,6 +19,19 @@ export const AdminUsersPage = () => {
   const [permissions, setPermissions] = useState<Record<string, AdminSectionPermission[]>>({});
   const [loading, setLoading] = useState(true);
   const [lastLoginError, setLastLoginError] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  const toggleSectionExpanded = (profileId: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(profileId)) {
+        next.delete(profileId);
+      } else {
+        next.add(profileId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetchProfiles();
@@ -182,35 +195,51 @@ export const AdminUsersPage = () => {
                     {profile.is_admin ? (
                       <span className="text-xs text-slate-500">Full access to every section</span>
                     ) : (
-                      <div className="grid sm:grid-cols-2 gap-2">
-                        {ADMIN_SECTIONS.map((section) => {
-                          const permission = getPermission(profile.id, section.id);
-                          return (
-                            <div key={section.id} className="border border-slate-200 rounded-lg px-2.5 py-2">
-                              <div className="text-xs font-medium text-slate-700 mb-1">{section.label}</div>
-                              <div className="flex items-center gap-3 text-xs text-slate-600">
-                                <label className="inline-flex items-center gap-1.5">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!permission?.can_read || !!permission?.can_write}
-                                    onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_read', event.target.checked)}
-                                    className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                                  />
-                                  Read
-                                </label>
-                                <label className="inline-flex items-center gap-1.5">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!permission?.can_write}
-                                    onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_write', event.target.checked)}
-                                    className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                                  />
-                                  Write
-                                </label>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div>
+                        <button
+                          onClick={() => toggleSectionExpanded(profile.id)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                        >
+                          {expandedSections.has(profile.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          {(() => {
+                            const granted = permissions[profile.id]?.length ?? 0;
+                            return granted > 0
+                              ? `${granted} section${granted === 1 ? '' : 's'} granted`
+                              : 'No section access';
+                          })()}
+                        </button>
+                        {expandedSections.has(profile.id) && (
+                          <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                            {ADMIN_SECTIONS.map((section) => {
+                              const permission = getPermission(profile.id, section.id);
+                              return (
+                                <div key={section.id} className="border border-slate-200 rounded-lg px-2.5 py-2">
+                                  <div className="text-xs font-medium text-slate-700 mb-1">{section.label}</div>
+                                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                                    <label className="inline-flex items-center gap-1.5">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!permission?.can_read || !!permission?.can_write}
+                                        onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_read', event.target.checked)}
+                                        className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                      />
+                                      Read
+                                    </label>
+                                    <label className="inline-flex items-center gap-1.5">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!permission?.can_write}
+                                        onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_write', event.target.checked)}
+                                        className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                      />
+                                      Write
+                                    </label>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </td>
