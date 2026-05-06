@@ -19,7 +19,7 @@ export const AdminUsersPage = () => {
   const [permissions, setPermissions] = useState<Record<string, AdminSectionPermission[]>>({});
   const [loading, setLoading] = useState(true);
   const [lastLoginError, setLastLoginError] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
 
   const toggleSectionExpanded = (profileId: string) => {
     setExpandedSections((prev) => {
@@ -34,6 +34,7 @@ export const AdminUsersPage = () => {
   };
 
   useEffect(() => {
+    setExpandedSections(new Set());
     fetchProfiles();
   }, []);
 
@@ -89,6 +90,13 @@ export const AdminUsersPage = () => {
 
   const getPermission = (profileId: string, section: AdminSection) =>
     permissions[profileId]?.find((permission) => permission.section === section) ?? null;
+
+  const getSectionAccessSummary = (profileId: string) => {
+    const granted = permissions[profileId]?.length ?? 0;
+    return granted > 0
+      ? `${granted} section${granted === 1 ? '' : 's'} granted`
+      : 'No section access';
+  };
 
   const setPermissionFlag = async (
     profileId: string,
@@ -197,16 +205,14 @@ export const AdminUsersPage = () => {
                     ) : (
                       <div>
                         <button
+                          type="button"
                           onClick={() => toggleSectionExpanded(profile.id)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                          aria-expanded={expandedSections.has(profile.id)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
                         >
                           {expandedSections.has(profile.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          {(() => {
-                            const granted = permissions[profile.id]?.length ?? 0;
-                            return granted > 0
-                              ? `${granted} section${granted === 1 ? '' : 's'} granted`
-                              : 'No section access';
-                          })()}
+                          <span>{expandedSections.has(profile.id) ? 'Hide' : 'Show'} section access</span>
+                          <span className="text-slate-400">({getSectionAccessSummary(profile.id)})</span>
                         </button>
                         {expandedSections.has(profile.id) && (
                           <div className="grid sm:grid-cols-2 gap-2 mt-2">
