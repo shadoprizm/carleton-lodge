@@ -11,7 +11,8 @@ export const Events = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, hasAdminPermission } = useAuth();
+  const canManageEvents = hasAdminPermission('events', 'write');
 
   useEffect(() => {
     fetchEvents();
@@ -89,7 +90,7 @@ export const Events = () => {
           </p>
         </motion.div>
 
-        {user && (
+        {user && canManageEvents && (
           <div className="flex justify-center mb-12">
             <button
               onClick={() => setIsModalOpen(true)}

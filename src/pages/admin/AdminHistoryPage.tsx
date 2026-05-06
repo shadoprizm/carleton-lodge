@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2, Image as ImageIcon, X, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface HistoryEra {
   id: string;
@@ -26,6 +27,8 @@ interface HistoryMilestone {
 }
 
 export const AdminHistoryPage = () => {
+  const { hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('history', 'write');
   const [eras, setEras] = useState<HistoryEra[]>([]);
   const [milestones, setMilestones] = useState<HistoryMilestone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -264,7 +267,7 @@ export const AdminHistoryPage = () => {
           <h2 className="text-xl font-serif text-slate-900">History</h2>
           <p className="text-sm text-slate-500 mt-1">Manage historical eras and milestones</p>
         </div>
-        <div className="flex items-center space-x-2">
+        {canWrite ? <div className="flex items-center space-x-2">
           <button
             onClick={() => openMilestoneForm()}
             className="flex items-center space-x-2 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
@@ -279,7 +282,11 @@ export const AdminHistoryPage = () => {
             <Plus size={16} />
             <span>Add Era</span>
           </button>
-        </div>
+        </div> : (
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
       {/* Tabs */}
@@ -303,7 +310,7 @@ export const AdminHistoryPage = () => {
       </div>
 
       {/* Era Form */}
-      {showEraForm && (
+      {canWrite && showEraForm && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-base font-semibold text-slate-900">
@@ -443,7 +450,7 @@ export const AdminHistoryPage = () => {
       )}
 
       {/* Milestone Form */}
-      {showMilestoneForm && (
+      {canWrite && showMilestoneForm && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-base font-semibold text-slate-900">
@@ -577,7 +584,7 @@ export const AdminHistoryPage = () => {
                       Order: {era.display_order}
                     </span>
                   </button>
-                  <div className="flex items-center space-x-1 ml-4">
+                  {canWrite && <div className="flex items-center space-x-1 ml-4">
                     <button
                       onClick={() => openMilestoneForm(undefined, era.id)}
                       className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
@@ -597,7 +604,7 @@ export const AdminHistoryPage = () => {
                     >
                       <Trash2 size={16} />
                     </button>
-                  </div>
+                  </div>}
                 </div>
                 
                 {isExpanded && eraMilestones.length > 0 && (
@@ -619,7 +626,7 @@ export const AdminHistoryPage = () => {
                             <p className="text-sm text-slate-500 line-clamp-1">{milestone.description}</p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-1">
+                        {canWrite && <div className="flex items-center space-x-1">
                           <button
                             onClick={() => openMilestoneForm(milestone)}
                             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -632,7 +639,7 @@ export const AdminHistoryPage = () => {
                           >
                             <Trash2 size={14} />
                           </button>
-                        </div>
+                        </div>}
                       </div>
                     ))}
                   </div>
@@ -670,7 +677,7 @@ export const AdminHistoryPage = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-1 ml-4">
+                  {canWrite && <div className="flex items-center space-x-1 ml-4">
                     <button
                       onClick={() => openMilestoneForm(milestone)}
                       className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -683,7 +690,7 @@ export const AdminHistoryPage = () => {
                     >
                       <Trash2 size={16} />
                     </button>
-                  </div>
+                  </div>}
                 </div>
               );
             })

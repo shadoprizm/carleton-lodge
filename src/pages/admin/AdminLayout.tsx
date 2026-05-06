@@ -1,20 +1,27 @@
-import { NavLink, Outlet, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { AdminSection } from '../../lib/adminPermissions';
 
 const navItems = [
-  { label: 'Users', path: '/admin/users', icon: Users },
-  { label: 'Members', path: '/admin/members', icon: UserCircle },
-  { label: 'Events', path: '/admin/events', icon: Calendar },
-  { label: 'Summons', path: '/admin/summons', icon: FileText },
-  { label: 'Library', path: '/admin/library', icon: Library },
-  { label: 'History', path: '/admin/history', icon: BookOpen },
-  { label: 'Gallery', path: '/admin/gallery', icon: Images },
-  { label: 'Contact', path: '/admin/contact', icon: MessageSquare },
+  { label: 'Users', path: '/admin/users', icon: Users, fullAdminOnly: true },
+  { label: 'Members', path: '/admin/members', icon: UserCircle, section: 'members' },
+  { label: 'Events', path: '/admin/events', icon: Calendar, section: 'events' },
+  { label: 'Summons', path: '/admin/summons', icon: FileText, section: 'summons' },
+  { label: 'Library', path: '/admin/library', icon: Library, section: 'library' },
+  { label: 'History', path: '/admin/history', icon: BookOpen, section: 'history' },
+  { label: 'Gallery', path: '/admin/gallery', icon: Images, section: 'gallery' },
+  { label: 'Contact', path: '/admin/contact', icon: MessageSquare, section: 'contact' },
 ];
 
 export const AdminLayout = () => {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, canAccessAdmin, hasAdminPermission, loading } = useAuth();
+  const location = useLocation();
+
+  const permittedItems = navItems.filter((item) =>
+    item.fullAdminOnly ? isAdmin : hasAdminPermission(item.section as AdminSection)
+  );
+  const firstPermittedPath = permittedItems[0]?.path ?? '/';
 
   if (loading) {
     return (
@@ -24,8 +31,22 @@ export const AdminLayout = () => {
     );
   }
 
-  if (!isAdmin) {
+  if (!canAccessAdmin) {
     return <Navigate to="/" replace />;
+  }
+
+  const currentItem = navItems.find((item) =>
+    location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+  );
+
+  if (currentItem) {
+    const allowed = currentItem.fullAdminOnly
+      ? isAdmin
+      : hasAdminPermission(currentItem.section as AdminSection);
+
+    if (!allowed) {
+      return <Navigate to={firstPermittedPath} replace />;
+    }
   }
 
   return (
@@ -44,7 +65,7 @@ export const AdminLayout = () => {
         <div className="flex flex-col md:flex-row gap-6">
           <aside className="md:w-56 flex-shrink-0">
             <nav className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              {navItems.map(({ label, path, icon: Icon }) => (
+              {permittedItems.map(({ label, path, icon: Icon }) => (
                 <NavLink
                   key={path}
                   to={path}

@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
-import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Wand2 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 type LinkModalState = {
+  member: LodgeMemberWithPosition;
+};
+
+type LoginModalState = {
   member: LodgeMemberWithPosition;
 };
 
@@ -16,7 +21,15 @@ function isOfficer(member: LodgeMemberWithPosition) {
   return !!member.lodge_positions && !isRegularMemberPosition(member.lodge_positions);
 }
 
+function generateTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const values = crypto.getRandomValues(new Uint32Array(14));
+  return Array.from(values, value => alphabet[value % alphabet.length]).join('');
+}
+
 export const MembersManager = () => {
+  const { hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('members', 'write');
   const [members, setMembers] = useState<LodgeMemberWithPosition[]>([]);
   const [positions, setPositions] = useState<LodgePosition[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -25,7 +38,13 @@ export const MembersManager = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState<LodgeMemberWithPosition | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
+  const [loginModal, setLoginModal] = useState<LoginModalState | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [loginSaving, setLoginSaving] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -148,6 +167,56 @@ export const MembersManager = () => {
     setSelectedProfileId(member.linked_profile_id || '');
   };
 
+  const openLoginModal = (member: LodgeMemberWithPosition) => {
+    setLoginModal({ member });
+    setLoginEmail(member.email || (member.linked_profile_id ? getProfileEmail(member.linked_profile_id) : ''));
+    setTemporaryPassword(generateTemporaryPassword());
+    setLoginError(null);
+    setLoginSuccess(null);
+  };
+
+  const closeLoginModal = () => {
+    setLoginModal(null);
+    setLoginEmail('');
+    setTemporaryPassword('');
+    setLoginError(null);
+    setLoginSuccess(null);
+  };
+
+  const handleLoginSave = async () => {
+    if (!loginModal) return;
+    if (!loginEmail.trim()) {
+      setLoginError('Email is required.');
+      return;
+    }
+    if (temporaryPassword.length < 8) {
+      setLoginError('Temporary password must be at least 8 characters.');
+      return;
+    }
+
+    setLoginSaving(true);
+    setLoginError(null);
+    setLoginSuccess(null);
+
+    const { error } = await supabase.functions.invoke('manage-member-login', {
+      body: {
+        memberId: loginModal.member.id,
+        email: loginEmail.trim(),
+        temporaryPassword,
+      },
+    });
+
+    setLoginSaving(false);
+
+    if (error) {
+      setLoginError(error.message);
+      return;
+    }
+
+    setLoginSuccess('Login credentials saved. The member will be required to change this password after signing in.');
+    fetchData();
+  };
+
   const resetForm = () => {
     setFormData({
       full_name: '',
@@ -174,20 +243,26 @@ export const MembersManager = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-serif text-gray-900">Lodge Roster</h3>
-        <button
-          onClick={() => {
-            resetForm();
-            setEditingMember(null);
-            setShowForm(true);
-          }}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
-        >
-          <Plus size={18} />
-          <span>Add Member</span>
-        </button>
+        {canWrite ? (
+          <button
+            onClick={() => {
+              resetForm();
+              setEditingMember(null);
+              setShowForm(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
+          >
+            <Plus size={18} />
+            <span>Add Member</span>
+          </button>
+        ) : (
+          <span className="text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
-      {showForm && (
+      {canWrite && showForm && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-lg font-serif text-gray-900">
@@ -316,7 +391,7 @@ export const MembersManager = () => {
         </div>
       )}
 
-      {linkModal && (
+      {canWrite && linkModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
@@ -358,6 +433,78 @@ export const MembersManager = () => {
                 className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
               >
                 Save Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canWrite && loginModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h4 className="text-lg font-serif text-gray-900">Set Member Login</h4>
+              <button onClick={closeLoginModal} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Assign login credentials for <strong>{loginModal.member.full_name}</strong>. They will be prompted to change
+                the temporary password after signing in.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Login Email</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(event) => setLoginEmail(event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+                  placeholder="member@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={temporaryPassword}
+                    onChange={(event) => setTemporaryPassword(event.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900 font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTemporaryPassword(generateTemporaryPassword())}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    <Wand2 size={15} />
+                    Generate
+                  </button>
+                </div>
+              </div>
+
+              {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+              {loginSuccess && (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+                  {loginSuccess}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+              <button
+                onClick={closeLoginModal}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleLoginSave}
+                disabled={loginSaving}
+                className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors disabled:opacity-60"
+              >
+                {loginSaving ? 'Saving...' : 'Save Login'}
               </button>
             </div>
           </div>
@@ -412,7 +559,7 @@ export const MembersManager = () => {
                 )}
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Account</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
+                  {canWrite && <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -439,7 +586,7 @@ export const MembersManager = () => {
                       <span className="text-xs text-gray-400 italic">Not linked</span>
                     )}
                   </td>
-                  <td className="py-3 px-4">
+                  {canWrite && <td className="py-3 px-4">
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => handleEdit(member)}
@@ -466,6 +613,13 @@ export const MembersManager = () => {
                         </button>
                       )}
                       <button
+                        onClick={() => openLoginModal(member)}
+                        className="text-slate-500 hover:text-blue-900"
+                        title={member.linked_profile_id ? 'Reset login credentials' : 'Set login credentials'}
+                      >
+                        <KeyRound size={16} />
+                      </button>
+                      <button
                         onClick={() => handleDelete(member.id)}
                         className="text-red-500 hover:text-red-700"
                         title="Delete"
@@ -473,7 +627,7 @@ export const MembersManager = () => {
                         <Trash2 size={16} />
                       </button>
                     </div>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>

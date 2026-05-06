@@ -15,7 +15,8 @@ function documentTitleFromFilename(filename: string): string {
 }
 
 export const AdminLibraryPage = () => {
-  const { user } = useAuth();
+  const { user, hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('library', 'write');
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [documents, setDocuments] = useState<DocumentWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +86,7 @@ export const AdminLibraryPage = () => {
           <h2 className="text-xl font-serif text-slate-900">Document Library</h2>
           <p className="text-sm text-slate-500 mt-1">Upload and organise lodge documents</p>
         </div>
-        <div className="flex items-center space-x-2">
+        {canWrite ? <div className="flex items-center space-x-2">
           <button
             onClick={() => { setEditingCat(null); setShowCatForm(true); setShowDocForm(false); setShowBulkUpload(false); setActiveTab('categories'); }}
             className="flex items-center space-x-2 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
@@ -107,7 +108,11 @@ export const AdminLibraryPage = () => {
             <Upload size={15} />
             <span>Upload Document</span>
           </button>
-        </div>
+        </div> : (
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
       <div className="flex border-b border-slate-200 mb-6">
@@ -129,7 +134,7 @@ export const AdminLibraryPage = () => {
         ))}
       </div>
 
-      {showDocForm && (
+      {canWrite && showDocForm && (
         <DocumentForm
           categories={categories}
           editingDoc={editingDoc}
@@ -139,7 +144,7 @@ export const AdminLibraryPage = () => {
         />
       )}
 
-      {showBulkUpload && (
+      {canWrite && showBulkUpload && (
         <BulkUploadForm
           categories={categories}
           defaultCategoryId={categories.find((cat) => cat.name === BULK_INTAKE_CATEGORY_NAME)?.id ?? ''}
@@ -149,7 +154,7 @@ export const AdminLibraryPage = () => {
         />
       )}
 
-      {showCatForm && (
+      {canWrite && showCatForm && (
         <CategoryForm
           editingCat={editingCat}
           onDone={() => { setShowCatForm(false); setEditingCat(null); fetchData(); }}
@@ -186,6 +191,7 @@ export const AdminLibraryPage = () => {
                         <AdminDocRow
                           key={doc.id}
                           doc={doc}
+                          canWrite={canWrite}
                           onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                           onDelete={() => deleteDocument(doc)}
                         />
@@ -208,6 +214,7 @@ export const AdminLibraryPage = () => {
                   <AdminDocRow
                     key={doc.id}
                     doc={doc}
+                    canWrite={canWrite}
                     onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                     onDelete={() => deleteDocument(doc)}
                   />
@@ -234,7 +241,7 @@ export const AdminLibraryPage = () => {
                 </div>
                 {cat.description && <p className="text-sm text-slate-500 mt-1 ml-6">{cat.description}</p>}
               </div>
-              <div className="flex items-center space-x-1">
+              {canWrite && <div className="flex items-center space-x-1">
                 <button
                   onClick={() => { setEditingCat(cat); setShowCatForm(true); }}
                   className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -247,7 +254,7 @@ export const AdminLibraryPage = () => {
                 >
                   <Trash2 size={15} />
                 </button>
-              </div>
+              </div>}
             </div>
           ))}
           {categories.length === 0 && (
@@ -261,10 +268,12 @@ export const AdminLibraryPage = () => {
 
 const AdminDocRow = ({
   doc,
+  canWrite,
   onEdit,
   onDelete,
 }: {
   doc: DocumentWithCategory;
+  canWrite: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) => (
@@ -276,7 +285,7 @@ const AdminDocRow = ({
         <span className="text-xs text-slate-400">{doc.file_name}</span>
       </div>
     </div>
-    <div className="flex items-center space-x-1 ml-4">
+    {canWrite && <div className="flex items-center space-x-1 ml-4">
       <button
         onClick={onEdit}
         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -289,7 +298,7 @@ const AdminDocRow = ({
       >
         <Trash2 size={14} />
       </button>
-    </div>
+    </div>}
   </div>
 );
 

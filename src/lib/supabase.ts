@@ -42,10 +42,13 @@ export type Profile = {
   id: string;
   email: string;
   is_admin: boolean;
+  force_password_change: boolean;
   last_sign_in_at: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type { AdminSection, AdminSectionPermission, AdminPermissionLevel } from './adminPermissions';
 
 export type LodgePosition = {
   id: string;
