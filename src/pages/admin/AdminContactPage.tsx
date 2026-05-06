@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Mail, Trash2, MailOpen, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ContactSubmission {
   id: string;
@@ -13,6 +14,8 @@ interface ContactSubmission {
 }
 
 export const AdminContactPage = () => {
+  const { hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('contact', 'write');
   const [submissions, setSubmissions] = useState<ContactSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export const AdminContactPage = () => {
   const handleExpand = (id: string) => {
     const next = expandedId === id ? null : id;
     setExpandedId(next);
-    if (next) {
+    if (next && canWrite) {
       const sub = submissions.find((s) => s.id === id);
       if (sub && !sub.is_read) markRead(id, true);
     }
@@ -173,20 +176,24 @@ export const AdminContactPage = () => {
                       Reply by Email
                     </a>
                     <div className="flex-1" />
-                    <button
-                      onClick={() => markRead(sub.id, !sub.is_read)}
-                      className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
-                    >
-                      <MailOpen size={14} />
-                      {sub.is_read ? 'Mark Unread' : 'Mark Read'}
-                    </button>
-                    <button
-                      onClick={() => deleteSubmission(sub.id)}
-                      className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          onClick={() => markRead(sub.id, !sub.is_read)}
+                          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+                        >
+                          <MailOpen size={14} />
+                          {sub.is_read ? 'Mark Unread' : 'Mark Read'}
+                        </button>
+                        <button
+                          onClick={() => deleteSubmission(sub.id)}
+                          className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

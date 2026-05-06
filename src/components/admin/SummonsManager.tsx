@@ -15,7 +15,8 @@ function extractStoragePath(pdfUrl: string): string {
 }
 
 export const SummonsManager = () => {
-  const { user } = useAuth();
+  const { user, hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('summons', 'write');
   const [summonsList, setSummonsList] = useState<Summons[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -278,16 +279,22 @@ export const SummonsManager = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-serif text-gray-900">Summons Management</h3>
-        <button
-          onClick={openNewForm}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
-        >
-          <Plus size={18} />
-          <span>Post New Summons</span>
-        </button>
+        {canWrite ? (
+          <button
+            onClick={openNewForm}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
+          >
+            <Plus size={18} />
+            <span>Post New Summons</span>
+          </button>
+        ) : (
+          <span className="text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
-      {showForm && (
+      {canWrite && showForm && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-6">
             <h4 className="text-lg font-serif text-gray-900">
@@ -512,7 +519,7 @@ export const SummonsManager = () => {
                     <p className="text-sm text-gray-600 mt-2 line-clamp-2">{summons.content}</p>
                   )}
                 </div>
-                <div className="flex items-center space-x-2 ml-4">
+                {canWrite && <div className="flex items-center space-x-2 ml-4">
                   <button
                     onClick={() => handleEdit(summons)}
                     className="text-blue-900 hover:text-blue-700 p-2"
@@ -525,7 +532,7 @@ export const SummonsManager = () => {
                   >
                     Delete
                   </button>
-                </div>
+                </div>}
               </div>
             </div>
           ))}

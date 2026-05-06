@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Navigation } from './components/Navigation';
 import { AuthModal } from './components/AuthModal';
 import { NotificationSettings } from './components/NotificationSettings';
+import { ForcePasswordChangeModal } from './components/ForcePasswordChangeModal';
 import { HomePage } from './pages/HomePage';
 import { CalendarPage } from './pages/CalendarPage';
 import { SummonsPage } from './pages/SummonsPage';
@@ -25,51 +26,58 @@ import { AdminGalleryPage } from './pages/admin/AdminGalleryPage';
 import { AdminContactPage } from './pages/admin/AdminContactPage';
 
 function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
+  );
+}
+
+const AppShell = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
   return (
-    <AuthProvider>
-      <div className="min-h-screen bg-white">
-        <Navigation
-          onAuthClick={() => setIsAuthModalOpen(true)}
-          onNotificationClick={() => setIsNotificationSettingsOpen(true)}
-        />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/summons" element={<SummonsPage />} />
-          <Route path="/members" element={<MembersPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/history/:slug" element={<HistoryPage />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
-          <Route path="/links" element={<LinksPage />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/users" replace />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="members" element={<AdminMembersPage />} />
-            <Route path="events" element={<AdminEventsPage />} />
-            <Route path="summons" element={<AdminSummonsPage />} />
-            <Route path="library" element={<AdminLibraryPage />} />
-            <Route path="history" element={<AdminHistoryPage />} />
-            <Route path="gallery" element={<AdminGalleryPage />} />
-            <Route path="contact" element={<AdminContactPage />} />
-          </Route>
-        </Routes>
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-        />
-        <NotificationSettings
-          isOpen={isNotificationSettingsOpen}
-          onClose={() => setIsNotificationSettingsOpen(false)}
-        />
-      </div>
-    </AuthProvider>
+    <div className="min-h-screen bg-white">
+      <Navigation
+        onAuthClick={() => setIsAuthModalOpen(true)}
+        onNotificationClick={() => setIsNotificationSettingsOpen(true)}
+      />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/summons" element={<SummonsPage />} />
+        <Route path="/members" element={<MembersPage />} />
+        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/history/:slug" element={<HistoryPage />} />
+        <Route path="/gallery" element={<GalleryPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+        <Route path="/links" element={<LinksPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/users" replace />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="members" element={<AdminMembersPage />} />
+          <Route path="events" element={<AdminEventsPage />} />
+          <Route path="summons" element={<AdminSummonsPage />} />
+          <Route path="library" element={<AdminLibraryPage />} />
+          <Route path="history" element={<AdminHistoryPage />} />
+          <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="contact" element={<AdminContactPage />} />
+        </Route>
+      </Routes>
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+      <NotificationSettings
+        isOpen={isNotificationSettingsOpen}
+        onClose={() => setIsNotificationSettingsOpen(false)}
+      />
+      <ForcePasswordChangeModal />
+    </div>
   );
-}
+};
 
 export default App;

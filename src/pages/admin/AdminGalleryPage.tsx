@@ -26,7 +26,8 @@ interface PhotoFormData {
 }
 
 export const AdminGalleryPage = () => {
-  const { user } = useAuth();
+  const { user, hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('gallery', 'write');
   const [albums, setAlbums] = useState<(PhotoAlbum & { photo_count: number; cover_url: string | null })[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<PhotoAlbum | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -241,7 +242,7 @@ export const AdminGalleryPage = () => {
               <div className="flex items-center gap-2 mt-0.5">{visibilityBadge(selectedAlbum.visibility)}<span className="text-xs text-slate-400">{photos.length} photos</span></div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {canWrite && <div className="flex items-center gap-2">
             <button onClick={() => openAlbumForm(selectedAlbum)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
               <Edit2 size={14} />Edit Album
             </button>
@@ -249,10 +250,10 @@ export const AdminGalleryPage = () => {
               <Upload size={14} />Upload Photos
             </button>
             <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={e => handleFileSelect(e.target.files)} />
-          </div>
+          </div>}
         </div>
 
-        {showUploadPanel && uploadQueue.length > 0 && (
+        {canWrite && showUploadPanel && uploadQueue.length > 0 && (
           <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
               <span className="text-sm font-medium text-slate-700">{uploadQueue.length} photo{uploadQueue.length !== 1 ? 's' : ''} ready to upload</span>
@@ -314,13 +315,13 @@ export const AdminGalleryPage = () => {
               <div key={photo.id} className="group relative rounded-xl overflow-hidden bg-slate-100 aspect-square">
                 <img src={photo.public_url} alt={photo.title ?? ''} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex flex-col justify-between p-2 opacity-0 group-hover:opacity-100">
-                  <div className="flex justify-end gap-1">
+                  {canWrite && <div className="flex justify-end gap-1">
                     <button onClick={() => openEditPhoto(photo)} className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"><Edit2 size={13} className="text-slate-700" /></button>
                     <button onClick={() => setCover(photo)} title="Set as album cover" className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"><Eye size={13} className="text-slate-700" /></button>
                     <button onClick={() => deletePhoto(photo)} disabled={deletingId === photo.id} className="p-1.5 bg-white/90 rounded-lg hover:bg-red-50 transition-colors">
                       {deletingId === photo.id ? <Loader size={13} className="animate-spin text-slate-700" /> : <Trash2 size={13} className="text-red-500" />}
                     </button>
-                  </div>
+                  </div>}
                   {photo.title && <p className="text-xs text-white font-medium truncate">{photo.title}</p>}
                 </div>
                 {photo.visibility !== 'inherit' && <div className="absolute top-1.5 left-1.5">{visibilityBadge(photo.visibility)}</div>}
@@ -332,7 +333,7 @@ export const AdminGalleryPage = () => {
           </div>
         )}
 
-        {editingPhoto && (
+        {canWrite && editingPhoto && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
               <div className="flex items-center justify-between mb-5">
@@ -387,9 +388,15 @@ export const AdminGalleryPage = () => {
           <h2 className="text-lg font-semibold text-slate-900">Photo Gallery</h2>
           <p className="text-sm text-slate-500 mt-0.5">Manage photo albums and images</p>
         </div>
-        <button onClick={() => openAlbumForm()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors">
-          <Plus size={15} />New Album
-        </button>
+        {canWrite ? (
+          <button onClick={() => openAlbumForm()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors">
+            <Plus size={15} />New Album
+          </button>
+        ) : (
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
       {albums.length === 0 ? (
@@ -407,10 +414,10 @@ export const AdminGalleryPage = () => {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Image size={32} className="text-slate-300" /></div>
                 )}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                {canWrite && <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                   <button onClick={() => openAlbumForm(album)} className="p-1.5 bg-white/90 rounded-lg hover:bg-white shadow-sm transition-colors"><Edit2 size={13} className="text-slate-600" /></button>
                   <button onClick={() => deleteAlbum(album.id)} className="p-1.5 bg-white/90 rounded-lg hover:bg-red-50 shadow-sm transition-colors"><Trash2 size={13} className="text-red-500" /></button>
-                </div>
+                </div>}
               </div>
               <div className="p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -427,7 +434,7 @@ export const AdminGalleryPage = () => {
         </div>
       )}
 
-      {showAlbumForm && (
+      {canWrite && showAlbumForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">

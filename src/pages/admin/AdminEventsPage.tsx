@@ -22,7 +22,8 @@ const emptyForm = {
 };
 
 export const AdminEventsPage = () => {
-  const { user } = useAuth();
+  const { user, hasAdminPermission } = useAuth();
+  const canWrite = hasAdminPermission('events', 'write');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -140,16 +141,22 @@ export const AdminEventsPage = () => {
           <p className="text-sm text-slate-500 mt-1">Schedule and manage lodge events</p>
           {error && <p className="text-sm text-red-700 mt-2">{error}</p>}
         </div>
-        <button
-          onClick={() => { setShowForm(!showForm); setEditingId(null); }}
-          className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-amber-300 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={16} />
-          <span>Add Event</span>
-        </button>
+        {canWrite ? (
+          <button
+            onClick={() => { setShowForm(!showForm); setEditingId(null); }}
+            className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-amber-300 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+          >
+            <Plus size={16} />
+            <span>Add Event</span>
+          </button>
+        ) : (
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-3 py-1">
+            Read only
+          </span>
+        )}
       </div>
 
-      {showForm && (
+      {canWrite && showForm && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
           <h3 className="text-base font-semibold text-slate-900 mb-4">New Event</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -387,7 +394,7 @@ export const AdminEventsPage = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 ml-4">
+                  {canWrite && <div className="flex items-center gap-1 ml-4">
                     <button onClick={() => startEdit(event)}
                       className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                       title="Edit event">
@@ -398,7 +405,7 @@ export const AdminEventsPage = () => {
                       title="Delete event">
                       <Trash2 size={15} />
                     </button>
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>

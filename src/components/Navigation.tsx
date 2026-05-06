@@ -10,7 +10,7 @@ interface NavigationProps {
 }
 
 export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps) => {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, canAccessAdmin, loading, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [membersDropdownOpen, setMembersDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -132,7 +132,7 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
                 >
                   <Bell size={18} />
                 </button>
-                {!loading && isAdmin && (
+                {!loading && canAccessAdmin && (
                   <NavLink
                     to="/admin"
                     className={({ isActive }) =>
@@ -220,7 +220,7 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
                   <Bell size={16} />
                   <span>Notifications</span>
                 </button>
-                {!loading && isAdmin && (
+                {!loading && canAccessAdmin && (
                   <NavLink
                     to="/admin"
                     onClick={handleNavClick}
