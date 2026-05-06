@@ -105,16 +105,25 @@ export const Summons = () => {
     setOpeningPdf(pdfUrl);
     
     try {
-      const path = extractStoragePath(pdfUrl);
-      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60);
-      
-      if (error || !data?.signedUrl) {
-        setOpeningPdf(null);
-        return;
+      let fetchUrl: string;
+
+      // If pdfUrl is already a full public URL (e.g. from old project storage), use it directly
+      if (pdfUrl.startsWith('http') && pdfUrl.includes('/object/public/')) {
+        fetchUrl = pdfUrl;
+      } else {
+        // Create a signed URL for private storage paths
+        const path = extractStoragePath(pdfUrl);
+        const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60);
+        
+        if (error || !data?.signedUrl) {
+          setOpeningPdf(null);
+          return;
+        }
+        fetchUrl = data.signedUrl;
       }
 
       // Fetch the PDF content to hide the Supabase URL
-      const response = await fetch(data.signedUrl);
+      const response = await fetch(fetchUrl);
       if (!response.ok) {
         setOpeningPdf(null);
         return;
