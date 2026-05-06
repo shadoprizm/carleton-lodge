@@ -40,7 +40,7 @@ export const AdminUsersPage = () => {
       setProfiles(
         profilesRes.data.map((profile) => ({
           ...profile,
-          last_sign_in_at: signInsById.get(profile.id) ?? null,
+          last_sign_in_at: signInsById.get(profile.id) ?? profile.last_sign_in_at ?? null,
         }))
       );
     }

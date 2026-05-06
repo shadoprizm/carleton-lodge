@@ -3,6 +3,8 @@ import { Plus, Trash2, MapPin, Clock, Calendar, ExternalLink, Pencil, X, Check }
 import { supabase, Event } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PlacesAutocomplete } from '../../components/PlacesAutocomplete';
+import { RichTextEditor } from '../../components/RichTextEditor';
+import { prepareRichTextForStorage, richTextHasEmbeds, richTextToPlainText } from '../../utils/richText';
 
 const getMapsUrl = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -51,10 +53,11 @@ export const AdminEventsPage = () => {
     }
 
     setError(null);
+    const descriptionHtml = prepareRichTextForStorage(formData.description);
     const { error } = await supabase.from('events').insert({
       ...formData,
       title: formData.title.trim(),
-      description: (formData.description ?? '').trim() || '',
+      description: descriptionHtml || null,
       location: formData.location.trim(),
       event_time: formData.event_time || null,
       event_end_time: formData.event_end_time || null,
@@ -96,12 +99,13 @@ export const AdminEventsPage = () => {
     e.preventDefault();
     if (!editingId) return;
     setError(null);
+    const descriptionHtml = prepareRichTextForStorage(editData.description);
     const { error } = await supabase
       .from('events')
       .update({
         ...editData,
         title: editData.title.trim(),
-        description: (editData.description ?? '').trim() || '',
+        description: descriptionHtml || null,
         location: editData.location.trim(),
         event_time: editData.event_time || null,
         event_end_time: editData.event_end_time || null,
@@ -160,9 +164,10 @@ export const AdminEventsPage = () => {
                 Description
                 <span className="text-slate-400 font-normal ml-1">(optional)</span>
               </label>
-              <textarea value={formData.description} rows={3}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className={inputClass} />
+              <RichTextEditor
+                value={formData.description}
+                onChange={(description) => setFormData({ ...formData, description })}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
@@ -267,9 +272,10 @@ export const AdminEventsPage = () => {
                         Description
                         <span className="text-slate-400 font-normal ml-1">(optional)</span>
                       </label>
-                      <textarea value={editData.description} rows={3}
-                        onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                        className={inputClass} />
+                      <RichTextEditor
+                        value={editData.description}
+                        onChange={(description) => setEditData({ ...editData, description })}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">Date</label>
@@ -351,8 +357,10 @@ export const AdminEventsPage = () => {
                 <div className="flex items-start justify-between p-4">
                   <div className="flex-1">
                     <h4 className="font-semibold text-slate-900">{event.title}</h4>
-                    {event.description && (
-                      <p className="text-sm text-slate-500 mt-1">{event.description}</p>
+                    {(richTextToPlainText(event.description) || richTextHasEmbeds(event.description)) && (
+                      <p className="text-sm text-slate-500 mt-1">
+                        {richTextToPlainText(event.description) || 'Contains embedded media or files.'}
+                      </p>
                     )}
                     <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
                       <span className="flex items-center space-x-1">

@@ -3,6 +3,9 @@ import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { PlacesAutocomplete } from './PlacesAutocomplete';
+import { RichTextEditor } from './RichTextEditor';
+import { prepareRichTextForStorage } from '../utils/richText';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -31,9 +34,11 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
     setError('');
     setLoading(true);
 
+    const descriptionHtml = prepareRichTextForStorage(description);
+
     const { error } = await supabase.from('events').insert({
       title: title.trim(),
-      description: (description ?? '').trim() || '',
+      description: descriptionHtml || null,
       event_date: eventDate,
       event_time: eventTime || null,
       event_end_time: eventEndTime || null,
@@ -111,12 +116,11 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
                   Description
                   <span className="text-gray-400 font-normal ml-1">(optional)</span>
                 </label>
-                <textarea
+                <RichTextEditor
                   id="description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
+                  onChange={setDescription}
+                  className="w-full"
                 />
               </div>
 
@@ -184,13 +188,11 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
                   Street Address
                   <span className="text-gray-400 font-normal ml-1">(optional — used for Google Maps link)</span>
                 </label>
-                <input
+                <PlacesAutocomplete
                   id="locationAddress"
-                  type="text"
-                  placeholder="e.g. 123 Main St, Ottawa, ON K1A 0A1"
                   value={locationAddress}
-                  onChange={(e) => setLocationAddress(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
+                  onChange={setLocationAddress}
+                  className="w-full px-4 py-2 pr-9 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
                 />
               </div>
 

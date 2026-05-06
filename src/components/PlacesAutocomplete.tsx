@@ -3,6 +3,7 @@ import { Loader2, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface PlacesAutocompleteProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -17,6 +18,7 @@ interface PlacePrediction {
 }
 
 export const PlacesAutocomplete = ({
+  id,
   value,
   onChange,
   placeholder = 'e.g. 123 Main St, Ottawa, ON K1A 0A1',
@@ -110,6 +112,7 @@ export const PlacesAutocomplete = ({
   return (
     <div ref={containerRef} className="relative">
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

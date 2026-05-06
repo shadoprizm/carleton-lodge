@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { AuthError, User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
 
 interface AuthContextType {
@@ -8,8 +8,8 @@ interface AuthContextType {
   profile: Profile | null;
   isAdmin: boolean;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -38,6 +38,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
+  const recordLogin = async () => {
+    const { error } = await supabase.rpc('record_current_user_login');
+    if (error) {
+      console.warn('Could not update last login timestamp:', error.message);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -60,12 +67,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       (async () => {
         if (!mounted) return;
         setLoading(true);
         setSession(session);
         if (session?.user) {
+          if (event === 'SIGNED_IN') {
+            await recordLogin();
+          }
           const profileData = await fetchProfile(session.user.id);
           if (!mounted) return;
           setUser(session.user);
@@ -86,6 +96,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) {
+      await recordLogin();
+    }
     return { error };
   };
 

@@ -23,6 +23,10 @@ const ORG_TIERS: Record<string, number> = {
   'Piper': 3,
 };
 
+function isRegularMemberPosition(positionName: string | null | undefined) {
+  return positionName?.trim().toLowerCase() === 'member';
+}
+
 function getInitials(name: string) {
   const parts = name.replace(/^(W\.\s*Bro\.|V\.W\.\s*Bro\.|Bro\.|V\.W\.)/i, '').trim().split(' ');
   return parts.filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
@@ -385,7 +389,7 @@ export const MembersDirectory = () => {
   const sw = wardens.find(m => m.lodge_positions?.name === 'Senior Warden');
   const jw = wardens.find(m => m.lodge_positions?.name === 'Junior Warden');
   const tier3Officers = sorted.filter(m => ORG_TIERS[m.lodge_positions?.name ?? ''] === 3);
-  const otherMembers = sorted.filter(m => !m.lodge_positions);
+  const otherMembers = sorted.filter(m => !m.lodge_positions || isRegularMemberPosition(m.lodge_positions.name));
 
   // Ensure refs exist for all tier3 officers
   tier3Officers.forEach(m => {

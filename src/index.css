@@ -37,3 +37,149 @@
 html {
   scroll-behavior: smooth;
 }
+
+.rich-text-editor[contenteditable='true']:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.rich-text {
+  --rt-text: #334155;
+  --rt-muted: #64748b;
+  --rt-link: #b45309;
+  --rt-border: #cbd5e1;
+  --rt-card: rgba(248, 250, 252, 0.88);
+  color: var(--rt-text);
+  line-height: 1.7;
+}
+
+.rich-text > * + * {
+  margin-top: 0.9rem;
+}
+
+.rich-text p,
+.rich-text div,
+.rich-text blockquote,
+.rich-text ul,
+.rich-text ol,
+.rich-text figure,
+.rich-text h3,
+.rich-text h4 {
+  margin: 0.9rem 0 0;
+}
+
+.rich-text h3,
+.rich-text h4 {
+  color: inherit;
+  line-height: 1.25;
+}
+
+.rich-text h3 {
+  font-size: 1.1rem;
+}
+
+.rich-text h4 {
+  font-size: 1rem;
+}
+
+.rich-text ul,
+.rich-text ol {
+  padding-left: 1.4rem;
+}
+
+.rich-text li + li {
+  margin-top: 0.35rem;
+}
+
+.rich-text blockquote {
+  border-left: 3px solid var(--rt-border);
+  color: var(--rt-muted);
+  padding-left: 1rem;
+}
+
+.rich-text a {
+  color: var(--rt-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rich-text a[data-kind='attachment'] {
+  align-items: center;
+  background: var(--rt-card);
+  border: 1px solid var(--rt-border);
+  border-radius: 0.9rem;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  text-decoration: none;
+}
+
+.rich-text a[data-kind='attachment']::before {
+  content: 'File';
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  text-transform: uppercase;
+}
+
+.rich-text img {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--rt-border);
+  border-radius: 0.9rem;
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.rich-text figure {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.rich-text figcaption {
+  color: var(--rt-muted);
+  font-size: 0.85rem;
+  margin-top: 0.45rem;
+}
+
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--rt-border);
+  margin: 1rem 0 0;
+}
+
+.rich-text-light {
+  --rt-text: #475569;
+  --rt-muted: #64748b;
+  --rt-link: #b45309;
+  --rt-border: #cbd5e1;
+  --rt-card: rgba(248, 250, 252, 0.95);
+}
+
+.rich-text-dark {
+  --rt-text: #e2e8f0;
+  --rt-muted: #cbd5e1;
+  --rt-link: #fbbf24;
+  --rt-border: rgba(251, 191, 36, 0.22);
+  --rt-card: rgba(15, 23, 42, 0.5);
+}
+
+.rich-text-dark img {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.rich-text-compact {
+  line-height: 1.6;
+}
+
+.rich-text-compact > * + * {
+  margin-top: 0.75rem;
+}
+
+.rich-text-compact img {
+  max-height: 16rem;
+  object-fit: contain;
+  width: 100%;
+}

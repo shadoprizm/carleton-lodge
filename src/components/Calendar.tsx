@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, MapPin, Clock, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { RichTextContent } from './RichTextContent';
 
 interface Event {
   id: string;
   title: string;
   event_date: string;
   event_time: string | null;
-  description: string;
+  description: string | null;
   location: string;
   location_address: string | null;
 }
@@ -216,9 +217,11 @@ export const Calendar = () => {
                           {event.title}
                         </h5>
                         {event.description && (
-                          <p className="text-slate-300 text-sm mb-3">
-                            {event.description}
-                          </p>
+                          <RichTextContent
+                            html={event.description}
+                            tone="dark"
+                            className="mb-4 text-sm"
+                          />
                         )}
                         <div className="flex flex-wrap gap-4 text-sm">
                           {event.event_time && (

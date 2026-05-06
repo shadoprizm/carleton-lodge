@@ -10,6 +10,12 @@ interface RequestBody {
   summonsId: string;
 }
 
+interface NotificationPreferenceWithProfile {
+  profiles: {
+    email: string;
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -88,8 +94,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const emailsToSend = notificationPrefs.map(pref => ({
-      email: (pref.profiles as any).email,
+    const emailsToSend = (notificationPrefs as NotificationPreferenceWithProfile[]).map(pref => ({
+      email: pref.profiles.email,
       subject: `New Summons: ${summons.title}`,
       message: `
 A new summons has been posted for ${summons.month}.

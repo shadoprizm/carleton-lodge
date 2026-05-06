@@ -6,6 +6,16 @@ type LinkModalState = {
   member: LodgeMemberWithPosition;
 };
 
+const REGULAR_MEMBER_POSITION_NAME = 'member';
+
+function isRegularMemberPosition(position: LodgePosition | null | undefined) {
+  return position?.name.trim().toLowerCase() === REGULAR_MEMBER_POSITION_NAME;
+}
+
+function isOfficer(member: LodgeMemberWithPosition) {
+  return !!member.lodge_positions && !isRegularMemberPosition(member.lodge_positions);
+}
+
 export const MembersManager = () => {
   const [members, setMembers] = useState<LodgeMemberWithPosition[]>([]);
   const [positions, setPositions] = useState<LodgePosition[]>([]);
@@ -95,7 +105,7 @@ export const MembersManager = () => {
       phone: member.phone || '',
       address: member.address || '',
       join_date: member.join_date || '',
-      position_id: member.position_id || '',
+      position_id: isOfficer(member) ? member.position_id || '' : '',
       bio: member.bio || '',
       visible_to_members: member.visible_to_members,
     });
@@ -155,8 +165,9 @@ export const MembersManager = () => {
     return profiles.find(p => p.id === profileId)?.email ?? profileId;
   };
 
-  const officers = members.filter(m => !!m.lodge_positions);
-  const regularMembers = members.filter(m => !m.lodge_positions);
+  const officerPositions = positions.filter(position => !isRegularMemberPosition(position));
+  const officers = members.filter(isOfficer);
+  const regularMembers = members.filter(m => !isOfficer(m));
   const displayedMembers = activeTab === 'officers' ? officers : regularMembers;
 
   return (
@@ -217,14 +228,14 @@ export const MembersManager = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Roster Type / Officer Position</label>
               <select
                 value={formData.position_id}
                 onChange={(e) => setFormData({ ...formData, position_id: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
               >
-                <option value="">Select position...</option>
-                {positions.map(position => (
+                <option value="">Regular Member</option>
+                {officerPositions.map(position => (
                   <option key={position.id} value={position.id}>
                     {position.name}
                   </option>
@@ -388,7 +399,7 @@ export const MembersManager = () => {
         <div className="text-center py-12 text-gray-500">
           {activeTab === 'officers'
             ? 'No officers found. Add a member with a position assigned.'
-            : 'No regular members found. Add a member without a position to see them here.'}
+            : 'No regular members found. Add a member as a regular member to see them here.'}
         </div>
       ) : (
         <div className="overflow-x-auto">

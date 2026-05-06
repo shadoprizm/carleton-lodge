@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { supabase, Event } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { EventModal } from './EventModal';
+import { RichTextContent } from './RichTextContent';
 
 export const Events = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -140,9 +141,14 @@ export const Events = () => {
                   <h3 className="text-2xl font-serif text-gray-900 mb-3 group-hover:text-blue-900 transition-colors">
                     {event.title}
                   </h3>
-                  <p className="text-gray-600 mb-4 line-clamp-2">
-                    {event.description}
-                  </p>
+                  {event.description && (
+                    <RichTextContent
+                      html={event.description}
+                      tone="light"
+                      compact
+                      className="mb-4 text-sm"
+                    />
+                  )}
 
                   <div className="space-y-2 text-sm text-gray-500">
                     {event.event_time && (
