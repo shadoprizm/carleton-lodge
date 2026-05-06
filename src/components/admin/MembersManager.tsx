@@ -27,6 +27,31 @@ function generateTemporaryPassword() {
   return Array.from(values, value => alphabet[value % alphabet.length]).join('');
 }
 
+async function getFunctionErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return 'Unable to save login credentials.';
+  }
+
+  const context = 'context' in error ? error.context : null;
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json();
+      if (body && typeof body.error === 'string') return body.error;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text.trim()) return text;
+      } catch {
+        // Fall back to the error message below.
+      }
+    }
+  }
+
+  return 'message' in error && typeof error.message === 'string'
+    ? error.message
+    : 'Unable to save login credentials.';
+}
+
 export const MembersManager = () => {
   const { hasAdminPermission } = useAuth();
   const canWrite = hasAdminPermission('members', 'write');
@@ -209,7 +234,7 @@ export const MembersManager = () => {
     setLoginSaving(false);
 
     if (error) {
-      setLoginError(error.message);
+      setLoginError(await getFunctionErrorMessage(error));
       return;
     }
 

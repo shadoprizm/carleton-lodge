@@ -18,6 +18,11 @@ type AuthUserSummary = {
   email?: string;
 };
 
+type PostgrestMaybeMissingError = {
+  code?: string;
+  message?: string;
+};
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,6 +51,14 @@ async function findAuthUserByEmail(
   }
 
   return null;
+}
+
+function isMissingRpc(error: PostgrestMaybeMissingError | null) {
+  return error?.code === "PGRST202" || error?.message?.toLowerCase().includes("could not find the function");
+}
+
+function isMissingColumn(error: PostgrestMaybeMissingError | null, columnName: string) {
+  return error?.code === "42703" || error?.message?.includes(columnName);
 }
 
 Deno.serve(async (req: Request) => {
@@ -94,8 +107,35 @@ Deno.serve(async (req: Request) => {
       { target_section: "members", access_level: "write" },
     );
 
-    if (permissionError || canManage !== true) {
+    let allowed = canManage === true;
+
+    if (permissionError && !isMissingRpc(permissionError)) {
+      throw permissionError;
+    }
+
+    if (!allowed && permissionError && isMissingRpc(permissionError)) {
+      const { data: isAdmin, error: adminError } = await supabaseUser.rpc("is_admin");
+      if (adminError) throw adminError;
+      allowed = isAdmin === true;
+    }
+
+    if (!allowed) {
       return jsonResponse({ error: "Forbidden" }, 403);
+    }
+
+    const { error: migrationCheckError } = await supabaseAdmin
+      .from("profiles")
+      .select("force_password_change")
+      .limit(1);
+
+    if (migrationCheckError) {
+      if (isMissingColumn(migrationCheckError, "force_password_change")) {
+        return jsonResponse(
+          { error: "Database migrations are not applied yet. Run the forced password change migration before assigning member logins." },
+          409,
+        );
+      }
+      throw migrationCheckError;
     }
 
     let body: RequestBody;
