@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Search, FileText, Download, Tag, ChevronDown, ChevronRight, Folder, FolderOpen, File, Eye } from 'lucide-react';
+import { Search, FileText, Download, Tag, ChevronDown, ChevronRight, Folder, FolderOpen, File, Eye, Filter, ArrowUpDown, X } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,19 @@ const FILE_TYPE_COLORS: Record<string, string> = {
   'text/plain': 'bg-slate-100 text-slate-700',
 };
 
+const ALL_FILTER_VALUE = 'all';
+
+type DocumentSortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'largest' | 'smallest';
+
+const DOCUMENT_SORT_OPTIONS: Array<{ value: DocumentSortOption; label: string }> = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'title-asc', label: 'Title A-Z' },
+  { value: 'title-desc', label: 'Title Z-A' },
+  { value: 'largest', label: 'Largest file' },
+  { value: 'smallest', label: 'Smallest file' },
+];
+
 function formatFileSize(bytes: number | null): string {
   if (!bytes) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -44,6 +57,26 @@ function getFileTypeColor(mimeType: string | null): string {
   return FILE_TYPE_COLORS[mimeType] || 'bg-slate-100 text-slate-700';
 }
 
+function sortDocuments(docs: DocumentWithCategory[], sortBy: DocumentSortOption): DocumentWithCategory[] {
+  return [...docs].sort((a, b) => {
+    switch (sortBy) {
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'title-asc':
+        return a.title.localeCompare(b.title);
+      case 'title-desc':
+        return b.title.localeCompare(a.title);
+      case 'largest':
+        return (b.file_size ?? 0) - (a.file_size ?? 0);
+      case 'smallest':
+        return (a.file_size ?? 0) - (b.file_size ?? 0);
+      case 'newest':
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
+}
+
 export const LibraryPage = () => {
   const { user, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
@@ -51,6 +84,9 @@ export const LibraryPage = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedFileType, setSelectedFileType] = useState(ALL_FILTER_VALUE);
+  const [selectedTag, setSelectedTag] = useState(ALL_FILTER_VALUE);
+  const [sortBy, setSortBy] = useState<DocumentSortOption>('newest');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [previewDoc, setPreviewDoc] = useState<DocumentWithCategory | null>(null);
 
@@ -116,20 +152,30 @@ export const LibraryPage = () => {
     });
   };
 
-  if (authLoading) return null;
-  if (!user) return <Navigate to="/" replace />;
+  const fileTypeOptions = useMemo(() => {
+    const uniqueTypes = Array.from(new Set(documents.map((doc) => doc.file_type).filter(Boolean) as string[]));
+    return uniqueTypes.sort((a, b) => getFileTypeLabel(a).localeCompare(getFileTypeLabel(b)));
+  }, [documents]);
 
-  const filteredDocs = documents.filter((doc) => {
+  const tagOptions = useMemo(() => {
+    const uniqueTags = Array.from(new Set(documents.flatMap((doc) => doc.tags ?? [])));
+    return uniqueTags.sort((a, b) => a.localeCompare(b));
+  }, [documents]);
+
+  const filteredDocs = sortDocuments(documents.filter((doc) => {
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
       doc.title.toLowerCase().includes(q) ||
       doc.description?.toLowerCase().includes(q) ||
       doc.file_name.toLowerCase().includes(q) ||
+      doc.document_categories?.name.toLowerCase().includes(q) ||
       doc.tags.some((t) => t.toLowerCase().includes(q));
     const matchesCategory = !selectedCategory || doc.category_id === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+    const matchesFileType = selectedFileType === ALL_FILTER_VALUE || doc.file_type === selectedFileType;
+    const matchesTag = selectedTag === ALL_FILTER_VALUE || doc.tags.includes(selectedTag);
+    return matchesSearch && matchesCategory && matchesFileType && matchesTag;
+  }), sortBy);
 
   const docsByCategory = categories.reduce<Record<string, DocumentWithCategory[]>>((acc, cat) => {
     acc[cat.id] = filteredDocs.filter((d) => d.category_id === cat.id);
@@ -138,6 +184,23 @@ export const LibraryPage = () => {
   const uncategorised = filteredDocs.filter((d) => !d.category_id);
 
   const totalDocs = documents.length;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    !!selectedCategory ||
+    selectedFileType !== ALL_FILTER_VALUE ||
+    selectedTag !== ALL_FILTER_VALUE ||
+    sortBy !== 'newest';
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedCategory(null);
+    setSelectedFileType(ALL_FILTER_VALUE);
+    setSelectedTag(ALL_FILTER_VALUE);
+    setSortBy('newest');
+  };
+
+  if (authLoading) return null;
+  if (!user) return <Navigate to="/" replace />;
 
   return (
     <>
@@ -193,15 +256,102 @@ export const LibraryPage = () => {
           </aside>
 
           <div className="flex-1 min-w-0 space-y-4">
-            <div className="relative">
-              <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search documents by title, description or tag..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+              <div className="grid md:grid-cols-[minmax(0,1fr)_auto] gap-3">
+                <div className="relative">
+                  <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search title, description, filename, category, or tag..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex items-center justify-center space-x-1.5 px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <X size={15} />
+                    <span>Clear</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <label className="space-y-1">
+                  <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                    <Folder size={13} />
+                    <span>Category</span>
+                  </span>
+                  <select
+                    value={selectedCategory ?? ALL_FILTER_VALUE}
+                    onChange={(e) => setSelectedCategory(e.target.value === ALL_FILTER_VALUE ? null : e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value={ALL_FILTER_VALUE}>All categories</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                    <Filter size={13} />
+                    <span>File type</span>
+                  </span>
+                  <select
+                    value={selectedFileType}
+                    onChange={(e) => setSelectedFileType(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value={ALL_FILTER_VALUE}>All file types</option>
+                    {fileTypeOptions.map((type) => (
+                      <option key={type} value={type}>{getFileTypeLabel(type)}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                    <Tag size={13} />
+                    <span>Tag</span>
+                  </span>
+                  <select
+                    value={selectedTag}
+                    onChange={(e) => setSelectedTag(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value={ALL_FILTER_VALUE}>All tags</option>
+                    {tagOptions.map((tag) => (
+                      <option key={tag} value={tag}>{tag}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                    <ArrowUpDown size={13} />
+                    <span>Sort</span>
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as DocumentSortOption)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    {DOCUMENT_SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="text-xs text-slate-500">
+                Showing {filteredDocs.length} of {totalDocs} document{totalDocs !== 1 ? 's' : ''}
+              </div>
             </div>
 
             {loading ? (
@@ -210,7 +360,7 @@ export const LibraryPage = () => {
               <div className="text-center py-20 bg-white rounded-xl border border-slate-200">
                 <FileText size={40} className="mx-auto text-slate-300 mb-3" />
                 <p className="text-slate-500 font-medium">No documents found</p>
-                {search && <p className="text-sm text-slate-400 mt-1">Try a different search term</p>}
+                {hasActiveFilters && <p className="text-sm text-slate-400 mt-1">Try clearing filters or using a different search term</p>}
               </div>
             ) : (
               <div className="space-y-4">

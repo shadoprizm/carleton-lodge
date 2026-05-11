@@ -1,17 +1,66 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
   Tag, ChevronDown, ChevronRight, Folder, FolderOpen, AlertCircle,
-  Files, CheckCircle2
+  Files, CheckCircle2, Search, Filter, ArrowUpDown
 } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 const DOCUMENTS_BUCKET = 'lodge-documents';
 const BULK_INTAKE_CATEGORY_NAME = 'Needs Sorting';
+const ALL_FILTER_VALUE = 'all';
+const UNCATEGORISED_FILTER_VALUE = 'uncategorised';
+
+type DocumentSortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'largest' | 'smallest';
+
+const DOCUMENT_SORT_OPTIONS: Array<{ value: DocumentSortOption; label: string }> = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'title-asc', label: 'Title A-Z' },
+  { value: 'title-desc', label: 'Title Z-A' },
+  { value: 'largest', label: 'Largest file' },
+  { value: 'smallest', label: 'Smallest file' },
+];
 
 function documentTitleFromFilename(filename: string): string {
   return filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
+}
+
+function getFileTypeLabel(mimeType: string | null): string {
+  if (!mimeType) return 'Unknown';
+  const labels: Record<string, string> = {
+    'application/pdf': 'PDF',
+    'application/msword': 'DOC',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+    'application/vnd.ms-excel': 'XLS',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+    'text/plain': 'TXT',
+    'image/jpeg': 'JPG',
+    'image/png': 'PNG',
+    'image/gif': 'GIF',
+  };
+  return labels[mimeType] || mimeType.split('/')[1]?.toUpperCase() || 'FILE';
+}
+
+function sortDocuments(docs: DocumentWithCategory[], sortBy: DocumentSortOption): DocumentWithCategory[] {
+  return [...docs].sort((a, b) => {
+    switch (sortBy) {
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'title-asc':
+        return a.title.localeCompare(b.title);
+      case 'title-desc':
+        return b.title.localeCompare(a.title);
+      case 'largest':
+        return (b.file_size ?? 0) - (a.file_size ?? 0);
+      case 'smallest':
+        return (a.file_size ?? 0) - (b.file_size ?? 0);
+      case 'newest':
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
 }
 
 export const AdminLibraryPage = () => {
@@ -22,6 +71,11 @@ export const AdminLibraryPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'documents' | 'categories'>('documents');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [docSearch, setDocSearch] = useState('');
+  const [selectedDocCategory, setSelectedDocCategory] = useState(ALL_FILTER_VALUE);
+  const [selectedDocFileType, setSelectedDocFileType] = useState(ALL_FILTER_VALUE);
+  const [selectedDocTag, setSelectedDocTag] = useState(ALL_FILTER_VALUE);
+  const [docSortBy, setDocSortBy] = useState<DocumentSortOption>('newest');
 
   const [showDocForm, setShowDocForm] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentWithCategory | null>(null);
@@ -73,11 +127,56 @@ export const AdminLibraryPage = () => {
     fetchData();
   };
 
+  const fileTypeOptions = useMemo(() => {
+    const uniqueTypes = Array.from(new Set(documents.map((doc) => doc.file_type).filter(Boolean) as string[]));
+    return uniqueTypes.sort((a, b) => getFileTypeLabel(a).localeCompare(getFileTypeLabel(b)));
+  }, [documents]);
+
+  const tagOptions = useMemo(() => {
+    const uniqueTags = Array.from(new Set(documents.flatMap((doc) => doc.tags ?? [])));
+    return uniqueTags.sort((a, b) => a.localeCompare(b));
+  }, [documents]);
+
+  const filteredDocuments = sortDocuments(documents.filter((doc) => {
+    const q = docSearch.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      doc.title.toLowerCase().includes(q) ||
+      doc.description?.toLowerCase().includes(q) ||
+      doc.file_name.toLowerCase().includes(q) ||
+      doc.document_categories?.name.toLowerCase().includes(q) ||
+      doc.tags.some((tag) => tag.toLowerCase().includes(q));
+    const matchesCategory =
+      selectedDocCategory === ALL_FILTER_VALUE ||
+      (selectedDocCategory === UNCATEGORISED_FILTER_VALUE
+        ? !doc.category_id
+        : doc.category_id === selectedDocCategory);
+    const matchesFileType = selectedDocFileType === ALL_FILTER_VALUE || doc.file_type === selectedDocFileType;
+    const matchesTag = selectedDocTag === ALL_FILTER_VALUE || doc.tags.includes(selectedDocTag);
+    return matchesSearch && matchesCategory && matchesFileType && matchesTag;
+  }), docSortBy);
+
+  const hasDocFilterCriteria =
+    docSearch.trim().length > 0 ||
+    selectedDocCategory !== ALL_FILTER_VALUE ||
+    selectedDocFileType !== ALL_FILTER_VALUE ||
+    selectedDocTag !== ALL_FILTER_VALUE;
+
+  const hasActiveDocFilters = hasDocFilterCriteria || docSortBy !== 'newest';
+
+  const clearDocFilters = () => {
+    setDocSearch('');
+    setSelectedDocCategory(ALL_FILTER_VALUE);
+    setSelectedDocFileType(ALL_FILTER_VALUE);
+    setSelectedDocTag(ALL_FILTER_VALUE);
+    setDocSortBy('newest');
+  };
+
   const docsByCategory = categories.reduce<Record<string, DocumentWithCategory[]>>((acc, cat) => {
-    acc[cat.id] = documents.filter((d) => d.category_id === cat.id);
+    acc[cat.id] = filteredDocuments.filter((d) => d.category_id === cat.id);
     return acc;
   }, {});
-  const uncategorised = documents.filter((d) => !d.category_id);
+  const uncategorised = filteredDocuments.filter((d) => !d.category_id);
 
   return (
     <div>
@@ -165,69 +264,176 @@ export const AdminLibraryPage = () => {
       {loading ? (
         <div className="text-center py-12 text-slate-500">Loading...</div>
       ) : activeTab === 'documents' ? (
-        <div className="space-y-3">
-          {categories.map((cat) => {
-            const catDocs = docsByCategory[cat.id] || [];
-            const isExpanded = expandedCategories.has(cat.id);
-            return (
-              <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="space-y-4">
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-3">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search title, description, filename, category, or tag..."
+                  value={docSearch}
+                  onChange={(e) => setDocSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+              {hasActiveDocFilters && (
                 <button
-                  onClick={() => toggleCategory(cat.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  type="button"
+                  onClick={clearDocFilters}
+                  className="inline-flex items-center justify-center space-x-1.5 px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-center space-x-2">
-                    {isExpanded ? <FolderOpen size={17} className="text-amber-500" /> : <Folder size={17} className="text-slate-400" />}
-                    <span className="font-semibold text-sm text-slate-800">{cat.name}</span>
-                    <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{catDocs.length}</span>
-                  </div>
-                  {isExpanded ? <ChevronDown size={15} className="text-slate-400" /> : <ChevronRight size={15} className="text-slate-400" />}
+                  <X size={15} />
+                  <span>Clear</span>
                 </button>
-                {isExpanded && (
-                  <div className="divide-y divide-slate-100">
-                    {catDocs.length === 0 ? (
-                      <div className="px-4 py-4 text-sm text-slate-400 italic">No documents in this category.</div>
-                    ) : (
-                      catDocs.map((doc) => (
-                        <AdminDocRow
-                          key={doc.id}
-                          doc={doc}
-                          canWrite={canWrite}
-                          onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
-                          onDelete={() => deleteDocument(doc)}
-                        />
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {uncategorised.length > 0 && (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="flex items-center space-x-2 px-4 py-3 bg-slate-50">
-                <Folder size={17} className="text-slate-400" />
-                <span className="font-semibold text-sm text-slate-800">Uncategorised</span>
-                <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{uncategorised.length}</span>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {uncategorised.map((doc) => (
-                  <AdminDocRow
-                    key={doc.id}
-                    doc={doc}
-                    canWrite={canWrite}
-                    onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
-                    onDelete={() => deleteDocument(doc)}
-                  />
-                ))}
-              </div>
+              )}
             </div>
-          )}
-          {documents.length === 0 && (
-            <div className="text-center py-16 text-slate-400">
-              <FileText size={36} className="mx-auto mb-3 text-slate-300" />
-              <p>No documents uploaded yet.</p>
+
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <label className="space-y-1">
+                <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                  <Folder size={13} />
+                  <span>Category</span>
+                </span>
+                <select
+                  value={selectedDocCategory}
+                  onChange={(e) => setSelectedDocCategory(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value={ALL_FILTER_VALUE}>All categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                  <option value={UNCATEGORISED_FILTER_VALUE}>Uncategorised</option>
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                  <Filter size={13} />
+                  <span>File type</span>
+                </span>
+                <select
+                  value={selectedDocFileType}
+                  onChange={(e) => setSelectedDocFileType(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value={ALL_FILTER_VALUE}>All file types</option>
+                  {fileTypeOptions.map((type) => (
+                    <option key={type} value={type}>{getFileTypeLabel(type)}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                  <Tag size={13} />
+                  <span>Tag</span>
+                </span>
+                <select
+                  value={selectedDocTag}
+                  onChange={(e) => setSelectedDocTag(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value={ALL_FILTER_VALUE}>All tags</option>
+                  {tagOptions.map((tag) => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-500">
+                  <ArrowUpDown size={13} />
+                  <span>Sort</span>
+                </span>
+                <select
+                  value={docSortBy}
+                  onChange={(e) => setDocSortBy(e.target.value as DocumentSortOption)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  {DOCUMENT_SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
-          )}
+
+            <div className="text-xs text-slate-500">
+              Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {categories.map((cat) => {
+              const catDocs = docsByCategory[cat.id] || [];
+              const isExpanded = expandedCategories.has(cat.id);
+              if (hasDocFilterCriteria && catDocs.length === 0) return null;
+              return (
+                <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(cat.id)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      {isExpanded ? <FolderOpen size={17} className="text-amber-500" /> : <Folder size={17} className="text-slate-400" />}
+                      <span className="font-semibold text-sm text-slate-800">{cat.name}</span>
+                      <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{catDocs.length}</span>
+                    </div>
+                    {isExpanded ? <ChevronDown size={15} className="text-slate-400" /> : <ChevronRight size={15} className="text-slate-400" />}
+                  </button>
+                  {isExpanded && (
+                    <div className="divide-y divide-slate-100">
+                      {catDocs.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-slate-400 italic">No documents in this category.</div>
+                      ) : (
+                        catDocs.map((doc) => (
+                          <AdminDocRow
+                            key={doc.id}
+                            doc={doc}
+                            canWrite={canWrite}
+                            onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
+                            onDelete={() => deleteDocument(doc)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {uncategorised.length > 0 && (
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="flex items-center space-x-2 px-4 py-3 bg-slate-50">
+                  <Folder size={17} className="text-slate-400" />
+                  <span className="font-semibold text-sm text-slate-800">Uncategorised</span>
+                  <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{uncategorised.length}</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {uncategorised.map((doc) => (
+                    <AdminDocRow
+                      key={doc.id}
+                      doc={doc}
+                      canWrite={canWrite}
+                      onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
+                      onDelete={() => deleteDocument(doc)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {documents.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <FileText size={36} className="mx-auto mb-3 text-slate-300" />
+                <p>No documents uploaded yet.</p>
+              </div>
+            ) : filteredDocuments.length === 0 && (
+              <div className="text-center py-16 text-slate-400 border border-slate-200 rounded-xl">
+                <FileText size={36} className="mx-auto mb-3 text-slate-300" />
+                <p>No documents match the current filters.</p>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
