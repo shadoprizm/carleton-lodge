@@ -149,6 +149,8 @@ export type PhotoAlbum = {
   title: string;
   description: string | null;
   cover_photo_id: string | null;
+  cover_image_url: string | null;
+  cover_image_path: string | null;
   visibility: 'public' | 'members' | 'admin';
   created_by: string | null;
   created_at: string;

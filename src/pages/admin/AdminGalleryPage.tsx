@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit2, Upload, X, Image, Eye, Lock, Globe, Users, ChevronLeft, Check, Loader } from 'lucide-react';
+import { Plus, Trash2, Edit2, Upload, X, Image, Eye, Lock, Globe, Users, ChevronLeft, Check, Loader, Crop } from 'lucide-react';
 import { supabase, PhotoAlbum, Photo } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processImage } from '../../utils/imageProcessor';
+import { CoverCropModal } from '../../components/CoverCropModal';
 
 type Visibility = 'public' | 'members' | 'admin';
 
@@ -43,6 +44,8 @@ export const AdminGalleryPage = () => {
   const [photoForm, setPhotoForm] = useState<PhotoFormData>({ title: '', description: '', taken_at: '', visibility: 'inherit' });
   const [photoSaving, setPhotoSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [croppingPhoto, setCroppingPhoto] = useState<Photo | null>(null);
+  const [coverSaving, setCoverSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -65,7 +68,9 @@ export const AdminGalleryPage = () => {
     const enriched = await Promise.all(albumData.map(async (album) => {
       const { count } = await supabase.from('photos').select('*', { count: 'exact', head: true }).eq('album_id', album.id);
       let cover_url: string | null = null;
-      if (album.cover_photo_id) {
+      if (album.cover_image_url) {
+        cover_url = album.cover_image_url;
+      } else if (album.cover_photo_id) {
         const { data: cp } = await supabase.from('photos').select('public_url').eq('id', album.cover_photo_id).maybeSingle();
         cover_url = cp?.public_url ?? null;
       } else {
@@ -115,8 +120,12 @@ export const AdminGalleryPage = () => {
   const deleteAlbum = async (id: string) => {
     if (!confirm('Delete this album and all its photos? This cannot be undone.')) return;
     const { data: albumPhotos } = await supabase.from('photos').select('storage_path').eq('album_id', id);
-    if (albumPhotos?.length) {
-      await supabase.storage.from('lodge-photos').remove(albumPhotos.map(p => p.storage_path));
+    const paths = albumPhotos?.map(p => p.storage_path) ?? [];
+    // The baked cover image lives outside the photos table, so remove it explicitly.
+    const coverPath = albums.find(a => a.id === id)?.cover_image_path;
+    if (coverPath) paths.push(coverPath);
+    if (paths.length) {
+      await supabase.storage.from('lodge-photos').remove(paths);
     }
     await supabase.from('photo_albums').delete().eq('id', id);
     if (selectedAlbum?.id === id) setSelectedAlbum(null);
@@ -214,10 +223,35 @@ export const AdminGalleryPage = () => {
     loadAlbums();
   };
 
-  const setCover = async (photo: Photo) => {
-    if (!selectedAlbum) return;
-    await supabase.from('photo_albums').update({ cover_photo_id: photo.id }).eq('id', selectedAlbum.id);
-    loadAlbums();
+  const saveCover = async (blob: Blob) => {
+    if (!selectedAlbum || !croppingPhoto) return;
+    setCoverSaving(true);
+    try {
+      const path = `${selectedAlbum.id}/cover-${Date.now()}.webp`;
+      const { error: uploadError } = await supabase.storage.from('lodge-photos').upload(path, blob, { contentType: 'image/webp', upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('lodge-photos').getPublicUrl(path);
+      // Capture the previous cover file so we can remove it after the new one is committed.
+      const { data: existing } = await supabase.from('photo_albums').select('cover_image_path').eq('id', selectedAlbum.id).maybeSingle();
+      const { error: updateError } = await supabase.from('photo_albums').update({
+        cover_image_url: urlData.publicUrl,
+        cover_image_path: path,
+        cover_photo_id: croppingPhoto.id,
+        updated_at: new Date().toISOString(),
+      }).eq('id', selectedAlbum.id);
+      if (updateError) {
+        // Roll back the just-uploaded file so it doesn't orphan.
+        await supabase.storage.from('lodge-photos').remove([path]);
+        throw updateError;
+      }
+      if (existing?.cover_image_path && existing.cover_image_path !== path) {
+        await supabase.storage.from('lodge-photos').remove([existing.cover_image_path]);
+      }
+      setCroppingPhoto(null);
+      loadAlbums();
+    } finally {
+      setCoverSaving(false);
+    }
   };
 
   const visibilityBadge = (v: string) => {
@@ -317,7 +351,7 @@ export const AdminGalleryPage = () => {
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex flex-col justify-between p-2 opacity-0 group-hover:opacity-100">
                   {canWrite && <div className="flex justify-end gap-1">
                     <button onClick={() => openEditPhoto(photo)} className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"><Edit2 size={13} className="text-slate-700" /></button>
-                    <button onClick={() => setCover(photo)} title="Set as album cover" className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"><Eye size={13} className="text-slate-700" /></button>
+                    <button onClick={() => setCroppingPhoto(photo)} title="Set as album cover (crop)" className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"><Crop size={13} className="text-slate-700" /></button>
                     <button onClick={() => deletePhoto(photo)} disabled={deletingId === photo.id} className="p-1.5 bg-white/90 rounded-lg hover:bg-red-50 transition-colors">
                       {deletingId === photo.id ? <Loader size={13} className="animate-spin text-slate-700" /> : <Trash2 size={13} className="text-red-500" />}
                     </button>
@@ -376,6 +410,15 @@ export const AdminGalleryPage = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {canWrite && croppingPhoto && (
+          <CoverCropModal
+            photo={croppingPhoto}
+            saving={coverSaving}
+            onCancel={() => setCroppingPhoto(null)}
+            onSave={saveCover}
+          />
         )}
       </div>
     );

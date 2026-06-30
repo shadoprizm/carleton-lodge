@@ -44,11 +44,13 @@ export const GalleryPage = () => {
 
       const { data: photoData } = await photosQuery;
       const photos = photoData ?? [];
-      const cover = album.cover_photo_id
+      const photoCover = album.cover_photo_id
         ? photos.find(p => p.id === album.cover_photo_id) ?? photos[0]
         : photos[0];
+      // A baked cover (a deliberately cropped thumbnail) wins over the raw cover photo.
+      const cover_url = album.cover_image_url ?? photoCover?.public_url ?? null;
 
-      return { ...album, photos, cover_url: cover?.public_url ?? null };
+      return { ...album, photos, cover_url };
     }));
 
     setAlbums(enriched.filter(a => a.photos.length > 0 || isAdmin));
