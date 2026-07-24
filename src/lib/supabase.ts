@@ -3,18 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Database schema. The shared "Shared A" project keeps Carleton Lodge in the
-// `carletonlodge` schema, so that deployment sets VITE_SUPABASE_SCHEMA=carletonlodge.
-// The dedicated project keeps its tables in the standard `public` schema (the default).
-const supabaseSchema = import.meta.env.VITE_SUPABASE_SCHEMA || 'public';
-
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    db: { schema: supabaseSchema }
-});
+// The dedicated Carleton Lodge project keeps its tables in the standard
+// `public` schema, so no schema override is needed.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type Event = {
   id: string;
