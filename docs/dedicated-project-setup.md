@@ -33,7 +33,9 @@ is built and verified. Live site on Shared A is untouched.
   rich-text content is md5-identical to live**. Member→profile links nulled
   (rebuilt at re-provisioning).
 - Edge functions: all 4 deployed, de-tenanted, with the SEC-3 fix in
-  `manage-member-login`.
+  `manage-member-login`. The repo copies under `supabase/functions/` now match
+  the deployed versions (schema config dropped; SEC-3 guards in
+  `manage-member-login`), so a `supabase functions deploy` won't regress them.
 - Frontend: schema is env-driven (`VITE_SUPABASE_SCHEMA`, default `public`),
   metadata points at `carpmasons.ca`.
 

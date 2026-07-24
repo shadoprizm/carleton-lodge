@@ -54,7 +54,6 @@ Deno.serve(async (req: Request) => {
     // Caller-scoped client: identity + permission are evaluated as the user,
     // never trusting a client-supplied role claim.
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      db: { schema: "carletonlodge" },
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -92,7 +91,6 @@ Deno.serve(async (req: Request) => {
     // --- Work (service role, only after authorization) --------------------
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
-      db: { schema: "carletonlodge" },
     });
 
     const { data: summons, error: summonsError } = await supabase
