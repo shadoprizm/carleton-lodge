@@ -16,6 +16,52 @@ having to hand-rewrite `public.` → `carletonlodge.` on every migration.
 
 ---
 
+## Execution — chosen method: CLI dump / restore
+
+We build the new project fully in parallel and only switch at the end. The live
+site on Shared A is untouched until cutover, and Shared A stays intact as an
+instant rollback for ~2 weeks after.
+
+**Division of labour**
+- **Owner (local, has DB passwords):** runs `supabase db dump` and the `psql`
+  loads. Passwords never go into chat — copy the connection URIs from the
+  dashboard.
+- **Assistant:** de-tenants the dump (`carletonlodge` → `public`), bakes in the
+  audit fixes, redeploys the four edge functions (no DB password needed),
+  supplies the auth-remap SQL, and provides verification queries.
+
+**Stages (each verified before the next):**
+1. **Schema dump** from Shared A (`--schema carletonlodge`) → assistant
+   de-tenants + reviews → load into new project.
+2. **Content data** (no auth dependency): `lodge_positions`, `events`,
+   `summons`, `document_categories`, `documents`, `history_eras`,
+   `history_entries`, `history_milestones`, `photo_albums`, `photos`, and
+   `lodge_members` **with `linked_profile_id` set NULL**. Load these first.
+3. **Storage objects**: copy `summons-uploads`, `lodge-documents`,
+   `lodge-photos` (now **private**), `event-assets` to the new project's buckets.
+4. **Re-provision members** in the new project (admin issues temp passwords).
+   This creates fresh `auth.users` + `profiles` rows — **with new UUIDs**.
+5. **Auth-remap** (assistant SQL): because member UUIDs change, re-establish
+   `admin_section_permissions` and re-link `lodge_members.linked_profile_id`
+   **by matching email**, not by copying old IDs. Do NOT bulk-copy `profiles`,
+   `notification_preferences`, or `admin_section_permissions` raw — their IDs
+   won't line up with the new auth users.
+6. **Edge functions** redeployed to the new project (assistant), schema config
+   dropped since tables are now in `public`.
+7. **Auth config**: disable public sign-ups, require email confirmation, enable
+   leaked-password protection, set Site URL + redirect URLs to `carpmasons.ca`,
+   configure SMTP.
+8. **Stage + smoke-test** on a preview URL, then **cutover** (env/domain swap),
+   then keep Shared A read-only for 2 weeks.
+
+**Why not bulk-copy auth:** the new project has its own `auth.users`. Copying
+password hashes across projects is fragile; the membership is small and
+admin-provisioned, so re-issuing temp passwords (Stage 4) is both safer and
+simpler. The only consequence is that ID-based links must be rebuilt by email
+(Stage 5).
+
+---
+
 ## 0. Decisions to confirm before starting
 
 | Decision | Recommendation | Why it matters |
