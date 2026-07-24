@@ -16,6 +16,51 @@ having to hand-rewrite `public.` → `carletonlodge.` on every migration.
 
 ---
 
+## BUILD STATUS (updated during migration)
+
+The dedicated project **`carleton-lodge`** (`isnxsygngysxgzeuhmjm`, ca-central-1)
+is built and verified. Live site on Shared A is untouched.
+
+**Done & verified:**
+- Schema: 16 tables, 105 RLS policies, 11 functions, 8 triggers — a faithful
+  copy of the live `carletonlodge` schema, de-tenanted to `public`, with the
+  audit fixes baked in (SEC-1 profiles guard, SEC-8 email-confirm link,
+  hardened function search_paths, tighter function grants).
+- Storage: 4 buckets (`summons-uploads`/`lodge-documents` private,
+  `lodge-photos`/`event-assets` public) + access policies.
+- Content data: positions, categories, history eras+entries, album+photos,
+  events, summons, documents, and the 18-row roster — **row counts match and
+  rich-text content is md5-identical to live**. Member→profile links nulled
+  (rebuilt at re-provisioning).
+- Edge functions: all 4 deployed, de-tenanted, with the SEC-3 fix in
+  `manage-member-login`.
+- Frontend: schema is env-driven (`VITE_SUPABASE_SCHEMA`, default `public`),
+  metadata points at `carpmasons.ca`.
+
+**New project connection (for Vercel at cutover):**
+- `VITE_SUPABASE_URL = https://isnxsygngysxgzeuhmjm.supabase.co`
+- `VITE_SUPABASE_ANON_KEY = ` (legacy anon key — copy from dashboard → API)
+- Do **not** set `VITE_SUPABASE_SCHEMA` (defaults to `public`).
+
+**Remaining before cutover (needs dashboard / CLI / you):**
+1. **Copy the storage FILES.** Only the DB rows were copied; the actual photo,
+   summons-PDF, and document binaries still live in Shared A's buckets. Copy the
+   objects across (dashboard download/upload for the ~13 files, or a Storage-API
+   script). Until then, images/PDFs on the new project will 404.
+2. **Set the `GOOGLE_PLACES_API_KEY`** secret on the new project (Edge Functions
+   → Secrets) so address autocomplete works.
+3. **Auth settings** (Authentication → Providers/URL config): disable public
+   sign-ups, require email confirmation, enable leaked-password protection, set
+   Site URL + redirect URLs to `https://carpmasons.ca`, configure SMTP.
+4. **Vercel:** point `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` at the new
+   project and deploy the `claude/masonic-lodge-audit-hcm4bh` branch.
+5. **Bootstrap admin + re-provision members:** create your own login, set your
+   `profiles.is_admin = true`, then issue logins for members; re-grant
+   `admin_section_permissions` and re-link the roster by email.
+6. **Cutover DNS** to the new deployment; keep Shared A as rollback for ~2 weeks.
+
+---
+
 ## Execution — chosen method: CLI dump / restore
 
 We build the new project fully in parallel and only switch at the end. The live
