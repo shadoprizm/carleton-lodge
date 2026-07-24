@@ -177,14 +177,14 @@ export const SummonsManager = () => {
   const sendNotifications = async (summonsId: string) => {
     setSending(true);
     try {
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-summons-notification`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ summonsId }),
+      // Use invoke() so the caller's session token is sent (not the public
+      // anon key). The edge function authorizes the caller server-side.
+      const { error } = await supabase.functions.invoke('send-summons-notification', {
+        body: { summonsId },
       });
+      if (error) {
+        console.error('Error sending notifications:', error);
+      }
     } catch (error) {
       console.error('Error sending notifications:', error);
     }
