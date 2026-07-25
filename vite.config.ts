@@ -11,7 +11,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/file': {
-        target: process.env.VITE_SUPABASE_URL,
+        // Keep in sync with SUPABASE_URL in src/lib/supabase.ts (dev server only).
+        target: process.env.VITE_SUPABASE_URL || 'https://isnxsygngysxgzeuhmjm.supabase.co',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/file/, '/storage/v1/object/authenticated'),
         configure: (proxy) => {

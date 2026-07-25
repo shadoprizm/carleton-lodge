@@ -76,13 +76,13 @@ export interface CropRect {
 }
 
 /**
- * Crop a region out of a remote image (e.g. a Supabase public_url) and return it as a
+ * Crop a region out of a remote image (a signed lodge-photos URL) and return it as a
  * WebP blob, mirroring processImage's output. `crop` is in source-image pixels, matching
  * react-easy-crop's `croppedAreaPixels`.
  *
  * crossOrigin='anonymous' is required so drawing the remote image onto the canvas does
- * not taint it; the lodge-photos bucket is public and serves permissive CORS headers,
- * so toBlob() succeeds.
+ * not taint it; Supabase Storage serves permissive CORS headers on signed URLs too, so
+ * toBlob() succeeds even though the bucket is private.
  */
 export async function cropImage(src: string, crop: CropRect): Promise<ProcessedImage> {
   return new Promise((resolve, reject) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2, Upload, X, Image, Eye, Lock, Globe, Users, ChevronLeft, Check, Loader, Crop } from 'lucide-react';
-import { supabase, PhotoAlbum, Photo } from '../../lib/supabase';
+import { supabase, signPhotoPaths, PhotoAlbum, Photo } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processImage } from '../../utils/imageProcessor';
 import { CoverCropModal } from '../../components/CoverCropModal';
@@ -67,26 +67,34 @@ export const AdminGalleryPage = () => {
 
     const enriched = await Promise.all(albumData.map(async (album) => {
       const { count } = await supabase.from('photos').select('*', { count: 'exact', head: true }).eq('album_id', album.id);
-      let cover_url: string | null = null;
-      if (album.cover_image_url) {
-        cover_url = album.cover_image_url;
-      } else if (album.cover_photo_id) {
-        const { data: cp } = await supabase.from('photos').select('public_url').eq('id', album.cover_photo_id).maybeSingle();
-        cover_url = cp?.public_url ?? null;
-      } else {
-        const { data: first } = await supabase.from('photos').select('public_url').eq('album_id', album.id).order('display_order').limit(1).maybeSingle();
-        cover_url = first?.public_url ?? null;
+      // A baked cover crop wins, then the nominated cover photo, then the first photo.
+      let cover_path: string | null = album.cover_image_path ?? null;
+      if (!cover_path && album.cover_photo_id) {
+        const { data: cp } = await supabase.from('photos').select('storage_path').eq('id', album.cover_photo_id).maybeSingle();
+        cover_path = cp?.storage_path ?? null;
       }
-      return { ...album, photo_count: count ?? 0, cover_url };
+      if (!cover_path) {
+        const { data: first } = await supabase.from('photos').select('storage_path').eq('album_id', album.id).order('display_order').limit(1).maybeSingle();
+        cover_path = first?.storage_path ?? null;
+      }
+      return { ...album, photo_count: count ?? 0, cover_path };
     }));
 
-    setAlbums(enriched);
+    // Private bucket: covers are displayed through signed URLs, signed in one batch.
+    const signed = await signPhotoPaths(enriched.map(a => a.cover_path));
+
+    setAlbums(enriched.map(({ cover_path, ...album }) => ({
+      ...album,
+      cover_url: cover_path ? signed.get(cover_path) ?? null : null,
+    })));
     setLoading(false);
   };
 
   const loadPhotos = async (albumId: string) => {
     const { data } = await supabase.from('photos').select('*').eq('album_id', albumId).order('display_order').order('created_at');
-    setPhotos(data ?? []);
+    const rows = data ?? [];
+    const signed = await signPhotoPaths(rows.map(p => p.storage_path));
+    setPhotos(rows.map(p => ({ ...p, public_url: signed.get(p.storage_path) ?? '' })));
   };
 
   const openAlbumForm = (album?: PhotoAlbum) => {

@@ -72,12 +72,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      db: { schema: "carletonlodge" },
       global: { headers: { Authorization: authHeader } },
     });
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
-      db: { schema: "carletonlodge" },
     });
 
     const {
@@ -128,11 +126,35 @@ Deno.serve(async (req: Request) => {
     let created = false;
 
     if (!authUserId) {
+      // SEC-3: an unlinked member must not silently take over an existing
+      // account that happens to share this email (e.g. an administrator's).
+      // Require the account to be linked from the roster explicitly first.
       const existingUser = await findAuthUserByEmail(supabaseAdmin, email);
-      authUserId = existingUser?.id ?? null;
+      if (existingUser) {
+        return jsonResponse(
+          {
+            error:
+              "An account with this email already exists and is not linked to this member. Link it from the roster first, or use a different email.",
+          },
+          409,
+        );
+      }
     }
 
     if (authUserId) {
+      // SEC-3: never reset an administrator's login through member management.
+      const { data: targetProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", authUserId)
+        .maybeSingle();
+      if (targetProfile?.is_admin) {
+        return jsonResponse(
+          { error: "This member is linked to an administrator account and cannot be reset here." },
+          403,
+        );
+      }
+
       const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
         email,
         password: temporaryPassword,

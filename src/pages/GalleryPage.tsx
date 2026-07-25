@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Globe, Users, Image, Lock } from 'lucide-react';
-import { supabase, PhotoAlbum, Photo } from '../lib/supabase';
+import { supabase, signPhotoPaths, PhotoAlbum, Photo } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 type AlbumWithPhotos = PhotoAlbum & { photos: Photo[]; cover_url: string | null };
@@ -33,7 +33,7 @@ export const GalleryPage = () => {
     const { data: albumData } = await query;
     if (!albumData) { setLoading(false); return; }
 
-    const enriched: AlbumWithPhotos[] = await Promise.all(albumData.map(async (album) => {
+    const withPhotos = await Promise.all(albumData.map(async (album) => {
       let photosQuery = supabase.from('photos').select('*').eq('album_id', album.id).order('display_order').order('created_at');
 
       if (!isMember) {
@@ -43,15 +43,28 @@ export const GalleryPage = () => {
       }
 
       const { data: photoData } = await photosQuery;
-      const photos = photoData ?? [];
+      return { album, photos: photoData ?? [] };
+    }));
+
+    // The bucket is private, so every image needs a signed URL. One batch for
+    // the whole view: each album's baked cover plus all of its photos.
+    const signed = await signPhotoPaths([
+      ...withPhotos.map(({ album }) => album.cover_image_path),
+      ...withPhotos.flatMap(({ photos }) => photos.map(p => p.storage_path)),
+    ]);
+
+    const enriched: AlbumWithPhotos[] = withPhotos.map(({ album, photos: rawPhotos }) => {
+      const photos = rawPhotos.map(p => ({ ...p, public_url: signed.get(p.storage_path) ?? '' }));
       const photoCover = album.cover_photo_id
         ? photos.find(p => p.id === album.cover_photo_id) ?? photos[0]
         : photos[0];
       // A baked cover (a deliberately cropped thumbnail) wins over the raw cover photo.
-      const cover_url = album.cover_image_url ?? photoCover?.public_url ?? null;
+      const cover_url = (album.cover_image_path ? signed.get(album.cover_image_path) : null)
+        ?? photoCover?.public_url
+        ?? null;
 
       return { ...album, photos, cover_url };
-    }));
+    });
 
     setAlbums(enriched.filter(a => a.photos.length > 0 || isAdmin));
     setLoading(false);
