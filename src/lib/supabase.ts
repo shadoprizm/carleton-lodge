@@ -193,6 +193,37 @@ export function getProxyFileUrl(bucket: string, path: string): string {
   return `/file/${bucket}/${path}`;
 }
 
+export const PHOTO_BUCKET = 'lodge-photos';
+
+/** Long enough to browse an album without images expiring mid-scroll. */
+const PHOTO_URL_TTL_SECONDS = 3600;
+
+/**
+ * The photo bucket is private, so album/photo `visibility` protects the bytes
+ * and not just the rows. Displaying an image therefore means minting a
+ * short-lived signed URL for it, the same way the document library and summons
+ * already do. Signed in one batch per view rather than one request per image.
+ *
+ * Paths the caller isn't allowed to read simply don't come back, so a missing
+ * entry means "not permitted" and the caller renders its empty state.
+ */
+export async function signPhotoPaths(paths: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => !!p))];
+  if (unique.length === 0) return new Map();
+
+  const { data, error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .createSignedUrls(unique, PHOTO_URL_TTL_SECONDS);
+
+  if (error || !data) return new Map();
+
+  return new Map(
+    data
+      .filter(entry => entry.signedUrl && !entry.error)
+      .map(entry => [entry.path as string, entry.signedUrl])
+  );
+}
+
 /**
  * Fetch a file through the proxy with authentication.
  * Returns a Blob URL that can be used for previews/downloads.

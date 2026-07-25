@@ -26,8 +26,11 @@ is built and verified. Live site on Shared A is untouched.
   copy of the live `carletonlodge` schema, de-tenanted to `public`, with the
   audit fixes baked in (SEC-1 profiles guard, SEC-8 email-confirm link,
   hardened function search_paths, tighter function grants).
-- Storage: 4 buckets (`summons-uploads`/`lodge-documents` private,
-  `lodge-photos`/`event-assets` public) + access policies.
+- Storage: 4 buckets (`summons-uploads`/`lodge-documents`/`lodge-photos`
+  private, `event-assets` public) + access policies. **SEC-5 is resolved** —
+  `lodge-photos` is private and read through signed URLs; verified by
+  impersonation (anon sees 0 objects in the members-only album, a member sees
+  all 7, and a public album is still readable by anon).
 - Content data: positions, categories, history eras+entries, album+photos,
   events, summons, documents, and the 18-row roster — **row counts match and
   rich-text content is md5-identical to live**. Member→profile links nulled
@@ -168,10 +171,14 @@ branch and will carry over automatically once the schema is `public`.)
 
 - ✅ **SEC-1 profiles privilege guard** — the `protect_profile_privileged_columns`
   trigger (see `supabase/migrations/20260724120000_*`). Keep it.
-- **SEC-5 private photos** — create `lodge-photos` as a **private** bucket
-  (`public = false`) and serve non-public albums via signed URLs (same pattern
-  the document library already uses). Drop the broad "anyone can list" SELECT
-  policy; the advisor flagged that public bucket as listable.
+- ✅ **SEC-5 private photos** — `lodge-photos` is now a **private** bucket
+  (`public = false`), read through signed URLs (the same pattern the document
+  library already uses). See `supabase/migrations/20260725120000_*`. The read
+  policy does not restate the visibility rules: it only checks that a `photos`
+  or `photo_albums` row pointing at the object is SELECT-able by the caller, so
+  the existing RLS on those tables (including `effective_photo_visibility()`'s
+  `inherit` handling) stays the single source of truth and storage access can
+  never drift from row access.
 - **SEC-6 contact spam** — keep the anon INSERT, but add server-side rate
   limiting (route through an edge function) and a honeypot/CAPTCHA on the form.
 - **SEC-8 auto-link** — in `handle_new_user`, only link a roster row once
@@ -197,11 +204,16 @@ Recreate the four buckets in the new project:
 |---|---|---|
 | `summons-uploads` | **No** | signed-URL reads (unchanged) |
 | `lodge-documents` | **No** | signed-URL reads (unchanged) |
-| `lodge-photos` | **No (changed)** | make private; serve via signed URLs so album `visibility` actually protects the bytes |
+| `lodge-photos` | **No (changed)** | ✅ private; served via signed URLs so album `visibility` actually protects the bytes |
 | `event-assets` | Public OK | scope uploads to editors; add a size cap |
 
 Drop the `CL:` policy-name prefixes — in a single-tenant project they're just
 noise. Copy the objects across after buckets exist (Phase 6).
+
+Note: `photos.public_url` and `photo_albums.cover_image_url` are legacy columns.
+They're still written on upload (both are `NOT NULL`), but nothing renders from
+them any more — the gallery signs `photos.storage_path` /
+`photo_albums.cover_image_path` instead. Dropping them is a safe future cleanup.
 
 ---
 
@@ -303,7 +315,7 @@ the old deployment and restore the Vercel env vars to the Shared A values; the
 | SEC-1 | profiles self-escalation | ✅ trigger (baked into baseline) |
 | SEC-2 | notification function leak | ✅ secured function (Phase 5) |
 | SEC-3 | member-login account takeover | Phase 5 fix before redeploy |
-| SEC-5 | members-only photos public | Phase 3/4 private bucket + signed URLs |
+| SEC-5 | members-only photos public | ✅ private bucket + signed URLs |
 | SEC-8 | unconfirmed auto-link | Phase 3 email-confirm check |
 | SEC-7 | open sign-ups | Phase 7 disable sign-ups |
 | ARCH-1 | shared project / cross-tenant leak | the whole migration |
