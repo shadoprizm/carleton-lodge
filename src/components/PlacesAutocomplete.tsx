@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 
 interface PlacesAutocompleteProps {
   id?: string;
@@ -71,12 +71,12 @@ export const PlacesAutocomplete = ({
           return;
         }
 
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/places-autocomplete`, {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/places-autocomplete`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ query: trimmedValue }),
         });

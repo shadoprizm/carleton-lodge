@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase, Summons } from '../../lib/supabase';
+import { supabase, SUPABASE_URL, Summons } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { X, Plus, Edit2, Send, Upload, FileText, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 
@@ -104,7 +104,7 @@ export const SummonsManager = () => {
         fd.append('file', file);
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-summons`;
+          const apiUrl = `${SUPABASE_URL}/functions/v1/parse-summons`;
           const res = await fetch(apiUrl, {
             method: 'POST',
             headers: { Authorization: `Bearer ${session.access_token}` },
