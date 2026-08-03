@@ -7,9 +7,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    db: { schema: 'carletonlodge' }
-});
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type Event = {
   id: string;
