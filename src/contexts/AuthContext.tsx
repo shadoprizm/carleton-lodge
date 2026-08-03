@@ -143,23 +143,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const completeRequiredPasswordChange = async (newPassword: string) => {
-    const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
-    if (authError) return { error: authError };
-
     if (!user?.id) {
       return { error: new Error('No active user session found.') };
     }
 
-    const { data, error: profileError } = await supabase
-      .from('profiles')
-      .update({ force_password_change: false })
-      .eq('id', user.id)
-      .select('*')
-      .single();
+    const { error } = await supabase.functions.invoke('change-required-password', {
+      body: { password: newPassword },
+    });
+    if (error) {
+      const errorResponse = (error as { context?: unknown }).context;
+      if (errorResponse instanceof Response) {
+        const errorBody = await errorResponse.clone().json().catch(() => null) as { error?: unknown } | null;
+        if (typeof errorBody?.error === 'string') {
+          return { error: new Error(errorBody.error) };
+        }
+      }
+      return { error };
+    }
 
-    if (profileError) return { error: profileError };
-
-    setProfile(data as Profile);
+    setProfile((current) => current ? { ...current, force_password_change: false } : current);
     return { error: null };
   };
 
@@ -168,7 +170,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const isAdmin = profile?.is_admin ?? false;
-  const canAccessAdmin = isAdmin || adminPermissions.some((permission) => permission.can_read || permission.can_write);
+  const canAccessAdmin = isAdmin || adminPermissions.some(
+    (permission) => permission.can_read || permission.can_write || permission.can_approve
+  );
   const hasAdminPermission = (section: AdminSection, level: AdminPermissionLevel = 'read') =>
     hasSectionPermission(isAdmin, adminPermissions, section, level);
 

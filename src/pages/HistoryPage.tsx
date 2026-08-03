@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { Calendar, ArrowLeft, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';

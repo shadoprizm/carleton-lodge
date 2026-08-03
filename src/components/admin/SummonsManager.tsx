@@ -6,6 +6,7 @@ import { X, Plus, Edit2, Send, Upload, FileText, Loader2, AlertCircle, ExternalL
 const BUCKET = 'summons-uploads';
 const SUPABASE_STORAGE_PREFIX = '/storage/v1/object/public/summons-uploads/';
 const NOTICES_CATEGORY_ID = 'ddb0c537-2166-4587-8302-ec2346842615';
+const MAXIMUM_PDF_BYTES = 10 * 1024 * 1024;
 
 function extractStoragePath(pdfUrl: string): string {
   if (!pdfUrl.startsWith('http')) return pdfUrl;
@@ -76,6 +77,10 @@ export const SummonsManager = () => {
   const handleFileSelect = async (file: File) => {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setUploadError('Please upload a PDF file.');
+      return;
+    }
+    if (file.size <= 0 || file.size > MAXIMUM_PDF_BYTES) {
+      setUploadError('Please upload a PDF no larger than 10 MB.');
       return;
     }
 
@@ -177,14 +182,10 @@ export const SummonsManager = () => {
   const sendNotifications = async (summonsId: string) => {
     setSending(true);
     try {
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-summons-notification`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ summonsId }),
+      const { error } = await supabase.functions.invoke('send-summons-notification', {
+        body: { summonsId },
       });
+      if (error) throw error;
     } catch (error) {
       console.error('Error sending notifications:', error);
     }

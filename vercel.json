@@ -1,8 +1,89 @@
 {
-  "rewrites": [
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(?:\\.git|\\.svn|\\.hg)(?:/.*)?",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "/(?:\\.env(?:\\..*)?|\\.npmrc|\\.yarnrc|\\.DS_Store)(?:/.*)?",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "/.*(?:backup|dump|database|credentials?|secrets?)(?:\\.[^/]*)?(?:/.*)?",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "/(?:debug|_debugbar|actuator|wp-admin|wp-login\\.php|wordpress|swagger|swagger-ui|api-docs|openapi\\.json|swagger\\.json)(?:/.*)?",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "/(?:package(?:-lock)?\\.json|pnpm-lock\\.yaml|yarn\\.lock|vite\\.config\\.(?:ts|js)|tsconfig(?:\\.[^/]+)?\\.json|supabase)(?:/.*)?",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "continue": true,
+      "transforms": [
+        {
+          "type": "response.headers",
+          "op": "delete",
+          "target": {
+            "key": "server"
+          }
+        }
+      ],
+      "headers": {
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Origin": "https://www.carpmasons.ca",
+        "Access-Control-Max-Age": "600",
+        "Content-Security-Policy": "default-src 'self'; base-uri 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self' https://fonts.gstatic.com data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' blob: https://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co; object-src 'none'; script-src 'self'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; worker-src 'self' blob:; upgrade-insecure-requests",
+        "Cross-Origin-Embedder-Policy": "credentialless",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "Permissions-Policy": "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(self), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(self), xr-spatial-tracking=()",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+        "Vary": "Origin",
+        "X-Content-Type-Options": "nosniff",
+        "X-Download-Options": "noopen",
+        "X-Frame-Options": "DENY",
+        "X-Permitted-Cross-Domain-Policies": "none",
+        "X-XSS-Protection": "0"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }

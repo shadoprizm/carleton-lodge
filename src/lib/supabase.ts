@@ -27,6 +27,30 @@ export type Event = {
   updated_at: string;
 };
 
+export type EventSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export type EventSubmission = {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  event_time: string | null;
+  event_end_time: string | null;
+  location: string;
+  location_address: string | null;
+  poc_name: string | null;
+  poc_contact: string | null;
+  status: EventSubmissionStatus;
+  created_by: string;
+  submitter_email: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  published_event_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type HistoryEntry = {
   id: string;
   title: string;
@@ -115,6 +139,48 @@ export type NotificationPreferences = {
   updated_at: string;
 };
 
+export type NotificationOutboxItem = {
+  id: string;
+  channel: 'email';
+  notification_type: string;
+  recipient_profile_id: string | null;
+  recipient_email: string;
+  payload: Record<string, unknown>;
+  status: 'queued' | 'processing' | 'sent' | 'failed' | 'cancelled';
+  provider: string | null;
+  provider_message_id: string | null;
+  idempotency_key: string;
+  attempt_count: number;
+  max_attempts: number;
+  available_at: string;
+  locked_at: string | null;
+  sent_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InboundEmail = {
+  id: string;
+  provider: string;
+  provider_message_id: string;
+  from_address: string | null;
+  to_addresses: string[];
+  cc_addresses: string[];
+  subject: string | null;
+  text_body: string | null;
+  html_body: string | null;
+  headers: Record<string, unknown>;
+  attachments: Array<Record<string, unknown>>;
+  raw_payload: Record<string, unknown>;
+  processing_status: 'received' | 'processing' | 'processed' | 'ignored' | 'failed';
+  received_at: string;
+  processed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DocumentCategory = {
   id: string;
   name: string;
@@ -180,6 +246,20 @@ export type PhotoAlbumWithCover = PhotoAlbum & {
   cover_photo: Photo | null;
   photo_count?: number;
 };
+
+export async function getSignedStorageUrl(
+  bucket: string,
+  path: string | null | undefined,
+  expiresInSeconds = 3600
+): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresInSeconds);
+
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
 
 /**
  * Get a proxy URL for a file that hides the Supabase storage URL.

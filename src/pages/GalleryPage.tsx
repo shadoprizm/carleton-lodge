@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Globe, Users, Image, Lock } from 'lucide-react';
-import { supabase, PhotoAlbum, Photo } from '../lib/supabase';
+import { getSignedStorageUrl, supabase, PhotoAlbum, Photo } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 type AlbumWithPhotos = PhotoAlbum & { photos: Photo[]; cover_url: string | null };
@@ -43,12 +43,17 @@ export const GalleryPage = () => {
       }
 
       const { data: photoData } = await photosQuery;
-      const photos = photoData ?? [];
+      const signedPhotos = await Promise.all((photoData ?? []).map(async (photo) => {
+        const signedUrl = await getSignedStorageUrl('lodge-photos', photo.storage_path);
+        return signedUrl ? { ...photo, public_url: signedUrl } : null;
+      }));
+      const photos = signedPhotos.filter((photo): photo is Photo => photo !== null);
       const photoCover = album.cover_photo_id
         ? photos.find(p => p.id === album.cover_photo_id) ?? photos[0]
         : photos[0];
       // A baked cover (a deliberately cropped thumbnail) wins over the raw cover photo.
-      const cover_url = album.cover_image_url ?? photoCover?.public_url ?? null;
+      const bakedCoverUrl = await getSignedStorageUrl('lodge-photos', album.cover_image_path);
+      const cover_url = bakedCoverUrl ?? photoCover?.public_url ?? null;
 
       return { ...album, photos, cover_url };
     }));

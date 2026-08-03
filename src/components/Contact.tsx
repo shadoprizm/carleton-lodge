@@ -1,7 +1,19 @@
 import { motion } from 'framer-motion';
-import { Mail, MapPin, Facebook } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Mail, MapPin } from 'lucide-react';
+import { Link } from 'react-router';
 import { ContactForm } from './ContactForm';
+
+const FacebookIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    aria-hidden="true"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.52 1.49-3.91 3.77-3.91 1.09 0 2.23.2 2.23.2v2.46h-1.25c-1.24 0-1.62.77-1.62 1.56v1.9h2.76l-.44 2.91h-2.32V22C18.34 21.24 22 17.08 22 12.06Z" />
+  </svg>
+);
 
 export const Contact = () => {
   return (
@@ -106,7 +118,7 @@ export const Contact = () => {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-md transition-colors"
             >
-              <Facebook size={20} />
+              <FacebookIcon size={20} />
               <span className="font-medium">Follow us on Facebook</span>
             </a>
           </div>

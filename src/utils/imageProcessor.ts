@@ -1,6 +1,9 @@
 const MAX_WIDTH = 1920;
 const MAX_HEIGHT = 1080;
 const QUALITY = 0.82;
+const MAX_INPUT_BYTES = 12 * 1024 * 1024;
+const MAX_SOURCE_PIXELS = 40_000_000;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 export interface ProcessedImage {
   blob: Blob;
@@ -10,6 +13,13 @@ export interface ProcessedImage {
 }
 
 export async function processImage(file: File): Promise<ProcessedImage> {
+  if (file.size <= 0 || file.size > MAX_INPUT_BYTES) {
+    throw new Error('Images must be 12 MB or smaller');
+  }
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Use a JPEG, PNG, WebP, or GIF image');
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -18,6 +28,10 @@ export async function processImage(file: File): Promise<ProcessedImage> {
       URL.revokeObjectURL(objectUrl);
 
       let { width, height } = img;
+      if (width <= 0 || height <= 0 || width * height > MAX_SOURCE_PIXELS) {
+        reject(new Error('Image dimensions are too large'));
+        return;
+      }
 
       if (width > MAX_WIDTH || height > MAX_HEIGHT) {
         const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
@@ -76,13 +90,13 @@ export interface CropRect {
 }
 
 /**
- * Crop a region out of a remote image (e.g. a Supabase public_url) and return it as a
+ * Crop a region out of a remote image (for example, a short-lived signed URL)
+ * and return it as a
  * WebP blob, mirroring processImage's output. `crop` is in source-image pixels, matching
  * react-easy-crop's `croppedAreaPixels`.
  *
  * crossOrigin='anonymous' is required so drawing the remote image onto the canvas does
- * not taint it; the lodge-photos bucket is public and serves permissive CORS headers,
- * so toBlob() succeeds.
+ * not taint it. Supabase Storage permits CORS for authorized signed-object reads.
  */
 export async function cropImage(src: string, crop: CropRect): Promise<ProcessedImage> {
   return new Promise((resolve, reject) => {

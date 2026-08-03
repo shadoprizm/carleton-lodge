@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Clock, Calendar, ExternalLink, Pencil, X, Check } from 'lucide-react';
-import { supabase, Event } from '../../lib/supabase';
+import {
+  Plus,
+  Trash2,
+  MapPin,
+  Clock,
+  Calendar,
+  ExternalLink,
+  Pencil,
+  X,
+  Check,
+  CheckCircle2,
+  Mail,
+  XCircle,
+} from 'lucide-react';
+import { supabase, Event, EventSubmission } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PlacesAutocomplete } from '../../components/PlacesAutocomplete';
 import { RichTextEditor } from '../../components/RichTextEditor';
@@ -24,7 +37,9 @@ const emptyForm = {
 export const AdminEventsPage = () => {
   const { user, hasAdminPermission } = useAuth();
   const canWrite = hasAdminPermission('events', 'write');
+  const canApprove = hasAdminPermission('events', 'approve');
   const [events, setEvents] = useState<Event[]>([]);
+  const [submissions, setSubmissions] = useState<EventSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,24 +53,35 @@ export const AdminEventsPage = () => {
 
   const fetchEvents = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .order('event_date', { ascending: true });
-    if (data) setEvents(data);
+    const [eventsResult, submissionsResult] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true }),
+      supabase
+        .from('event_submissions')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true }),
+    ]);
+
+    if (eventsResult.data) setEvents(eventsResult.data);
+    if (submissionsResult.data) {
+      setSubmissions(submissionsResult.data as EventSubmission[]);
+    }
     setLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) {
-      setError('You must be logged in to create events.');
+      setError('You must be logged in to submit events.');
       return;
     }
 
     setError(null);
     const descriptionHtml = prepareRichTextForStorage(formData.description);
-    const { error } = await supabase.from('events').insert({
+    const { error } = await supabase.from('event_submissions').insert({
       ...formData,
       title: formData.title.trim(),
       description: descriptionHtml || null,
@@ -73,6 +99,41 @@ export const AdminEventsPage = () => {
     }
     setShowForm(false);
     setFormData(emptyForm);
+    fetchEvents();
+  };
+
+  const reviewSubmission = async (
+    submission: EventSubmission,
+    status: 'approved' | 'rejected'
+  ) => {
+    if (!canApprove) return;
+
+    const reviewNotes = status === 'rejected'
+      ? window.prompt('Optional note for the member explaining why this was not approved:', '') ?? undefined
+      : undefined;
+
+    if (status === 'rejected' && reviewNotes === undefined) return;
+
+    const action = status === 'approved' ? 'approve' : 'reject';
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} “${submission.title}”?`)) {
+      return;
+    }
+
+    setError(null);
+    const { error: reviewError } = await supabase
+      .from('event_submissions')
+      .update({
+        status,
+        review_notes: reviewNotes?.trim() || null,
+      })
+      .eq('id', submission.id)
+      .eq('status', 'pending');
+
+    if (reviewError) {
+      setError(reviewError.message);
+      return;
+    }
+
     fetchEvents();
   };
 
@@ -138,27 +199,30 @@ export const AdminEventsPage = () => {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-xl font-serif text-slate-900">Events</h2>
-          <p className="text-sm text-slate-500 mt-1">Schedule and manage lodge events</p>
+          <p className="text-sm text-slate-500 mt-1">Review member submissions and manage published events</p>
           {error && <p className="text-sm text-red-700 mt-2">{error}</p>}
         </div>
-        {canWrite ? (
+        {user ? (
           <button
             onClick={() => { setShowForm(!showForm); setEditingId(null); }}
             className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-amber-300 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
           >
             <Plus size={16} />
-            <span>Add Event</span>
+            <span>Submit Event</span>
           </button>
         ) : (
           <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-3 py-1">
-            Read only
+            {canApprove ? 'Approval access' : 'Read only'}
           </span>
         )}
       </div>
 
-      {canWrite && showForm && (
+      {user && showForm && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
-          <h3 className="text-base font-semibold text-slate-900 mb-4">New Event</h3>
+          <h3 className="text-base font-semibold text-slate-900 mb-1">Submit New Event</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Every new event, including administrator submissions, must be approved before publication.
+          </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
@@ -246,12 +310,108 @@ export const AdminEventsPage = () => {
               </button>
               <button type="submit"
                 className="px-5 py-2 text-sm bg-slate-900 text-amber-300 rounded-lg hover:bg-slate-800 transition-colors">
-                Create Event
+                Submit for Approval
               </button>
             </div>
           </form>
         </div>
       )}
+
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Pending Approvals</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {canApprove
+                ? 'Review these member submissions before they reach the public calendar.'
+                : 'You can view the queue; an authorized approver must make the decision.'}
+            </p>
+          </div>
+          <span className="inline-flex min-w-7 h-7 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2">
+            {submissions.length}
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {submissions.map((submission) => (
+            <div key={submission.id} className="border border-amber-200 bg-amber-50/40 rounded-xl p-4">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h4 className="font-semibold text-slate-900">{submission.title}</h4>
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-amber-800 bg-amber-100 rounded-full px-2 py-0.5">
+                      Pending
+                    </span>
+                  </div>
+                  {(richTextToPlainText(submission.description) || richTextHasEmbeds(submission.description)) && (
+                    <p className="text-sm text-slate-600 mt-1">
+                      {richTextToPlainText(submission.description) || 'Contains embedded media or files.'}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar size={13} />
+                      {new Date(`${submission.event_date}T00:00:00`).toLocaleDateString('en-CA', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    {submission.event_time && (
+                      <span className="flex items-center gap-1.5">
+                        <Clock size={13} />
+                        {submission.event_time}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <MapPin size={13} />
+                      {submission.location}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Mail size={13} />
+                      {submission.submitter_email}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    Submitted {new Date(submission.created_at).toLocaleString('en-CA')}
+                  </p>
+                </div>
+
+                {canApprove && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => reviewSubmission(submission, 'rejected')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 border border-red-200 bg-white rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <XCircle size={15} />
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reviewSubmission(submission, 'approved')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 transition-colors"
+                    >
+                      <CheckCircle2 size={15} />
+                      Approve
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {submissions.length === 0 && (
+            <div className="border border-dashed border-slate-200 rounded-xl py-8 text-center text-sm text-slate-500">
+              No event submissions are waiting for approval.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 pt-6 mb-3">
+        <h3 className="text-base font-semibold text-slate-900">Published Events</h3>
+      </div>
 
       {loading ? (
         <div className="text-center py-12 text-slate-500">Loading events...</div>

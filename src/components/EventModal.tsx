@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,10 +10,10 @@ import { prepareRichTextForStorage } from '../utils/richText';
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onEventCreated: () => void;
+  onEventSubmitted: () => void;
 }
 
-export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps) => {
+export const EventModal = ({ isOpen, onClose, onEventSubmitted }: EventModalProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -25,7 +25,15 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
   const [pocContact, setPocContact] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const [submitted, setSubmitted] = useState(false);
+  const { user, hasAdminPermission } = useAuth();
+  const canUploadEventAssets = hasAdminPermission('events', 'write');
+
+  const closeModal = () => {
+    setSubmitted(false);
+    setError('');
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +44,7 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
 
     const descriptionHtml = prepareRichTextForStorage(description);
 
-    const { error } = await supabase.from('events').insert({
+    const { error } = await supabase.from('event_submissions').insert({
       title: title.trim(),
       description: descriptionHtml || null,
       event_date: eventDate,
@@ -63,8 +71,8 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
       setLocationAddress('');
       setPocName('');
       setPocContact('');
-      onEventCreated();
-      onClose();
+      onEventSubmitted();
+      setSubmitted(true);
     }
   };
 
@@ -77,7 +85,7 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
+            onClick={closeModal}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -86,17 +94,39 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
             className="relative bg-white rounded-lg shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto"
           >
             <button
-              onClick={onClose}
+              onClick={closeModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <X size={24} />
             </button>
 
-            <h2 className="text-3xl font-serif text-gray-900 mb-6">
-              Create New Event
-            </h2>
+            {submitted ? (
+              <div className="py-10 text-center">
+                <CheckCircle2 size={52} className="mx-auto text-emerald-600 mb-4" />
+                <h2 className="text-3xl font-serif text-gray-900 mb-3">Event Submitted</h2>
+                <p className="text-gray-600 max-w-md mx-auto mb-7">
+                  Your event is in the approval queue. It will appear on the calendar after an authorized member approves it.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeModal();
+                  }}
+                  className="px-6 py-3 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors font-medium"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-3xl font-serif text-gray-900 mb-2">
+                  Submit an Event
+                </h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  All member submissions are reviewed before they are added to the lodge calendar.
+                </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
                   Event Title
@@ -121,6 +151,7 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
                   value={description}
                   onChange={setDescription}
                   className="w-full"
+                  allowUploads={canUploadEventAssets}
                 />
               </div>
 
@@ -237,9 +268,11 @@ export const EventModal = ({ isOpen, onClose, onEventCreated }: EventModalProps)
                 disabled={loading}
                 className="w-full bg-blue-900 text-white py-3 rounded-md hover:bg-blue-800 transition-colors font-medium disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create Event'}
+                {loading ? 'Submitting...' : 'Submit for Approval'}
               </button>
-            </form>
+                </form>
+              </>
+            )}
           </motion.div>
         </div>
       )}

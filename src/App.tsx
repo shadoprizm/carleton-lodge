@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router';
 import { AuthProvider } from './contexts/AuthContext';
 import { Navigation } from './components/Navigation';
 import { AuthModal } from './components/AuthModal';
@@ -24,6 +24,7 @@ import { AdminHistoryPage } from './pages/admin/AdminHistoryPage';
 import { AdminLibraryPage } from './pages/admin/AdminLibraryPage';
 import { AdminGalleryPage } from './pages/admin/AdminGalleryPage';
 import { AdminContactPage } from './pages/admin/AdminContactPage';
+import { AdminCommunicationsPage } from './pages/admin/AdminCommunicationsPage';
 
 function App() {
   return (
@@ -65,6 +66,7 @@ const AppShell = () => {
           <Route path="history" element={<AdminHistoryPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
           <Route path="contact" element={<AdminContactPage />} />
+          <Route path="communications" element={<AdminCommunicationsPage />} />
         </Route>
       </Routes>
       <AuthModal

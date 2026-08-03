@@ -115,7 +115,7 @@ type OfficerCardProps = {
   size?: 'lg' | 'md' | 'sm';
   onClick: (m: LodgeMemberWithPosition) => void;
   delay?: number;
-  cardRef?: React.RefObject<HTMLDivElement>;
+  cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 function OfficerCard({ member, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
@@ -181,12 +181,12 @@ function getLeft(r: Rect) {
 }
 
 type ConnectorSvgProps = {
-  containerRef: React.RefObject<HTMLDivElement>;
-  wmRef: React.RefObject<HTMLDivElement>;
-  secRef: React.RefObject<HTMLDivElement>;
-  swRef: React.RefObject<HTMLDivElement>;
-  jwRef: React.RefObject<HTMLDivElement>;
-  tier3Refs: React.RefObject<HTMLDivElement>[];
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  wmRef: React.RefObject<HTMLDivElement | null>;
+  secRef: React.RefObject<HTMLDivElement | null>;
+  swRef: React.RefObject<HTMLDivElement | null>;
+  jwRef: React.RefObject<HTMLDivElement | null>;
+  tier3Refs: React.RefObject<HTMLDivElement | null>[];
   hasWm: boolean;
   hasSec: boolean;
   hasWardens: boolean;
@@ -356,8 +356,8 @@ export const MembersDirectory = () => {
   const secRef = useRef<HTMLDivElement>(null);
   const swRef = useRef<HTMLDivElement>(null);
   const jwRef = useRef<HTMLDivElement>(null);
-  const tier3RefsMap = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
-  const tier3RefsArray = useRef<React.RefObject<HTMLDivElement>[]>([]);
+  const tier3RefsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map());
+  const tier3RefsArray = useRef<React.RefObject<HTMLDivElement | null>[]>([]);
 
   useEffect(() => {
     if (user) fetchMembers();

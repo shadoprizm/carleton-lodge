@@ -1,11 +1,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
+import {
+  contentLengthExceeds,
+  handlePreflight,
+  jsonResponse,
+  rejectDisallowedOrigin,
+} from "../_shared/http-security.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+const MAXIMUM_PDF_BYTES = 10 * 1024 * 1024;
+const MAXIMUM_TEXT_BYTES = 1024 * 1024;
 
 interface ParsedSummons {
   title: string;
@@ -127,120 +131,165 @@ function parseContent(text: string): ParsedSummons {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+  if (req.method === "OPTIONS") return handlePreflight(req);
+
+  const originRejection = rejectDisallowedOrigin(req);
+  if (originRejection) return originRejection;
+
+  if (req.method !== "POST") {
+    return jsonResponse(req, { error: "Method not allowed" }, 405, {
+      "Allow": "POST, OPTIONS",
+    });
+  }
+  if (contentLengthExceeds(req, MAXIMUM_PDF_BYTES + 64 * 1024)) {
+    return jsonResponse(req, { error: "Request body is too large" }, 413);
+  }
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) {
+    return jsonResponse(req, { error: "Unauthorized" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    console.error("parse-summons is missing required secrets");
+    return jsonResponse(req, { error: "Service unavailable" }, 503);
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      db: { schema: "carletonlodge" },
+      global: { headers: { Authorization: authHeader } },
+    });
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Unauthorized" }, 401);
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile?.is_admin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const { data: canManage, error: permissionError } = await supabaseUser.rpc(
+      "has_admin_section_permission",
+      { target_section: "summons", access_level: "write" },
+    );
+    if (permissionError || canManage !== true) {
+      return jsonResponse(req, { error: "Forbidden" }, 403);
     }
 
-    const contentType = req.headers.get("content-type") || "";
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      db: { schema: "carletonlodge" },
+    });
+    const limit = await consumeRateLimit(
+      supabaseAdmin,
+      "parse-summons:user",
+      user.id,
+      10,
+      60,
+    );
+    if (!limit.allowed) {
+      return jsonResponse(
+        req,
+        { error: "Too many parsing requests. Please wait a moment." },
+        429,
+        { "Retry-After": String(Math.max(limit.retry_after_seconds, 1)) },
+      );
+    }
+
+    const contentType = req.headers.get("content-type") ?? "";
     let rawText = "";
-    let isPDF = false;
+    let isPdf = false;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
-      const file = formData.get("file") as File | null;
-
-      if (!file) {
-        return new Response(JSON.stringify({ error: "No file provided" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const file = formData.get("file");
+      if (!(file instanceof File)) {
+        return jsonResponse(req, { error: "No file provided" }, 400);
+      }
+      if (
+        file.size <= 0 ||
+        file.size > MAXIMUM_PDF_BYTES ||
+        file.type !== "application/pdf" ||
+        !file.name.toLowerCase().endsWith(".pdf")
+      ) {
+        return jsonResponse(req, { error: "A PDF up to 10 MB is required" }, 400);
       }
 
-      const fileName = file.name.toLowerCase();
       const buffer = await file.arrayBuffer();
+      const magic = new TextDecoder("ascii").decode(
+        new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 5)),
+      );
+      if (magic !== "%PDF-") {
+        return jsonResponse(req, { error: "The uploaded file is not a valid PDF" }, 400);
+      }
 
-      if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
-        isPDF = true;
+      isPdf = true;
+      rawText = extractTextFromPDF(buffer);
+    } else if (contentType.includes("application/json")) {
+      let body: { text?: unknown; storagePath?: unknown };
+      try {
+        body = await req.json();
+      } catch {
+        return jsonResponse(req, { error: "Invalid JSON body" }, 400);
+      }
+
+      if (typeof body.text === "string") {
+        if (new TextEncoder().encode(body.text).byteLength > MAXIMUM_TEXT_BYTES) {
+          return jsonResponse(req, { error: "Text content is too large" }, 413);
+        }
+        rawText = body.text;
+      } else if (typeof body.storagePath === "string") {
+        const storagePath = body.storagePath.trim();
+        if (
+          storagePath.length > 500 ||
+          storagePath.includes("..") ||
+          storagePath.startsWith("/") ||
+          !storagePath.toLowerCase().endsWith(".pdf")
+        ) {
+          return jsonResponse(req, { error: "Invalid storage path" }, 400);
+        }
+
+        const { data, error } = await supabaseUser.storage
+          .from("summons-uploads")
+          .download(storagePath);
+        if (error || !data) {
+          return jsonResponse(req, { error: "File not found" }, 404);
+        }
+        if (data.size <= 0 || data.size > MAXIMUM_PDF_BYTES) {
+          return jsonResponse(req, { error: "A PDF up to 10 MB is required" }, 400);
+        }
+
+        const buffer = await data.arrayBuffer();
+        const magic = new TextDecoder("ascii").decode(
+          new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 5)),
+        );
+        if (magic !== "%PDF-") {
+          return jsonResponse(req, { error: "Stored file is not a valid PDF" }, 400);
+        }
+        isPdf = true;
         rawText = extractTextFromPDF(buffer);
       } else {
-        rawText = new TextDecoder().decode(buffer);
+        return jsonResponse(req, { error: "Text or storagePath is required" }, 400);
       }
-    } else if (contentType.includes("application/json")) {
-      const body = await req.json();
-      if (body.text) {
-        rawText = body.text;
-      } else if (body.storagePath) {
-        const { data, error } = await supabase.storage
-          .from("summons-uploads")
-          .download(body.storagePath);
-
-        if (error || !data) {
-          return new Response(JSON.stringify({ error: "File not found" }), {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        const arrBuf = await data.arrayBuffer();
-        const fileName = body.storagePath.toLowerCase();
-        if (fileName.endsWith(".pdf")) {
-          isPDF = true;
-          rawText = extractTextFromPDF(arrBuf);
-        } else {
-          rawText = new TextDecoder().decode(arrBuf);
-        }
-      }
+    } else {
+      return jsonResponse(req, { error: "Unsupported content type" }, 415);
     }
 
-    if (!rawText || !rawText.trim()) {
-      const errorMsg = isPDF
-        ? "Could not extract text from this PDF. It may use compressed streams or be image-based. Please use the manual entry option."
-        : "No text content found in the uploaded file.";
-      return new Response(JSON.stringify({ error: errorMsg }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!rawText.trim()) {
+      return jsonResponse(req, {
+        error: isPdf
+          ? "Could not extract text from this PDF. It may be image-based; please enter the text manually."
+          : "No text content found.",
+      }, 400);
     }
 
-    const parsed = parseContent(rawText);
-
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    console.error("parse-summons error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error", detail: String(err) }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return jsonResponse(req, parseContent(rawText.slice(0, MAXIMUM_TEXT_BYTES)));
+  } catch (error) {
+    console.error("parse-summons failed:", error);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   }
 });

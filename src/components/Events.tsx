@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, Clock, Plus, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { supabase, Event } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { EventModal } from './EventModal';
@@ -11,8 +11,7 @@ export const Events = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { user, hasAdminPermission } = useAuth();
-  const canManageEvents = hasAdminPermission('events', 'write');
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchEvents();
@@ -90,14 +89,14 @@ export const Events = () => {
           </p>
         </motion.div>
 
-        {user && canManageEvents && (
+        {user && (
           <div className="flex justify-center mb-12">
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center space-x-2 px-6 py-3 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
             >
               <Plus size={20} />
-              <span>Add Event</span>
+              <span>Submit Event</span>
             </button>
           </div>
         )}
@@ -199,7 +198,7 @@ export const Events = () => {
       <EventModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onEventCreated={fetchEvents}
+        onEventSubmitted={() => undefined}
       />
     </section>
   );

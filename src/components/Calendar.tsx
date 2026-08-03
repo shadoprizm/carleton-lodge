@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Clock, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Clock, ExternalLink, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { RichTextContent } from './RichTextContent';
+import { useAuth } from '../contexts/AuthContext';
+import { EventModal } from './EventModal';
 
 interface Event {
   id: string;
@@ -22,6 +24,8 @@ export const Calendar = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
+  const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchEvents();
@@ -108,9 +112,21 @@ export const Calendar = () => {
           <h2 className="text-4xl md:text-5xl font-serif text-amber-100 text-center mb-4">
             Lodge Calendar
           </h2>
-          <p className="text-center text-amber-200/60 text-sm mb-12">
+          <p className="text-center text-amber-200/60 text-sm mb-6">
             Click on a day to see scheduled events
           </p>
+          {user && (
+            <div className="flex justify-center mb-10">
+              <button
+                type="button"
+                onClick={() => setIsSubmissionOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors font-medium"
+              >
+                <Plus size={18} />
+                Submit an Event
+              </button>
+            </div>
+          )}
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-amber-600/30 p-6 md:p-8">
             <div className="flex items-center justify-between mb-8">
@@ -279,6 +295,11 @@ export const Calendar = () => {
           </div>
         </motion.div>
       </div>
+      <EventModal
+        isOpen={isSubmissionOpen}
+        onClose={() => setIsSubmissionOpen(false)}
+        onEventSubmitted={() => undefined}
+      />
     </section>
   );
 };

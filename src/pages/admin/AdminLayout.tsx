@@ -1,5 +1,5 @@
-import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
-import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare } from 'lucide-react';
+import { NavLink, Outlet, Navigate, useLocation } from 'react-router';
+import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminSection } from '../../lib/adminPermissions';
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: 'History', path: '/admin/history', icon: BookOpen, section: 'history' },
   { label: 'Gallery', path: '/admin/gallery', icon: Images, section: 'gallery' },
   { label: 'Contact', path: '/admin/contact', icon: MessageSquare, section: 'contact' },
+  { label: 'Communications', path: '/admin/communications', icon: Mail, section: 'communications' },
 ];
 
 export const AdminLayout = () => {

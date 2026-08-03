@@ -47,7 +47,7 @@ export const ForcePasswordChangeModal = () => {
           </div>
           <div>
             <h2 className="text-xl font-serif text-slate-900">Change Your Password</h2>
-            <p className="text-sm text-slate-500">Your temporary password must be replaced before continuing.</p>
+            <p className="text-sm text-slate-500">Choose a password for your lodge account before continuing.</p>
           </div>
         </div>
 
@@ -63,8 +63,13 @@ export const ForcePasswordChangeModal = () => {
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900"
               autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
               required
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Use at least 8 characters and avoid your name, email, or a common password.
+            </p>
           </div>
 
           <div>
@@ -78,6 +83,8 @@ export const ForcePasswordChangeModal = () => {
               onChange={(event) => setConfirmPassword(event.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900"
               autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
               required
             />
           </div>
