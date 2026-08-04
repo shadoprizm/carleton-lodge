@@ -157,8 +157,13 @@ Deno.serve(async (req: Request) => {
     });
     if (updateError) {
       console.error("Auth rejected required password change:", updateError);
+      // Supabase Auth's own error messages (e.g. "New password should be
+      // different from the old password.") are written to be shown to the
+      // end user directly -- surface them instead of a generic fallback that
+      // hides the actual, actionable reason.
       return jsonResponse(req, {
-        error: "The password could not be changed. Choose a different password.",
+        error: updateError.message ||
+          "The password could not be changed. Choose a different password.",
       }, 400);
     }
 
