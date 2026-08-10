@@ -8,6 +8,7 @@ import { ForcePasswordChangeModal } from './components/ForcePasswordChangeModal'
 import { MemberGate } from './components/MemberGate';
 import { LodgeGuidePilotGate } from './components/LodgeGuidePilotGate';
 import { PageMetadata } from './components/PageMetadata';
+import { MemberActivityHeartbeat } from './components/MemberActivityHeartbeat';
 import { LODGE_GUIDE_ENABLED } from './lib/lodgeGuide';
 
 const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })));
@@ -39,6 +40,7 @@ const AskCarletonPage = lazy(() => import('./pages/AskCarletonPage').then((modul
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((module) => ({ default: module.AdminLayout })));
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
+const AdminActivityPage = lazy(() => import('./pages/admin/AdminActivityPage').then((module) => ({ default: module.AdminActivityPage })));
 const AdminMembersPage = lazy(() => import('./pages/admin/AdminMembersPage').then((module) => ({ default: module.AdminMembersPage })));
 const AdminEmailAccountsPage = lazy(() => import('./pages/admin/AdminEmailAccountsPage').then((module) => ({ default: module.AdminEmailAccountsPage })));
 const AdminEventsPage = lazy(() => import('./pages/admin/AdminEventsPage').then((module) => ({ default: module.AdminEventsPage })));
@@ -71,6 +73,7 @@ const AppShell = () => {
         onNotificationClick={() => setIsNotificationSettingsOpen(true)}
       />
       <PageMetadata />
+      <MemberActivityHeartbeat />
       <main id="main-content" tabIndex={-1}>
         <Suspense fallback={<PageLoading />}>
           <Routes>
@@ -113,6 +116,7 @@ const AppShell = () => {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/users" replace />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="activity" element={<AdminActivityPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="email-accounts" element={<AdminEmailAccountsPage />} />
             <Route path="events" element={<AdminEventsPage />} />

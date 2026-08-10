@@ -22,7 +22,7 @@ export const PrivacyPolicyPage = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 md:p-12">
             <h1 className="text-4xl md:text-5xl font-serif text-blue-900 mb-2">Privacy Policy</h1>
-            <p className="text-stone-500 text-sm mb-10">Last updated: August 8, 2026</p>
+            <p className="text-stone-500 text-sm mb-10">Last updated: August 10, 2026</p>
 
             <div className="prose prose-stone max-w-none space-y-8 text-stone-700 leading-relaxed">
 
@@ -41,7 +41,7 @@ export const PrivacyPolicyPage = () => {
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Account Information:</strong> Name, email address, and password when you register for member access.</li>
                   <li><strong>Profile Information:</strong> Membership rank, contact details, and other information you choose to provide in your member profile.</li>
-                  <li><strong>Usage Data:</strong> Information about how you interact with our website, including pages visited, documents accessed, and events viewed.</li>
+                  <li><strong>Account Activity:</strong> The most recent successful login and the most recent authenticated visit to the website. We do not retain page-by-page browsing history, device details, or IP addresses for this feature.</li>
                   <li><strong>Communications:</strong> Records of correspondence if you contact us by email or through our website.</li>
                   <li><strong>AI-Assisted Feature Content:</strong> Questions submitted to Lodge Guide and lodge emails or documents that an authorised administrator selects for Mailroom draft preparation.</li>
                 </ul>
@@ -56,6 +56,7 @@ export const PrivacyPolicyPage = () => {
                   <li>Maintain and update the members directory (visible only to authenticated members).</li>
                   <li>Communicate important Lodge business and correspondence.</li>
                   <li>Generate source-grounded Lodge Guide answers and administrator-reviewed Mailroom drafts.</li>
+                  <li>Support member accounts and identify accounts that may need sign-in assistance.</li>
                   <li>Improve and administer our website and services.</li>
                   <li>Comply with our obligations under applicable Masonic jurisdiction rules.</li>
                 </ul>
@@ -69,6 +70,7 @@ export const PrivacyPolicyPage = () => {
                 </p>
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Within the Lodge:</strong> Member information is accessible to other verified Lodge members through the members directory, in accordance with Lodge custom and practice.</li>
+                  <li><strong>Account Activity:</strong> Login and latest-visit information is restricted to Lodge administrators and members who have been explicitly granted read-only Member Activity access by an administrator.</li>
                   <li><strong>Grand Lodge:</strong> We may share relevant information with the Grand Lodge of Canada in the Province of Ontario as required by our Masonic obligations.</li>
                   <li><strong>Service Providers:</strong> We use third-party processors including Supabase for authentication and data storage, Resend for email delivery and receipt, Vercel for website hosting, and OpenAI for the optional AI-assisted features.</li>
                   <li><strong>Legal Requirements:</strong> We may disclose information when required by law or to protect the rights and safety of the Lodge and its members.</li>
@@ -99,6 +101,9 @@ export const PrivacyPolicyPage = () => {
                 </p>
                 <p className="mt-3">
                   Lodge Guide answers are not automatically saved as Lodge records. Approved Mailroom imports retain the source email, file provenance, extracted draft, final reviewed content, and approval audit needed for Lodge record-keeping. Rejected and failed imports may also be retained for security, troubleshooting, and duplicate prevention.
+                </p>
+                <p className="mt-3">
+                  The member activity feature overwrites the previous website-visit timestamp and retains only the latest known authenticated visit. Supabase authentication maintains the account&apos;s latest successful sign-in timestamp.
                 </p>
               </section>
 
