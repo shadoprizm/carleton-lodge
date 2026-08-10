@@ -34,6 +34,7 @@ src/
 │   ├── DocumentPreviewModal.tsx
 │   ├── EventModal.tsx
 │   ├── Events.tsx
+│   ├── Footer.tsx             # Site-wide footer (mounted once in App.tsx after <main>)
 │   ├── Hero.tsx
 │   ├── History.tsx          # Homepage history teaser (static chapter data)
 │   ├── MembersDirectory.tsx
@@ -216,7 +217,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 ## Testing Strategy
 
-Vitest is available (`npm test`, zero-config — the Vite config is picked up automatically). The only suite so far is `src/lib/history/historyData.test.ts` (10 tests), which validates the static history archive's data integrity: source/image ID references, unique chapter slugs, valid image types, no AI reconstruction under "Historical photographs", and every `localPath` resolving to a real file in `static/`. When adding tests:
+Vitest is available (`npm test`, zero-config — the Vite config is picked up automatically). The main data-integrity suite is `src/lib/history/historyData.test.ts` (10 tests), which validates the static history archive's data integrity: source/image ID references, unique chapter slugs, valid image types, no AI reconstruction under "Historical photographs", and every `localPath` resolving to a real file in `static/`. Component-level suites also exist colocated with their components (e.g. `src/components/PageMetadata.test.tsx`, `src/components/Footer.test.tsx`) using `@testing-library/react` with `MemoryRouter`. When adding tests:
 - Use Vitest (consistent with Vite ecosystem)
 - Colocate `*.test.ts` next to pure logic in `src/lib/` / `src/utils/`
 - Integration tests for Supabase queries

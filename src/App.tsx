@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import { AuthProvider } from './contexts/AuthContext';
 import { Navigation } from './components/Navigation';
+import { Footer } from './components/Footer';
 import { AuthModal } from './components/AuthModal';
 import { NotificationSettings } from './components/NotificationSettings';
 import { ForcePasswordChangeModal } from './components/ForcePasswordChangeModal';
@@ -132,6 +133,7 @@ const AppShell = () => {
           </Routes>
         </Suspense>
       </main>
+      <Footer />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
