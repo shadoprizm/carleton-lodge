@@ -6,7 +6,7 @@ import {
   lodgeGuideRequestedDegree,
 } from '../../supabase/functions/_shared/lodge-guide-district';
 
-describe('Lodge Guide Ottawa District 1 enrichment', () => {
+describe('Lodge Guide Ottawa District enrichment', () => {
   const events = [
     { degree: 'first', district_lodges: { name: 'Russell Lodge' } },
     { degree: 'third', district_lodges: { name: 'Russell Lodge' } },
@@ -16,6 +16,7 @@ describe('Lodge Guide Ottawa District 1 enrichment', () => {
   it('recognizes named visiting lodges and degree questions', () => {
     expect(lodgeGuideQuestionNeedsDistrict('When is the next meeting of Russell Lodge?')).toBe(true);
     expect(lodgeGuideQuestionNeedsDistrict('What lodges are doing a third degree next month?')).toBe(true);
+    expect(lodgeGuideQuestionNeedsDistrict('What is happening in Ottawa District 2?')).toBe(true);
     expect(lodgeGuideQuestionNeedsDistrict('When is our lodge meeting?')).toBe(false);
   });
 

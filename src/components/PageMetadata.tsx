@@ -22,7 +22,7 @@ const pages = [
   { match: (path: string) => path === '/my-lodge', title: 'My Lodge | Carleton Lodge No. 465', description: 'The secure member home for current Carleton Lodge information.' },
   ...(LODGE_GUIDE_ENABLED ? [{ match: (path: string) => path === '/lodge-guide', title: 'Lodge Guide | Carleton Lodge No. 465', description: 'Ask questions using approved, permission-aware Carleton Lodge sources.' }] : []),
   { match: (path: string) => path === '/summons', title: 'Lodge Summons | Carleton Lodge No. 465', description: 'Secure access to current and past Carleton Lodge summons.' },
-  { match: (path: string) => path === '/district', title: 'Ottawa District 1 | Carleton Lodge No. 465', description: 'Member access to Ottawa District 1 lodge meetings, degree work, contacts, and summons.' },
+  { match: (path: string) => path === '/district', title: 'Ottawa Districts 1 and 2 | Carleton Lodge No. 465', description: 'Member access to Ottawa District 1 and 2 lodge meetings, degree work, contacts, and summons.' },
   { match: (path: string) => path === '/members', title: 'Officers and Members | Carleton Lodge No. 465', description: 'The secure Carleton Lodge officer and member directory.' },
   { match: (path: string) => path === '/library', title: 'Lodge Library | Carleton Lodge No. 465', description: 'Secure access to approved Carleton Lodge documents and forms.' },
   { match: (path: string) => path === '/reset-password', title: 'Reset Password | Carleton Lodge No. 465', description: 'Choose a new password for your Carleton Lodge account.' },

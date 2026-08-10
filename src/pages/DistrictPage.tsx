@@ -58,6 +58,7 @@ export const DistrictPage = () => {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [degree, setDegree] = useState<DistrictEventDegree | 'all'>('all');
+  const [district, setDistrict] = useState<'all' | 'Ottawa District 1' | 'Ottawa District 2'>('all');
   const [expandedSummons, setExpandedSummons] = useState<string | null>(null);
   const [openingPdf, setOpeningPdf] = useState<string | null>(null);
   const blobUrl = useRef<string | null>(null);
@@ -105,6 +106,8 @@ export const DistrictPage = () => {
   const normalizedQuery = query.trim().toLowerCase();
   const filteredEvents = useMemo(() => events.filter((event) => {
     const matchesDegree = degree === 'all' || event.degree === degree;
+    const eventDistrict = event.district_lodges?.district_name ?? event.district_name;
+    const matchesDistrict = district === 'all' || eventDistrict === district;
     const haystack = [
       event.title,
       event.description,
@@ -112,17 +115,29 @@ export const DistrictPage = () => {
       event.district_lodges?.name,
       event.district_lodges?.lodge_number,
     ].filter(Boolean).join(' ').toLowerCase();
-    return matchesDegree && (!normalizedQuery || haystack.includes(normalizedQuery));
-  }), [degree, events, normalizedQuery]);
+    return matchesDegree && matchesDistrict && (!normalizedQuery || haystack.includes(normalizedQuery));
+  }), [degree, district, events, normalizedQuery]);
 
   const filteredSummons = useMemo(() => summons.filter((item) => {
+    const matchesDistrict = district === 'all' || item.district_lodges?.district_name === district;
+    if (!matchesDistrict) return false;
     if (!normalizedQuery) return true;
-    return [item.title, item.issue_label, item.content, item.district_lodges?.name]
+    return [item.title, item.issue_label, item.content, item.district_lodges?.name, item.district_lodges?.district_name]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
       .includes(normalizedQuery);
-  }), [normalizedQuery, summons]);
+  }), [district, normalizedQuery, summons]);
+
+  const filteredLodges = useMemo(() => lodges.filter((lodge) => {
+    if (district !== 'all' && lodge.district_name !== district) return false;
+    if (!normalizedQuery) return true;
+    return [lodge.name, lodge.lodge_number, lodge.location, lodge.district_name, ...(lodge.aliases ?? [])]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(normalizedQuery);
+  }), [district, lodges, normalizedQuery]);
 
   const openPdf = useCallback(async (path: string) => {
     setOpeningPdf(path);
@@ -152,11 +167,11 @@ export const DistrictPage = () => {
             <div className="rounded-full bg-blue-900 p-3 text-white"><Landmark size={24} aria-hidden="true" /></div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-800">Member information</p>
-              <h1 className="font-serif text-3xl text-slate-950 sm:text-4xl">Ottawa District 1</h1>
+              <h1 className="font-serif text-3xl text-slate-950 sm:text-4xl">Ottawa Districts 1 and 2</h1>
             </div>
           </div>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-            Upcoming meetings, degree work, lodge contacts, and summons received from lodges across the district.
+            Upcoming meetings, degree work, lodge contacts, and summons from both Ottawa Masonic districts.
           </p>
           <div className="mt-5 flex max-w-4xl items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
             <AlertTriangle className="mt-0.5 flex-shrink-0" size={20} aria-hidden="true" />
@@ -168,13 +183,21 @@ export const DistrictPage = () => {
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <section aria-labelledby="district-search-title" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 id="district-search-title" className="font-serif text-2xl text-slate-950">Find a meeting or summons</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_15rem]">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_14rem_14rem]">
             <label className="text-sm font-semibold text-slate-700">
               Lodge, event, or location
               <span className="relative mt-1 block">
                 <Search className="pointer-events-none absolute left-3 top-3.5 text-slate-400" size={18} aria-hidden="true" />
                 <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-h-12 w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="For example: Russell Lodge" />
               </span>
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              District
+              <select value={district} onChange={(event) => setDistrict(event.target.value as typeof district)} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="all">Both districts</option>
+                <option value="Ottawa District 1">Ottawa District 1</option>
+                <option value="Ottawa District 2">Ottawa District 2</option>
+              </select>
             </label>
             <label className="text-sm font-semibold text-slate-700">
               Degree work
@@ -209,7 +232,8 @@ export const DistrictPage = () => {
                   <article id={`event-${event.id}`} key={event.id} className="scroll-mt-28 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-bold uppercase tracking-[0.1em] text-blue-800">{event.district_lodges?.name ?? 'District lodge'}</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{event.district_lodges?.district_name ?? event.district_name}</p>
+                        <p className="mt-1 text-sm font-bold uppercase tracking-[0.1em] text-blue-800">{event.district_lodges?.name ?? 'District event'}</p>
                         <h3 className="mt-1 font-serif text-xl text-slate-950">{event.title}</h3>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${event.degree === 'third' ? 'bg-amber-200 text-amber-950' : 'bg-blue-50 text-blue-900'}`}>{degreeLabel[event.degree]}</span>
@@ -220,7 +244,8 @@ export const DistrictPage = () => {
                     </dl>
                     {event.description && <p className="mt-4 border-t border-slate-100 pt-4 text-sm leading-6 text-slate-600">{event.description}</p>}
                     {(event.contact_name || event.contact_details) && <p className="mt-3 text-sm text-slate-600"><strong>Contact:</strong> {[event.contact_name, event.contact_details].filter(Boolean).join(' · ')}</p>}
-                    <a href={`#summons-${event.summons_id}`} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"><FileText size={16} /> Read the source summons</a>
+                    {event.summons_id && <a href={`#summons-${event.summons_id}`} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"><FileText size={16} /> Read the source summons</a>}
+                    {!event.summons_id && event.source_url && <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"><ExternalLink size={16} /> View the official calendar source</a>}
                   </article>
                 ))}
               </div>
@@ -231,8 +256,9 @@ export const DistrictPage = () => {
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-800">Directory</p>
               <h2 id="district-lodges-title" className="font-serif text-3xl text-slate-950">District lodges</h2>
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {lodges.map((lodge) => (
+                {filteredLodges.map((lodge) => (
                   <article id={`lodge-${lodge.id}`} key={lodge.id} className="scroll-mt-28 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{lodge.district_name}</p>
                     <h3 className="font-serif text-xl text-slate-950">{lodge.name}{lodge.lodge_number ? ` No. ${lodge.lodge_number}` : ''}</h3>
                     {lodge.location && <p className="mt-2 flex gap-2 text-sm text-slate-600"><MapPin size={16} className="mt-0.5 flex-shrink-0" /> {lodge.location}</p>}
                     <dl className="mt-4 space-y-2 text-sm text-slate-700">
@@ -248,7 +274,7 @@ export const DistrictPage = () => {
                   </article>
                 ))}
               </div>
-              {lodges.length === 0 && <p className="mt-5 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500"><UserRound className="mx-auto mb-2" /> Lodge details will appear after the first district summons is approved.</p>}
+              {filteredLodges.length === 0 && <p className="mt-5 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500"><UserRound className="mx-auto mb-2" /> No district lodges match those filters.</p>}
             </section>
 
             <section aria-labelledby="district-summons-title">
@@ -260,7 +286,7 @@ export const DistrictPage = () => {
                   return (
                     <article id={`summons-${item.id}`} key={item.id} className="scroll-mt-28 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                       <button type="button" onClick={() => setExpandedSummons(expanded ? null : item.id)} className="flex min-h-20 w-full items-center justify-between gap-4 px-5 py-4 text-left">
-                        <span><span className="block text-sm font-bold uppercase tracking-[0.1em] text-blue-800">{item.district_lodges?.name ?? 'District lodge'}</span><span className="mt-1 block font-serif text-xl text-slate-950">{item.title}</span><span className="mt-1 block text-sm text-slate-500">{item.issue_label}</span></span>
+                        <span><span className="block text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{item.district_lodges?.district_name ?? 'Ottawa district'}</span><span className="mt-1 block text-sm font-bold uppercase tracking-[0.1em] text-blue-800">{item.district_lodges?.name ?? 'District lodge'}</span><span className="mt-1 block font-serif text-xl text-slate-950">{item.title}</span><span className="mt-1 block text-sm text-slate-500">{item.issue_label}</span></span>
                         {expanded ? <ChevronUp className="flex-shrink-0" /> : <ChevronDown className="flex-shrink-0" />}
                       </button>
                       {expanded && (

@@ -4,7 +4,7 @@ export type LodgeGuideDistrictEventRow = {
 };
 
 const DISTRICT_TOPIC_PATTERN =
-  /\b(ottawa district|district 1|district one|visiting|first degree|second degree|third degree|degree work|degrees?)\b/i;
+  /\b(ottawa district|district 1|district one|district 2|district two|visiting|first degree|second degree|third degree|degree work|degrees?)\b/i;
 const NAMED_LODGE_PATTERN = /\b([a-z0-9][a-z0-9'’-]*)\s+lodge\b/i;
 const CARLETON_REFERENCES = new Set(["carleton", "our", "the", "this"]);
 
@@ -55,9 +55,15 @@ export const lodgeGuideDistrictEventSourceBody = (event: {
   description: string | null;
   contact_name: string | null;
   contact_details: string | null;
-  district_lodges: { name: string; lodge_number: string | null } | null;
+  district_name?: string;
+  district_lodges: {
+    name: string;
+    lodge_number: string | null;
+    district_name?: string;
+  } | null;
 }) =>
   [
+    `District: ${event.district_lodges?.district_name ?? event.district_name ?? "Not specified"}`,
     `Visiting lodge: ${event.district_lodges?.name ?? "Not specified"}`,
     event.district_lodges?.lodge_number
       ? `Lodge number: ${event.district_lodges.lodge_number}`

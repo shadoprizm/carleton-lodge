@@ -51,7 +51,7 @@ const aboutNavItems: NavigationItem[] = [
 
 const baseMemberNavItems: NavigationItem[] = [
   { label: 'Monthly Summons', path: '/summons', icon: ScrollText, description: 'Read meeting notices and agendas' },
-  { label: 'Ottawa District 1', path: '/district', icon: Landmark, description: 'Visiting-lodge meetings, degrees, and summons' },
+  { label: 'Ottawa Districts', path: '/district', icon: Landmark, description: 'District 1 and 2 meetings, degrees, and summons' },
   { label: 'Member Directory', path: '/members', icon: UsersRound, description: 'Find officers and lodge members' },
   { label: 'Document Library', path: '/library', icon: Library, description: 'Access lodge documents and forms' },
 ];

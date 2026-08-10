@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ArrowRight, LockKeyhole, Search } from 'lucide-react';
+import { FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { ArrowRight, ExternalLink, LockKeyhole, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { LodgeSearchResult, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,13 +13,23 @@ const sourceLabels: Record<LodgeSearchResult['source_type'], string> = {
   history: 'Lodge history',
   member: 'Officer or member',
   help: 'Help topic',
-  district_lodge: 'Ottawa District 1 lodge',
+  district_lodge: 'Ottawa district lodge',
   district_summons: 'District summons',
   district_event: 'District event',
+  grand_lodge_page: 'Grand Lodge source',
+  district_page: 'Official district source',
+  external_lodge_page: 'Official lodge source',
+};
+
+const SearchResultTarget = ({ url, children }: { url: string; children: ReactNode }) => {
+  const className = 'group block rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 sm:p-6';
+  return /^https:\/\//i.test(url)
+    ? <a href={url} target="_blank" rel="noopener noreferrer" className={className}>{children}</a>
+    : <Link to={url} className={className}>{children}</Link>;
 };
 
 const publicSuggestions = ['meeting information', 'lodge history', 'sign in help', 'wrong information'];
-const memberSuggestions = ['next lodge meeting', 'latest summons', 'Ottawa District 1 degree', 'Secretary', 'notification settings'];
+const memberSuggestions = ['next lodge meeting', 'latest summons', 'Ottawa district degree', 'Secretary', 'notification settings'];
 
 export const SearchPage = () => {
   const { user } = useAuth();
@@ -78,7 +88,7 @@ export const SearchPage = () => {
         <div className="mx-auto max-w-4xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Carleton Lodge information</p>
           <h1 className="mt-2 text-4xl font-serif sm:text-5xl">Search the Lodge Website</h1>
-          <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-200">Search announcements, events, history and help. Signed-in members also search summons, Ottawa District 1 meetings, lodge documents, and the member directory.</p>
+          <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-200">Search announcements, events, history and help. Signed-in members also search summons, Ottawa District 1 and 2 meetings, lodge documents, and the member directory.</p>
           <form onSubmit={submit} role="search" className="mt-7 flex flex-col gap-3 sm:flex-row">
             <label htmlFor="site-search" className="sr-only">Search lodge information</label>
             <div className="relative flex-1">
@@ -110,15 +120,15 @@ export const SearchPage = () => {
               <ol className="mt-5 space-y-4">
                 {results.map((result) => (
                   <li key={result.id}>
-                    <Link to={result.source_url} className="group block rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 sm:p-6">
+                    <SearchResultTarget url={result.source_url}>
                       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
                         <span>{sourceLabels[result.source_type]}</span>
                         {result.visibility !== 'public' && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs"><LockKeyhole size={12} /> Members</span>}
                       </div>
                       <h3 className="mt-2 text-2xl font-serif text-slate-900 group-hover:text-amber-800">{result.title}</h3>
                       {result.snippet && <p className="mt-2 line-clamp-3 text-base leading-relaxed text-slate-600">{result.snippet}</p>}
-                      <span className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-blue-900 underline underline-offset-4">Open source <ArrowRight size={17} /></span>
-                    </Link>
+                      <span className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-blue-900 underline underline-offset-4">Open source {/^https:\/\//i.test(result.source_url) ? <ExternalLink size={17} /> : <ArrowRight size={17} />}</span>
+                    </SearchResultTarget>
                   </li>
                 ))}
               </ol>

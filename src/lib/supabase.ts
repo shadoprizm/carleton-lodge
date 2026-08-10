@@ -367,7 +367,10 @@ export type LodgeSearchResult = {
     | 'help'
     | 'district_lodge'
     | 'district_summons'
-    | 'district_event';
+    | 'district_event'
+    | 'grand_lodge_page'
+    | 'district_page'
+    | 'external_lodge_page';
   source_id: string;
   title: string;
   snippet: string;
@@ -528,6 +531,7 @@ export type DistrictLodge = {
   contact_email: string | null;
   contact_phone: string | null;
   details_as_of: string | null;
+  aliases: string[];
   created_at: string;
   updated_at: string;
 };
@@ -558,8 +562,13 @@ export type DistrictEventDegree =
 
 export type DistrictEvent = {
   id: string;
-  lodge_id: string;
-  summons_id: string;
+  lodge_id: string | null;
+  summons_id: string | null;
+  district_name: 'Ottawa District 1' | 'Ottawa District 2';
+  trusted_source_id: string | null;
+  external_uid: string | null;
+  source_url: string | null;
+  source_checked_at: string | null;
   title: string;
   description: string | null;
   event_date: string;
@@ -575,6 +584,34 @@ export type DistrictEvent = {
   updated_at: string;
   district_lodges: DistrictLodge | null;
   district_summons: Pick<DistrictSummons, 'id' | 'title' | 'pdf_url'> | null;
+};
+
+export type TrustedKnowledgeSourceAuthority =
+  | 'grand_lodge'
+  | 'district_1'
+  | 'district_2'
+  | 'lodge';
+
+export type TrustedKnowledgeSource = {
+  id: string;
+  name: string;
+  authority: TrustedKnowledgeSourceAuthority;
+  district_name: 'Ottawa District 1' | 'Ottawa District 2' | null;
+  source_kind: 'page' | 'calendar_ics';
+  source_url: string;
+  domain: string;
+  enabled: boolean;
+  allow_live_search: boolean;
+  refresh_interval_minutes: number;
+  fetch_status: 'pending' | 'refreshing' | 'healthy' | 'unchanged' | 'error';
+  last_checked_at: string | null;
+  last_success_at: string | null;
+  last_changed_at: string | null;
+  last_http_status: number | null;
+  last_error: string | null;
+  consecutive_failures: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DocumentCategory = {

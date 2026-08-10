@@ -234,7 +234,7 @@ export const MyLodgePage = () => {
               {canAccessLodgeGuidePilot(LODGE_GUIDE_ENABLED, isAdmin) && <QuickLink to="/lodge-guide" icon={Bot} label="Ask the Lodge Guide" description="Answers from approved sources" />}
               <QuickLink to="/calendar" icon={CalendarDays} label="Calendar" description="Meetings and events" />
               <QuickLink to="/summons" icon={ScrollText} label="Latest Summons" description="Official lodge notice" />
-              <QuickLink to="/district" icon={Landmark} label="Ottawa District 1" description="Visiting lodges and degrees" />
+              <QuickLink to="/district" icon={Landmark} label="Ottawa Districts" description="District 1 and 2 lodges and degrees" />
               <QuickLink to="/library" icon={BookOpen} label="Lodge Documents" description="Minutes, forms and records" />
               <QuickLink to="/members" icon={Users} label="Officers & Members" description="Find the right person" />
             </nav>
