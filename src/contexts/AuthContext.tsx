@@ -67,13 +67,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return (data ?? []) as AdminSectionPermission[];
   };
 
-  const recordLogin = async () => {
-    const { error } = await supabase.rpc('record_current_user_login');
-    if (error) {
-      console.warn('Could not update last login timestamp:', error.message);
-    }
-  };
-
   useEffect(() => {
     let mounted = true;
 
@@ -101,15 +94,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       (async () => {
         if (!mounted) return;
         setLoading(true);
         setSession(session);
         if (session?.user) {
-          if (event === 'SIGNED_IN') {
-            await recordLogin();
-          }
           const [profileData, permissionsData] = await Promise.all([
             fetchProfile(session.user.id),
             fetchAdminPermissions(session.user.id),
@@ -135,9 +125,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error) {
-      await recordLogin();
-    }
     return { error };
   };
 

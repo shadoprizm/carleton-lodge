@@ -6,7 +6,8 @@ export type AdminSection =
   | 'history'
   | 'gallery'
   | 'contact'
-  | 'communications';
+  | 'communications'
+  | 'activity';
 
 export type AdminPermissionLevel = 'read' | 'write' | 'approve';
 
@@ -35,6 +36,7 @@ export const ADMIN_SECTIONS: Array<{
   { id: 'gallery', label: 'Gallery', description: 'Photo albums and photos' },
   { id: 'contact', label: 'Contact', description: 'Contact form submissions' },
   { id: 'communications', label: 'Communications', description: 'Outbound notifications and inbound email' },
+  { id: 'activity', label: 'Member Activity', description: 'Read-only login and website activity' },
 ];
 
 export function hasSectionPermission(
@@ -47,6 +49,10 @@ export function hasSectionPermission(
 
   const permission = permissions.find((item) => item.section === section);
   if (!permission) return false;
+
+  if (section === 'activity') {
+    return level === 'read' && permission.can_read;
+  }
 
   if (level === 'approve') {
     return section === 'events' && permission.can_approve;

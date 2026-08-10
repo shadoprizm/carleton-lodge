@@ -30,4 +30,11 @@ describe('section permissions', () => {
     expect(hasSectionPermission(false, [approver], 'events', 'approve')).toBe(true);
     expect(hasSectionPermission(false, [{ ...approver, section: 'communications' }], 'communications', 'approve')).toBe(false);
   });
+
+  it('supports delegated read-only access to member activity', () => {
+    const activityReader = permission({ section: 'activity', can_read: true });
+    expect(hasSectionPermission(false, [activityReader], 'activity', 'read')).toBe(true);
+    expect(hasSectionPermission(false, [activityReader], 'activity', 'write')).toBe(false);
+    expect(hasSectionPermission(false, [{ ...activityReader, can_write: true }], 'activity', 'write')).toBe(false);
+  });
 });

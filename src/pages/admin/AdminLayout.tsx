@@ -1,10 +1,11 @@
 import { NavLink, Outlet, Navigate, useLocation } from 'react-router';
-import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare, Mail, Globe2 } from 'lucide-react';
+import { Activity, Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare, Mail, Globe2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminSection } from '../../lib/adminPermissions';
 
 const navItems = [
   { label: 'Users', path: '/admin/users', icon: Users, fullAdminOnly: true },
+  { label: 'Member Activity', path: '/admin/activity', icon: Activity, section: 'activity' },
   { label: 'Members', path: '/admin/members', icon: UserCircle, section: 'members' },
   { label: 'Lodge Email', path: '/admin/email-accounts', icon: Mail, section: 'members' },
   { label: 'Events', path: '/admin/events', icon: Calendar, section: 'events' },

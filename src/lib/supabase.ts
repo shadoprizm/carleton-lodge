@@ -76,9 +76,17 @@ export type Profile = {
   email: string;
   is_admin: boolean;
   force_password_change: boolean;
-  last_sign_in_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MemberActivitySummary = {
+  profile_id: string;
+  full_name: string | null;
+  email: string;
+  joined_at: string;
+  last_login_at: string | null;
+  last_seen_at: string | null;
 };
 
 export type { AdminSection, AdminSectionPermission, AdminPermissionLevel } from './adminPermissions';

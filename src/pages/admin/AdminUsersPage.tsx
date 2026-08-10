@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Shield, ShieldOff } from 'lucide-react';
-import { supabase, Profile } from '../../lib/supabase';
+import { supabase, type Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_SECTIONS, AdminSection, AdminSectionPermission } from '../../lib/adminPermissions';
 
-type ProfileWithLastLogin = Profile & {
-  last_sign_in_at: string | null;
-};
-
 export const AdminUsersPage = () => {
   const { user } = useAuth();
-  const [profiles, setProfiles] = useState<ProfileWithLastLogin[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [permissions, setPermissions] = useState<Record<string, AdminSectionPermission[]>>({});
   const [loading, setLoading] = useState(true);
 
@@ -30,12 +26,7 @@ export const AdminUsersPage = () => {
     ]);
 
     if (profilesRes.data) {
-      setProfiles(
-        profilesRes.data.map((profile) => ({
-          ...profile,
-          last_sign_in_at: profile.last_sign_in_at ?? null,
-        }))
-      );
+      setProfiles(profilesRes.data);
     }
 
     if (permissionsRes.data) {
@@ -127,7 +118,6 @@ export const AdminUsersPage = () => {
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Email</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Role</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Joined</th>
-                <th className="text-left py-3 px-4 font-semibold text-slate-600">Last Login</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600 min-w-[360px]">Section Access</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-600">Actions</th>
               </tr>
@@ -148,17 +138,6 @@ export const AdminUsersPage = () => {
                   <td className="py-3 px-4 text-slate-500">
                     {new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </td>
-                  <td className="py-3 px-4 text-slate-500">
-                    {profile.last_sign_in_at
-                      ? new Date(profile.last_sign_in_at).toLocaleString('en-CA', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })
-                      : 'Never'}
-                  </td>
                   <td className="py-3 px-4">
                     {profile.is_admin ? (
                       <span className="text-xs text-slate-500">Full access to every section</span>
@@ -169,6 +148,7 @@ export const AdminUsersPage = () => {
                           return (
                             <div key={section.id} className="border border-slate-200 rounded-lg px-2.5 py-2">
                               <div className="text-xs font-medium text-slate-700 mb-1">{section.label}</div>
+                              <p className="mb-1.5 text-[11px] leading-4 text-slate-500">{section.description}</p>
                               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
                                 <label className="inline-flex items-center gap-1.5">
                                   <input
@@ -190,15 +170,17 @@ export const AdminUsersPage = () => {
                                     Approve
                                   </label>
                                 )}
-                                <label className="inline-flex items-center gap-1.5">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!permission?.can_write}
-                                    onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_write', event.target.checked)}
-                                    className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                                  />
-                                  Write
-                                </label>
+                                {section.id !== 'activity' && (
+                                  <label className="inline-flex items-center gap-1.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!permission?.can_write}
+                                      onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_write', event.target.checked)}
+                                      className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                    />
+                                    Write
+                                  </label>
+                                )}
                               </div>
                             </div>
                           );
