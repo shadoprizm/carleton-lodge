@@ -204,8 +204,21 @@ export const Events = () => {
         )}
 
         {!loading && events.length === 0 && (
-          <div className="text-center text-gray-600 py-12">
-            No upcoming events at this time. Check back soon!
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-900/5 rounded-full mb-4">
+              <Calendar size={28} className="text-blue-900/50" />
+            </div>
+            <p className="text-gray-900 font-serif text-xl mb-2">No upcoming events right now</p>
+            <p className="text-gray-600 font-light mb-8">
+              New meetings and gatherings are posted regularly. Check back soon.
+            </p>
+            <Link
+              to="/calendar"
+              className="inline-flex items-center space-x-2 px-8 py-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-all font-medium tracking-wide shadow-lg"
+            >
+              <span>View Full Calendar</span>
+              <ArrowRight size={18} />
+            </Link>
           </div>
         )}
       </div>
