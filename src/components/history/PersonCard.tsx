@@ -16,13 +16,6 @@ export const PersonCard = ({ person }: PersonCardProps) => (
     </div>
     <p className="mt-1 text-sm font-semibold text-amber-800">{person.role}</p>
     <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{person.bio}</p>
-    <p className="mt-3 text-xs text-slate-400">
-      {person.confidence !== 'high' && (
-        <span className="mr-2 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
-          {person.confidence === 'medium' ? 'Under research' : 'Unresolved'}
-        </span>
-      )}
-      {person.sources.join(' · ')}
-    </p>
+    <p className="mt-3 text-xs text-slate-400">{person.sources.join(' · ')}</p>
   </article>
 );

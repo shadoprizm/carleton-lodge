@@ -89,7 +89,7 @@ supabase/
 └── migrations/          # Database migrations (chronological order)
 
 static/                  # Static assets served at the site root (vite.config.ts sets publicDir: 'static')
-│   └── history/         # History archive assets: photo-pending.svg placeholder + legacy/ display copies
+│   └── history/         # History archive assets: legacy/ display copies of recovered Lodge photos
 public/                  # NOT served by Vite — holds the legacy photo preservation store
 │   └── history/archive/legacy-owned/  # Recovered Lodge photos (originals/ + manifest: never modify or reference)
 k3-handoff/              # Source research package behind the history archive data
@@ -97,7 +97,7 @@ k3-handoff/              # Source research package behind the history archive da
 
 ### Public history archive
 
-`/history` and its chapter sub-routes (`/history/founding`, `/history/fire-and-displacement`, `/history/temple`, `/history/le-havre`, `/history/war-and-remembrance`, `/history/people`, `/history/gallery`, `/history/sources`) render static, source-grounded data from `src/lib/history/` — they do **not** read from Supabase. Legacy slugs redirect: `/history/formative-era-1904-1920` → `/history/founding`, `/history/great-fire-1920` → `/history/fire-and-displacement`, `/history/international-connection-1916-1930` → `/history/le-havre`, `/history/architectural-heritage-1872-1925` → `/history/temple`, `/history/modern-era-2000-2026` → `/history`. The Supabase `history_entries` table and `AdminHistoryPage` remain unchanged for admin editing. Image slots without rights-cleared assets render the neutral placeholder `static/history/photo-pending.svg`; recovered Lodge-owned legacy photos are registered as `LEG01`–`LEG14` (source S10); AI reconstructions are confined to the clearly labelled "AI reconstructions" gallery filter.
+`/history` and its chapter sub-routes (`/history/founding`, `/history/fire-and-displacement`, `/history/temple`, `/history/le-havre`, `/history/war-and-remembrance`, `/history/people`, `/history/gallery`, `/history/sources`) render static, source-grounded data from `src/lib/history/` — they do **not** read from Supabase. Legacy slugs redirect: `/history/formative-era-1904-1920` → `/history/founding`, `/history/great-fire-1920` → `/history/fire-and-displacement`, `/history/international-connection-1916-1930` → `/history/le-havre`, `/history/architectural-heritage-1872-1925` → `/history/temple`, `/history/modern-era-2000-2026` → `/history`. The Supabase `history_entries` table and `AdminHistoryPage` remain unchanged for admin editing. Image slots without rights-cleared assets are **not displayed publicly at all** — their metadata (rightsStatus, acquisition notes, open questions in `openQuestions.ts`) stays in `src/lib/history/` as the internal curation record but must never render. Public copy must avoid curation/workflow language; `historyData.test.ts` enforces this for rendered fields. Recovered Lodge-owned legacy photos are registered as `LEG01`–`LEG14` (source S10); AI reconstructions are confined to the clearly labelled "AI reconstructions" gallery filter.
 
 ## Database Schema
 

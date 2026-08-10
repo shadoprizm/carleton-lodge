@@ -1,24 +1,18 @@
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { Timeline } from '../../components/history/Timeline';
 import { HistoryFigure } from '../../components/history/HistoryFigure';
-import { SourceNotes, UnresolvedCallout } from '../../components/history/SourceNotes';
+import { SourceNotes } from '../../components/history/SourceNotes';
 import { ArtifactCard } from '../../components/history/ArtifactCard';
 import {
   historyArtifacts,
   historyEvents,
   imageById,
-  openQuestions,
-  type HistoryImage,
 } from '../../lib/history';
 
 export const LeHavrePage = () => {
   const artifactIds = ['le-havre-furniture', 'setting-maul', 'altar-campbell', 'le-havre-minute-book'];
   const artifacts = historyArtifacts.filter((artifact) => artifactIds.includes(artifact.id));
-  const imageSlots = ['IMG08', 'IMG09', 'IMG12']
-    .map((id) => imageById(id))
-    .filter((img): img is HistoryImage => Boolean(img));
   const interiorImage = imageById('LEG01');
-  const archiveQuestion = openQuestions.find((question) => question.id === 'le-havre-archive-status');
 
   return (
     <HistoryLayout
@@ -78,14 +72,11 @@ export const LeHavrePage = () => {
             </p>
             <p>
               The same District history lists the Minute Book and Register of Members of La Loge Le
-              Havre de Grâce as being held in the archives of Carleton Lodge. Their present physical
-              location and condition have not been confirmed, and this history does not describe
-              them as currently extant.
+              Havre de Grâce as held in the archives of Carleton Lodge. Whether those records
+              survive today has not been established.
             </p>
           </div>
         </section>
-
-        {archiveQuestion && <UnresolvedCallout question={archiveQuestion} />}
 
         <section aria-labelledby="le-havre-artifacts">
           <h2 id="le-havre-artifacts" className="font-serif text-3xl text-slate-900">
@@ -98,33 +89,21 @@ export const LeHavrePage = () => {
           </div>
         </section>
 
-        <section aria-labelledby="le-havre-images">
-          <h2 id="le-havre-images" className="font-serif text-3xl text-slate-900">
-            The collection in place — and documentation in progress
-          </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-            This recovered 2014 photograph shows the Lodge room as it stands, with the furniture in
-            use. Important caveat: which pieces, if any, descend from the Le Havre collection is
-            <strong> not confirmed from this photograph</strong> — the brass provenance plates on
-            the column bases are not legible in the recovered images, and piece-by-piece
-            attribution awaits the on-site documentation below.
-          </p>
-          {interiorImage && (
+        {interiorImage && (
+          <section aria-labelledby="le-havre-room">
+            <h2 id="le-havre-room" className="font-serif text-3xl text-slate-900">
+              The Lodge room today
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
+              The Le Havre furnishings remain in use in the Lodge room at Carp, photographed here
+              during an official visit in 2014. Whether individual pieces in view descend from the
+              Le Havre collection has not been established from the photograph alone.
+            </p>
             <div className="mt-6">
               <HistoryFigure image={interiorImage} />
             </div>
-          )}
-          <p className="mt-8 max-w-3xl text-sm leading-relaxed text-slate-600">
-            Modern photography of the surviving Le Havre artifacts is a major visual priority for
-            the Lodge. These slots will hold Lodge-controlled photographs of the furniture, the
-            setting maul, and — once physically located — the Minute Book and Register:
-          </p>
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            {imageSlots.map((image) => (
-              <HistoryFigure key={image.id} image={image} />
-            ))}
-          </div>
-        </section>
+          </section>
+        )}
 
         <section aria-labelledby="le-havre-timeline">
           <h2 id="le-havre-timeline" className="font-serif text-3xl text-slate-900">

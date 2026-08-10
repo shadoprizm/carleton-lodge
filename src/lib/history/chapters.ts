@@ -62,7 +62,7 @@ export const historyChapters: HistoryChapter[] = [
     yearLabel: '1904 —',
     tagline: 'Founders, charter members, and the figures who shaped Carleton Lodge.',
     description:
-      'The twelve identified charter members, key figures such as George N. Kidd and R.W. Bro. Sidney Albert Luke, and the continuing work of compiling Past Masters and District officers from Lodge records.',
+      'The twelve identified charter members and the key figures who shaped the Lodge, from George N. Kidd to R.W. Bro. Sidney Albert Luke.',
     icon: 'users',
   },
   {
@@ -72,7 +72,7 @@ export const historyChapters: HistoryChapter[] = [
     yearLabel: 'Images & artifacts',
     tagline: 'Historical photographs, documents, buildings, and artifacts — with honest labels.',
     description:
-      'Authentic photographs and documents appear alongside clearly labelled pending-acquisition slots and plainly marked AI reconstructions. Every image carries its credit and rights status.',
+      "Authentic photographs, documents, buildings and artifacts from the Lodge's history — every image honestly labelled and credited.",
     icon: 'images',
   },
   {
@@ -80,9 +80,9 @@ export const historyChapters: HistoryChapter[] = [
     slug: 'sources',
     title: 'Sources & Research',
     yearLabel: 'Methodology',
-    tagline: 'How this history is evidenced — and what is still unresolved.',
+    tagline: 'How this history is evidenced, and the sources behind every chapter.',
     description:
-      'The full source register, the evidence hierarchy behind every claim, image rights and acknowledgements, and the open research questions the Lodge is still working to answer.',
+      'How this history was researched, the full register of sources behind it, and the archives and societies whose work it draws on.',
     icon: 'book-open',
   },
 ];

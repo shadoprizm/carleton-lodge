@@ -31,23 +31,20 @@ export const HistoryGalleryPage = () => {
   const [query, setQuery] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  // The gallery shows the photographs the archive holds — image slots without
+  // an acquired asset simply do not appear.
   const visibleImages = useMemo(() => {
     const trimmed = query.trim();
     return historyImages.filter(
       (image) =>
+        Boolean(image.localPath) &&
         (category === 'all' || image.galleryCategory === category) &&
         (!trimmed || matchesSearch(image, trimmed)),
     );
   }, [category, query]);
 
-  // Only images with an acquired local file can open in the lightbox.
-  const lightboxImages = useMemo(
-    () => visibleImages.filter((image) => Boolean(image.localPath)),
-    [visibleImages],
-  );
-
   const openLightbox = (image: HistoryImage) => {
-    const index = lightboxImages.findIndex((candidate) => candidate.id === image.id);
+    const index = visibleImages.findIndex((candidate) => candidate.id === image.id);
     if (index >= 0) setLightboxIndex(index);
   };
 
@@ -56,7 +53,7 @@ export const HistoryGalleryPage = () => {
       activeSlug="gallery"
       eyebrow="The archive"
       title="Gallery"
-      intro="Authentic photographs, documents, buildings and artifacts — alongside honestly marked pending-acquisition slots and plainly labelled AI reconstructions. Every image carries its credit and rights status."
+      intro="Photographs, documents, buildings and artifacts from the Lodge's history — every image honestly labelled and credited."
     >
       <div className="space-y-8">
         <div className="flex flex-col gap-4">
@@ -106,8 +103,8 @@ export const HistoryGalleryPage = () => {
 
           {category === 'ai_reconstructions' && (
             <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold leading-relaxed text-amber-900">
-              {AI_RECONSTRUCTION_LABEL} Images in this filter are visual aids only — never
-              documentary evidence — and never appear under “Historical photographs”.
+              {AI_RECONSTRUCTION_LABEL} Images in this filter are visual impressions only, never
+              documentary evidence.
             </p>
           )}
         </div>
@@ -123,18 +120,11 @@ export const HistoryGalleryPage = () => {
             No images match the current filter and search.
           </p>
         )}
-
-        <p className="text-sm leading-relaxed text-slate-500">
-          Cards marked “Pending acquisition” are reserved slots for authentic images whose
-          reproduction rights are being confirmed with the Huntley Township Historical Society,
-          Library and Archives Canada, or Ottawa District One. Their captions describe the image
-          sought, not an image on file.
-        </p>
       </div>
 
-      {lightboxIndex !== null && lightboxImages[lightboxIndex] && (
+      {lightboxIndex !== null && visibleImages[lightboxIndex] && (
         <Lightbox
-          images={lightboxImages}
+          images={visibleImages}
           index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}

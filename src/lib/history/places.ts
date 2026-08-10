@@ -33,7 +33,7 @@ export const historyPlaces: HistoryPlace[] = [
     name: "St. Andrew's Presbyterian Church / Carp Masonic Temple",
     dateLabel: '1876 – present',
     description:
-      "The former St. Andrew's Presbyterian Church — dated 1876 by local-history source S03 — was transferred to the Freemasons after Church Union for $250 plus legal transfer fees, extensively refurbished, and physically raised to create a basement refreshment facility. Carleton Lodge first met here on 15 April 1927, and Grand Lodge dedicated the Temple on 18 October 1930. The Lodge's present address is 3704 Carp Road.",
+      "The former St. Andrew's Presbyterian Church — dated 1876 by the Carp Heritage Walk history of the village — was transferred to the Freemasons after Church Union for $250 plus legal transfer fees, extensively refurbished, and physically raised to create a basement refreshment facility. Carleton Lodge first met here on 15 April 1927, and Grand Lodge dedicated the Temple on 18 October 1930. The Lodge's present address is 3704 Carp Road.",
     sources: ['S01', 'S03', 'S09'],
     imageIds: ['IMG03', 'local-temple-modern'],
   },

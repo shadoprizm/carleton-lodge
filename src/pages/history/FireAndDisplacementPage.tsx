@@ -1,24 +1,13 @@
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { Timeline } from '../../components/history/Timeline';
-import { HistoryFigure } from '../../components/history/HistoryFigure';
-import { SourceNotes, UnresolvedCallout } from '../../components/history/SourceNotes';
+import { SourceNotes } from '../../components/history/SourceNotes';
 import { PlaceCard } from '../../components/history/PlaceCard';
-import {
-  historyEvents,
-  historyPlaces,
-  imageById,
-  openQuestions,
-  type HistoryImage,
-} from '../../lib/history';
+import { historyEvents, historyPlaces } from '../../lib/history';
 
 export const FireAndDisplacementPage = () => {
   const places = historyPlaces.filter((place) =>
     ['kidd-block', 'orange-hall-carp', 'russell-store'].includes(place.id),
   );
-  const imageSlots = ['IMG05', 'IMG06']
-    .map((id) => imageById(id))
-    .filter((img): img is HistoryImage => Boolean(img));
-  const fireQuestion = openQuestions.find((question) => question.id === 'fire-newspaper-coverage');
 
   return (
     <HistoryLayout
@@ -44,15 +33,11 @@ export const FireAndDisplacementPage = () => {
               immediately offered use of its hall, giving Carleton Lodge a temporary place to
               continue meeting.
             </p>
+            <p>
+              No photograph of the fire or its aftermath is known to survive.
+            </p>
           </div>
-          <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-600">
-            No authentic photograph of the fire or its aftermath is known to survive. The search of
-            contemporary newspaper coverage continues — until an authentic image is confirmed, this
-            page shows placeholders rather than any reconstruction.
-          </p>
         </section>
-
-        {fireQuestion && <UnresolvedCallout question={fireQuestion} />}
 
         <section aria-labelledby="without-a-home">
           <h2 id="without-a-home" className="font-serif text-3xl text-slate-900">
@@ -73,21 +58,6 @@ export const FireAndDisplacementPage = () => {
           <div className="mt-6 grid gap-5 md:grid-cols-3">
             {places.map((place) => (
               <PlaceCard key={place.id} place={place} />
-            ))}
-          </div>
-        </section>
-
-        <section aria-labelledby="displacement-images">
-          <h2 id="displacement-images" className="font-serif text-3xl text-slate-900">
-            Reserved image slots
-          </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-            These slots are held for authentic Huntley Township Historical Society photographs of
-            the post-fire era, pending provenance confirmation and reproduction permission:
-          </p>
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {imageSlots.map((image) => (
-              <HistoryFigure key={image.id} image={image} />
             ))}
           </div>
         </section>

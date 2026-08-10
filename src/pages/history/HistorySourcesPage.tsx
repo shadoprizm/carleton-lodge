@@ -1,52 +1,38 @@
 import { ExternalLink } from 'lucide-react';
 import { HistoryLayout } from '../../components/history/HistoryLayout';
-import { historyImages, historySources, openQuestions } from '../../lib/history';
-
-const evidenceHierarchy = [
-  'Grand Lodge Proceedings / Lodge records / original archival records',
-  'Library and Archives Canada / Veterans Affairs Canada / municipal or institutional archives',
-  'Huntley Township Historical Society / Carp Heritage Walk with explicit provenance',
-  'Ottawa District histories and lodge histories',
-  'Contemporary newspapers',
-  'Secondary historical writing',
-  'Oral tradition / current lodge website',
-  'AI-generated reconstruction — visual only, never evidence',
-];
-
-const rightsLabels: Record<string, string> = {
-  cleared: 'Rights cleared',
-  permission_required: 'Permission required',
-  rights_check_required: 'Rights check required',
-  lodge_owned: 'Lodge-owned / Lodge-controlled',
-};
+import { historySources } from '../../lib/history';
 
 export const HistorySourcesPage = () => (
   <HistoryLayout
     activeSlug="sources"
     eyebrow="The archive"
     title="Sources & Research"
-    intro="How this history is evidenced, where every claim comes from, who holds the images — and the questions that remain honestly open."
+    intro="How this history was researched, and the published and archival sources on which it rests."
   >
     <div className="space-y-12">
       <section aria-labelledby="methodology" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 id="methodology" className="font-serif text-3xl text-slate-900">
-          Source methodology
+          How this history was researched
         </h2>
-        <p className="mt-4 leading-relaxed text-slate-700">
-          Every claim in this archive is tied to the sources below and carries a confidence level:
-          high, medium, or unresolved. Where evidence conflicts or is incomplete, the uncertainty is
-          shown on the page rather than smoothed over. Evidence is preferred in this order:
-        </p>
-        <ol className="mt-4 list-decimal space-y-1.5 pl-6 text-sm leading-relaxed text-slate-700">
-          {evidenceHierarchy.map((tier) => (
-            <li key={tier}>{tier}</li>
-          ))}
-        </ol>
+        <div className="mt-4 space-y-4 leading-relaxed text-slate-700">
+          <p>
+            This account is grounded first in the records closest to the events: Grand Lodge
+            proceedings and Lodge records, as drawn together in the Ottawa District history, and
+            original archival records. Beyond those, it relies on institutional archives such as
+            Library and Archives Canada and Veterans Affairs Canada, on the work of the Huntley
+            Township Historical Society and the Carp Heritage Walk, on district and lodge
+            histories, and on contemporary newspapers.
+          </p>
+          <p>
+            Where the surviving record is incomplete or sources disagree, the text says so plainly
+            rather than offering a precision the evidence does not support.
+          </p>
+        </div>
       </section>
 
       <section aria-labelledby="source-register">
         <h2 id="source-register" className="font-serif text-3xl text-slate-900">
-          The source register
+          The sources
         </h2>
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           {historySources.map((source) => (
@@ -58,13 +44,9 @@ export const HistorySourcesPage = () => (
                 <span className="font-mono text-xs font-bold text-amber-800">{source.id}</span>
                 <h3 className="font-serif text-lg text-slate-900">{source.title}</h3>
               </div>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 flex-1 text-sm text-slate-600">
                 {source.publisherAuthor} — {source.locator}
               </p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {source.sourceType} · {source.confidence} confidence
-              </p>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{source.notes}</p>
               <a
                 href={source.url}
                 target="_blank"
@@ -78,96 +60,23 @@ export const HistorySourcesPage = () => (
         </div>
       </section>
 
-      <section aria-labelledby="image-rights">
-        <h2 id="image-rights" className="font-serif text-3xl text-slate-900">
-          Image rights &amp; acknowledgements
+      <section aria-labelledby="acknowledgements" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <h2 id="acknowledgements" className="font-serif text-3xl text-slate-900">
+          Acknowledgements
         </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-          No third-party historical photograph is published here without confirmed reproduction
-          rights. Slots awaiting permission render as neutral placeholders — never AI stand-ins.
-          The full register, in acquisition priority order:
-        </p>
-        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                <th scope="col" className="px-4 py-3">Slot</th>
-                <th scope="col" className="px-4 py-3">Image</th>
-                <th scope="col" className="px-4 py-3">Source / owner</th>
-                <th scope="col" className="px-4 py-3">Rights status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {historyImages.map((image) => (
-                <tr key={image.id}>
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-bold text-amber-800">
-                    {image.id}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{image.title}</td>
-                  <td className="px-4 py-3 text-slate-600">{image.sourceInstitution}</td>
-                  <td className="px-4 py-3 text-slate-600">{rightsLabels[image.rightsStatus] ?? image.rightsStatus}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600 shadow-sm">
+        <div className="mt-4 space-y-4 leading-relaxed text-slate-700">
           <p>
-            <span className="font-semibold text-slate-900">Legacy archive acknowledgement (S10): </span>
-            The images with LEG-prefixed slots were recovered in August 2026 from Internet Archive
-            captures of the Lodge's retired website, carletonlodge465.com, and are confirmed
-            Lodge-owned. Captions on these photographs state only what is visibly shown plus
-            EXIF or filename dates; names, years and occasions marked “to be confirmed” await
-            member identification — 72 of the 89 recovered files still need that confirmation.
-            Byte-identical preservation copies are held in the Lodge's archive and are not served
-            on this website.
+            This archive draws on the work of the Ottawa District historians, particularly the
+            district history <em>Ottawa District — Then and Now: Freemasonry in Eastern Ontario
+            1855–2010</em>; the Huntley Township Historical Society; the Carp Heritage Walk; and
+            Library and Archives Canada, whose catalogues document the village and congregation
+            among which the Lodge has always lived.
           </p>
-        </div>
-      </section>
-
-      <section aria-labelledby="open-questions">
-        <h2 id="open-questions" className="font-serif text-3xl text-slate-900">
-          Open research questions
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-          These items remain flagged in the site data until resolved. Nothing below is presented as
-          settled fact anywhere in the archive.
-        </p>
-        <div className="mt-6 space-y-5">
-          {openQuestions.map((question, index) => (
-            <article
-              key={question.id}
-              className="rounded-xl border border-amber-300 bg-amber-50 p-5"
-            >
-              <h3 className="font-serif text-xl text-slate-900">
-                {index + 1}. {question.title}
-              </h3>
-              <div className="mt-3 grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Known</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                    {question.known.map((fact) => (
-                      <li key={fact}>{fact}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Still needed</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                    {question.needed.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              {question.bestLead && (
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                  <span className="font-semibold text-slate-800">Best lead: </span>
-                  {question.bestLead}
-                </p>
-              )}
-            </article>
-          ))}
+          <p>
+            The modern photographs are from the Lodge's own archive, including images carried
+            over from its earlier website — thanks to the members who photographed and kept them
+            over the years.
+          </p>
         </div>
       </section>
     </div>

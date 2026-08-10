@@ -53,7 +53,7 @@ export const keyFigures: HistoryPerson[] = [
     name: 'Bro. William Stuart',
     role: 'Treasurer, La Loge Le Havre de Grâce No. 4',
     dateLabel: '1916–1926',
-    bio: 'Treasurer of the wartime Le Havre Lodge and one of only two members reported to remain in France after it closed — both Canadians from Montreal. He arranged for the Lodge furniture and documents to be packed into sixteen crates and shipped to London aboard the Perseverence. By 1926 he had affiliated with Carleton Lodge, and on 26 February 1926 he offered to pay the expenses of acquiring the historic furniture.',
+    bio: 'Treasurer of the wartime Le Havre Lodge and one of only two members reported to remain in France after it closed — both Canadians from Montreal. He arranged for the Lodge furniture and documents to be packed into sixteen crates and shipped to London aboard the Perseverence. By 1926 he had affiliated with Carleton Lodge, and on 26 February 1926 he offered to pay the expenses of bringing the historic furniture to Carp.',
     confidence: 'high',
     sources: ['S01'],
     category: 'key_figure',
