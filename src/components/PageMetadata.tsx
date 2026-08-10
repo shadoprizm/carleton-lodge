@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
+import { LODGE_GUIDE_ENABLED } from '../lib/lodgeGuide';
 
 const defaultDescription = 'Carleton Lodge No. 465 in Carp, West Ottawa. Find current lodge events, history, contact information, and secure member resources.';
 const pages = [
@@ -19,6 +20,7 @@ const pages = [
   { match: (path: string) => path === '/help', title: 'Website Help | Carleton Lodge No. 465', description: 'Clear instructions for finding lodge events, signing in, notifications, summons, documents, and member information.' },
   { match: (path: string) => path === '/search', title: 'Search Lodge Information | Carleton Lodge No. 465', description: 'Search approved public and member information from Carleton Lodge No. 465.' },
   { match: (path: string) => path === '/my-lodge', title: 'My Lodge | Carleton Lodge No. 465', description: 'The secure member home for current Carleton Lodge information.' },
+  ...(LODGE_GUIDE_ENABLED ? [{ match: (path: string) => path === '/lodge-guide', title: 'Lodge Guide | Carleton Lodge No. 465', description: 'Ask questions using approved, permission-aware Carleton Lodge sources.' }] : []),
   { match: (path: string) => path === '/summons', title: 'Lodge Summons | Carleton Lodge No. 465', description: 'Secure access to current and past Carleton Lodge summons.' },
   { match: (path: string) => path === '/district', title: 'Ottawa District 1 | Carleton Lodge No. 465', description: 'Member access to Ottawa District 1 lodge meetings, degree work, contacts, and summons.' },
   { match: (path: string) => path === '/members', title: 'Officers and Members | Carleton Lodge No. 465', description: 'The secure Carleton Lodge officer and member directory.' },

@@ -1,51 +1,88 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Clock, ExternalLink } from 'lucide-react';
+import { useCallback, useState, useEffect } from 'react';
+import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, MapPin, Clock, ExternalLink, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { RichTextContent } from './RichTextContent';
+import { useAuth } from '../contexts/AuthContext';
+import { EventModal } from './EventModal';
+import { dateKey, formatDateOnly, formatTime, formatTimeRange, todayDateKey } from '../utils/dateTime';
+import { downloadCalendarEvent } from '../utils/calendarExport';
 
 interface Event {
   id: string;
   title: string;
   event_date: string;
   event_time: string | null;
+  event_end_time: string | null;
   description: string | null;
   location: string;
   location_address: string | null;
+  event_status: 'scheduled' | 'cancelled' | 'postponed';
+  status_note: string | null;
 }
 
 const getMapsUrl = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
+const getDaysInMonth = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+
 export const Calendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<Event[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
+  const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    fetchEvents();
-  }, [currentDate]);
-
-  const fetchEvents = async () => {
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+  const fetchEvents = useCallback(async () => {
+    const startOfMonth = dateKey(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const endOfMonth = dateKey(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      getDaysInMonth(currentDate)
+    );
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
-      .gte('event_date', startOfMonth.toISOString().split('T')[0])
-      .lte('event_date', endOfMonth.toISOString().split('T')[0])
+      .select('id, title, event_date, event_time, event_end_time, description, location, location_address, event_status, status_note')
+      .gte('event_date', startOfMonth)
+      .lte('event_date', endOfMonth)
       .order('event_date', { ascending: true });
 
     if (!error && data) {
       setEvents(data);
     }
-  };
+  }, [currentDate]);
 
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
+  useEffect(() => {
+    void fetchEvents();
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    const fetchUpcomingEvents = async () => {
+      setListLoading(true);
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title, event_date, event_time, event_end_time, description, location, location_address, event_status, status_note')
+        .gte('event_date', todayDateKey())
+        .order('event_date', { ascending: true })
+        .order('event_time', { ascending: true })
+        .limit(50);
+
+      if (error) {
+        setListError('Upcoming events could not be loaded. Please try again shortly.');
+      } else {
+        setUpcomingEvents(data ?? []);
+      }
+      setListLoading(false);
+    };
+
+    void fetchUpcomingEvents();
+  }, []);
 
   const getFirstDayOfMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
@@ -62,32 +99,23 @@ export const Calendar = () => {
   };
 
   const handleDateClick = (day: number) => {
-    const clickedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const clickedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day, 12);
     setSelectedDate(clickedDate);
 
-    const dateString = clickedDate.toISOString().split('T')[0];
+    const dateString = dateKey(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dayEvents = events.filter(event => event.event_date === dateString);
     setSelectedDateEvents(dayEvents);
   };
 
   const getEventsForDate = (day: number) => {
-    const dateString = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-      .toISOString()
-      .split('T')[0];
+    const dateString = dateKey(currentDate.getFullYear(), currentDate.getMonth(), day);
     return events.filter(event => event.event_date === dateString);
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDay = getFirstDayOfMonth(currentDate);
-  const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthName = currentDate.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+  const todayKey = todayDateKey();
 
   const calendarDays = [];
   for (let i = 0; i < firstDay; i++) {
@@ -105,14 +133,74 @@ export const Calendar = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-4xl md:text-5xl font-serif text-amber-100 text-center mb-4">
+          <h1 className="text-4xl md:text-5xl font-serif text-amber-100 text-center mb-4">
             Lodge Calendar
-          </h2>
-          <p className="text-center text-amber-200/60 text-sm mb-12">
-            Click on a day to see scheduled events
+          </h1>
+          <p className="text-center text-amber-100/80 text-base mb-6">
+            Upcoming lodge events are listed first. Open the monthly calendar if you prefer the traditional grid.
           </p>
+          {user && (
+            <div className="flex justify-center mb-10">
+              <button
+                type="button"
+                onClick={() => setIsSubmissionOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors font-medium"
+              >
+                <Plus size={18} />
+                Submit an Event
+              </button>
+            </div>
+          )}
 
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-amber-600/30 p-6 md:p-8">
+          <section aria-labelledby="upcoming-event-list" className="mb-8">
+            <h3 id="upcoming-event-list" className="mb-4 text-2xl font-serif text-amber-100">Upcoming Events</h3>
+            {listLoading ? (
+              <p className="rounded-lg border border-amber-600/20 bg-slate-800/60 p-6 text-center text-amber-100" role="status">Loading upcoming events…</p>
+            ) : listError ? (
+              <p className="rounded-lg border border-red-400/30 bg-red-950/30 p-5 text-red-100" role="alert">{listError}</p>
+            ) : upcomingEvents.length === 0 ? (
+              <p className="rounded-lg border border-amber-600/20 bg-slate-800/60 p-6 text-center text-amber-100">No upcoming events are posted. Please check again soon.</p>
+            ) : (
+              <div className="space-y-4">
+                {upcomingEvents.map((event) => (
+                  <article key={event.id} className="rounded-xl border border-amber-600/30 bg-slate-800/70 p-5 sm:p-6">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                      <div className="w-full shrink-0 rounded-lg bg-slate-950 px-4 py-4 text-center sm:w-44">
+                        <p className="text-lg font-serif text-amber-100">{formatDateOnly(event.event_date, { weekday: 'short', month: 'long', day: 'numeric' })}</p>
+                        <p className="mt-1 text-base font-semibold text-amber-300">{formatTimeRange(event.event_time, event.event_end_time) ?? 'Time to be confirmed'}</p>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-2xl font-serif text-amber-100">{event.title}</h4>
+                          {event.event_status !== 'scheduled' && (
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${event.event_status === 'cancelled' ? 'bg-red-200 text-red-950' : 'bg-amber-200 text-amber-950'}`}>
+                              {event.event_status}
+                            </span>
+                          )}
+                        </div>
+                        {event.status_note && <p className="mt-3 rounded-md border border-amber-500/30 bg-slate-950/50 p-3 font-medium text-amber-100">{event.status_note}</p>}
+                        {event.description && <RichTextContent html={event.description} tone="dark" compact className="mt-3 text-base" />}
+                        <p className="mt-4 flex items-start gap-2 text-base text-slate-200"><MapPin className="mt-0.5 shrink-0 text-amber-400" size={19} /><span>{event.location}{event.location_address && <span className="block text-slate-300">{event.location_address}</span>}</span></p>
+                        <div className="mt-5 flex flex-wrap gap-3">
+                          <button type="button" onClick={() => downloadCalendarEvent(event)} className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200">
+                            <CalendarPlus size={19} /> Add to Calendar
+                          </button>
+                          {event.location_address && <a href={getMapsUrl(event.location_address)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-amber-500/50 px-5 py-3 font-semibold text-amber-100 hover:bg-slate-700"><MapPin size={18} /> Get Directions</a>}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <details className="group bg-slate-800/50 backdrop-blur-sm rounded-lg border border-amber-600/30">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-6 py-4 text-lg font-semibold text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+              View Monthly Calendar
+              <ChevronDown className="transition-transform group-open:rotate-180" size={22} />
+            </summary>
+            <div className="border-t border-amber-600/30 p-6 md:p-8">
             <div className="flex items-center justify-between mb-8">
               <button
                 onClick={previousMonth}
@@ -154,9 +242,9 @@ export const Calendar = () => {
                   day === selectedDate.getDate() &&
                   currentDate.getMonth() === selectedDate.getMonth() &&
                   currentDate.getFullYear() === selectedDate.getFullYear();
-                const isToday = day === new Date().getDate() &&
-                  currentDate.getMonth() === new Date().getMonth() &&
-                  currentDate.getFullYear() === new Date().getFullYear();
+                const isToday = day
+                  ? dateKey(currentDate.getFullYear(), currentDate.getMonth(), day) === todayKey
+                  : false;
 
                 return (
                   <button
@@ -198,7 +286,11 @@ export const Calendar = () => {
                 className="mt-8 pt-8 border-t border-amber-600/30"
               >
                 <h4 className="text-xl font-serif text-amber-100 mb-4">
-                  {selectedDate.toLocaleDateString('en-US', {
+                  {formatDateOnly(dateKey(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth(),
+                    selectedDate.getDate()
+                  ), {
                     weekday: 'long',
                     month: 'long',
                     day: 'numeric',
@@ -216,6 +308,20 @@ export const Calendar = () => {
                         <h5 className="text-lg font-semibold text-amber-100 mb-2">
                           {event.title}
                         </h5>
+                        {event.event_status !== 'scheduled' && (
+                          <span className={`mb-3 inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                            event.event_status === 'cancelled'
+                              ? 'bg-red-200 text-red-950'
+                              : 'bg-amber-200 text-amber-950'
+                          }`}>
+                            {event.event_status}
+                          </span>
+                        )}
+                        {event.status_note && (
+                          <p className="mb-3 rounded-md border border-amber-500/30 bg-slate-900/40 p-3 text-sm font-medium text-amber-100">
+                            {event.status_note}
+                          </p>
+                        )}
                         {event.description && (
                           <RichTextContent
                             html={event.description}
@@ -276,9 +382,15 @@ export const Calendar = () => {
                 )}
               </motion.div>
             )}
-          </div>
+            </div>
+          </details>
         </motion.div>
       </div>
+      <EventModal
+        isOpen={isSubmissionOpen}
+        onClose={() => setIsSubmissionOpen(false)}
+        onEventSubmitted={() => undefined}
+      />
     </section>
   );
 };

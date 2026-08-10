@@ -8,6 +8,19 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'react-vendor', test: /node_modules\/(react|react-dom|react-router)/ },
+            { name: 'supabase-vendor', test: /node_modules\/@supabase/ },
+            { name: 'motion-vendor', test: /node_modules\/framer-motion/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/file': {

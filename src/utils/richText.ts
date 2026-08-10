@@ -42,9 +42,31 @@ function hasHtmlMarkup(value: string) {
   return HTML_TAG_PATTERN.test(value);
 }
 
+function containsControlOrBackslash(value: string) {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127 || character === '\\';
+  });
+}
+
+function safeDownloadName(value: string) {
+  return Array.from(value)
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 || character === '/' || character === '\\'
+        ? '_'
+        : character;
+    })
+    .join('')
+    .trim()
+    .slice(0, 200);
+}
+
 function isSafeUrl(value: string, kind: 'href' | 'src') {
   const trimmed = value.trim();
   if (!trimmed) return false;
+  if (containsControlOrBackslash(trimmed)) return false;
+  if (trimmed.startsWith('//')) return false;
   if (trimmed.startsWith('/')) return true;
 
   try {
@@ -92,7 +114,7 @@ function sanitizeAnchorAttributes(source: HTMLElement, clean: HTMLElement) {
   }
 
   if (source.hasAttribute('download')) {
-    const downloadName = source.getAttribute('download')?.trim();
+    const downloadName = safeDownloadName(source.getAttribute('download') ?? '');
     if (downloadName) {
       clean.setAttribute('download', downloadName);
     } else {
@@ -208,7 +230,7 @@ export function sanitizeRichTextHtml(value: string | null | undefined) {
   if (!normalized) return '';
 
   if (typeof DOMParser === 'undefined' || typeof document === 'undefined') {
-    return normalized;
+    return escapeHtml(normalized);
   }
 
   const parser = new DOMParser();

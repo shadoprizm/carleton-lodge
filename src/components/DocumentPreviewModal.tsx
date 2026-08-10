@@ -109,7 +109,7 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
         blobUrlRef.current = null;
       }
     };
-  }, [doc?.id]);
+  }, [doc]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

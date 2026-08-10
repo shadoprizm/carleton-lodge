@@ -241,6 +241,13 @@ Vitest is available (`npm test`, zero-config — the Vite config is picked up au
 - Edge Functions deployed via `supabase functions deploy`
 - Storage buckets created via migrations
 
+### Production baseline
+- `main` is the only production source branch. Never deploy a feature branch or a dirty worktree to the production domain.
+- Every production change must pass `.github/workflows/verify.yml` (type-check, unit tests, lint, and production build) on a pull request before merge.
+- Preview and verify the Vercel deployment before merging. After merge, verify the production deployment and the member-only routes affected by the change.
+- The dedicated Supabase project is `isnxsygngysxgzeuhmjm`; application tables use the `public` schema. The former shared project `qbflbzgfbmipibvizvcj` is rollback/archive infrastructure only and must not receive new application deployments.
+- Keep database migrations and Edge Function source in the same pull request as the frontend that depends on them. Deploy backend dependencies before promoting the frontend.
+
 ## Useful Notes
 
 - The summons PDF parsing uses a custom Edge Function that extracts text from PDF files using regex-based parsing (handles both text-based and some compressed PDFs)

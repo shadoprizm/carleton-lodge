@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase, SUPABASE_URL, Summons } from '../../lib/supabase';
+import { supabase, Summons } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { X, Plus, Edit2, Send, Upload, FileText, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 
 const BUCKET = 'summons-uploads';
 const SUPABASE_STORAGE_PREFIX = '/storage/v1/object/public/summons-uploads/';
 const NOTICES_CATEGORY_ID = 'ddb0c537-2166-4587-8302-ec2346842615';
+const MAXIMUM_PDF_BYTES = 10 * 1024 * 1024;
 
 function extractStoragePath(pdfUrl: string): string {
   if (!pdfUrl.startsWith('http')) return pdfUrl;
@@ -78,6 +79,10 @@ export const SummonsManager = () => {
       setUploadError('Please upload a PDF file.');
       return;
     }
+    if (file.size <= 0 || file.size > MAXIMUM_PDF_BYTES) {
+      setUploadError('Please upload a PDF no larger than 10 MB.');
+      return;
+    }
 
     setUploadedFile(file);
     setUploadError(null);
@@ -104,7 +109,7 @@ export const SummonsManager = () => {
         fd.append('file', file);
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          const apiUrl = `${SUPABASE_URL}/functions/v1/parse-summons`;
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-summons`;
           const res = await fetch(apiUrl, {
             method: 'POST',
             headers: { Authorization: `Bearer ${session.access_token}` },
@@ -177,14 +182,10 @@ export const SummonsManager = () => {
   const sendNotifications = async (summonsId: string) => {
     setSending(true);
     try {
-      // Use invoke() so the caller's session token is sent (not the public
-      // anon key). The edge function authorizes the caller server-side.
       const { error } = await supabase.functions.invoke('send-summons-notification', {
         body: { summonsId },
       });
-      if (error) {
-        console.error('Error sending notifications:', error);
-      }
+      if (error) throw error;
     } catch (error) {
       console.error('Error sending notifications:', error);
     }

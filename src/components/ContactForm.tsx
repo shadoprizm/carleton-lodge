@@ -8,6 +8,7 @@ interface FormState {
   email: string;
   subject: string;
   message: string;
+  website: string;
 }
 
 const SUBJECTS = [
@@ -25,6 +26,7 @@ export const ContactForm = () => {
     email: '',
     subject: '',
     message: '',
+    website: '',
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -40,11 +42,14 @@ export const ContactForm = () => {
     setStatus('submitting');
     setErrorMsg('');
 
-    const { error } = await supabase.from('contact_submissions').insert({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      subject: form.subject || 'General Enquiry',
-      message: form.message.trim(),
+    const { error } = await supabase.functions.invoke('submit-contact', {
+      body: {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        subject: form.subject || 'General Enquiry',
+        message: form.message.trim(),
+        website: form.website,
+      },
     });
 
     if (error) {
@@ -52,7 +57,7 @@ export const ContactForm = () => {
       setStatus('error');
     } else {
       setStatus('success');
-      setForm({ name: '', email: '', subject: '', message: '' });
+      setForm({ name: '', email: '', subject: '', message: '', website: '' });
     }
   };
 
@@ -107,6 +112,21 @@ export const ContactForm = () => {
               onSubmit={handleSubmit}
               className="space-y-4"
             >
+              <div
+                aria-hidden="true"
+                className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"
+              >
+                <label htmlFor="contact-website">Website</label>
+                <input
+                  id="contact-website"
+                  type="text"
+                  name="website"
+                  value={form.website}
+                  onChange={handleChange}
+                  autoComplete="off"
+                  tabIndex={-1}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-white/70 text-xs font-medium mb-1.5 uppercase tracking-wide">
@@ -116,6 +136,9 @@ export const ContactForm = () => {
                     type="text"
                     name="name"
                     required
+                    minLength={2}
+                    maxLength={120}
+                    autoComplete="name"
                     value={form.name}
                     onChange={handleChange}
                     placeholder="John Smith"
@@ -130,6 +153,8 @@ export const ContactForm = () => {
                     type="email"
                     name="email"
                     required
+                    maxLength={254}
+                    autoComplete="email"
                     value={form.email}
                     onChange={handleChange}
                     placeholder="john@example.com"
@@ -164,6 +189,8 @@ export const ContactForm = () => {
                 <textarea
                   name="message"
                   required
+                  minLength={10}
+                  maxLength={5000}
                   rows={5}
                   value={form.message}
                   onChange={handleChange}

@@ -1,8 +1,12 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /my-lodge
+Disallow: /ask-carleton
+Disallow: /lodge-guide
 Disallow: /summons
 Disallow: /members
 Disallow: /library
+Disallow: /reset-password
 
 Sitemap: https://www.carpmasons.ca/sitemap.xml

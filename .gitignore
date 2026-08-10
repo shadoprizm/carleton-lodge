@@ -21,9 +21,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
-
 .vercel
 /supabase/.temp/
 Carleton_Lodge_465_History_K3_Handoff.zip
-.playwright-mcp/
-.playwright-cli/

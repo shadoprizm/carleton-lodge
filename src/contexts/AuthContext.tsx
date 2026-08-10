@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthError, User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
@@ -19,6 +20,9 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  sendMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
+  sendPasswordReset: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
   completeRequiredPasswordChange: (newPassword: string) => Promise<{ error: Error | AuthError | null }>;
   signOut: () => Promise<void>;
 }
@@ -142,24 +146,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
-  const completeRequiredPasswordChange = async (newPassword: string) => {
-    const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
-    if (authError) return { error: authError };
+  const sendMagicLink = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/my-lodge`,
+      },
+    });
+    return { error };
+  };
 
+  const sendPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error };
+  };
+
+  const completeRequiredPasswordChange = async (newPassword: string) => {
     if (!user?.id) {
       return { error: new Error('No active user session found.') };
     }
 
-    const { data, error: profileError } = await supabase
-      .from('profiles')
-      .update({ force_password_change: false })
-      .eq('id', user.id)
-      .select('*')
-      .single();
+    const { error } = await supabase.functions.invoke('change-required-password', {
+      body: { password: newPassword },
+    });
+    if (error) {
+      const errorResponse = (error as { context?: unknown }).context;
+      if (errorResponse instanceof Response) {
+        const errorBody = await errorResponse.clone().json().catch(() => null) as { error?: unknown } | null;
+        if (typeof errorBody?.error === 'string') {
+          return { error: new Error(errorBody.error) };
+        }
+      }
+      return { error };
+    }
 
-    if (profileError) return { error: profileError };
-
-    setProfile(data as Profile);
+    setProfile((current) => current ? { ...current, force_password_change: false } : current);
     return { error: null };
   };
 
@@ -168,7 +197,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const isAdmin = profile?.is_admin ?? false;
-  const canAccessAdmin = isAdmin || adminPermissions.some((permission) => permission.can_read || permission.can_write);
+  const canAccessAdmin = isAdmin || adminPermissions.some(
+    (permission) => permission.can_read || permission.can_write || permission.can_approve
+  );
   const hasAdminPermission = (section: AdminSection, level: AdminPermissionLevel = 'read') =>
     hasSectionPermission(isAdmin, adminPermissions, section, level);
 
@@ -185,6 +216,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         signIn,
         signUp,
+        sendMagicLink,
+        sendPasswordReset,
+        updatePassword,
         completeRequiredPasswordChange,
         signOut,
       }}

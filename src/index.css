@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,6 +34,41 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+.skip-link {
+  background: #fbbf24;
+  border-radius: 0 0 0.5rem 0.5rem;
+  color: #0f172a;
+  font-weight: 700;
+  left: 1rem;
+  padding: 0.75rem 1rem;
+  position: fixed;
+  top: 0;
+  transform: translateY(-120%);
+  transition: transform 150ms ease;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .rich-text-editor[contenteditable='true']:empty::before {
@@ -182,4 +215,27 @@ html {
   max-height: 16rem;
   object-fit: contain;
   width: 100%;
+}
+
+@media print {
+  body:has(.agreement-receipt-print) * {
+    visibility: hidden;
+  }
+
+  body:has(.agreement-receipt-print) .agreement-receipt-print,
+  body:has(.agreement-receipt-print) .agreement-receipt-print * {
+    visibility: visible;
+  }
+
+  .agreement-receipt-print {
+    border: 0 !important;
+    box-shadow: none !important;
+    left: 0;
+    margin: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+    position: absolute;
+    top: 0;
+    width: 100%;
+  }
 }

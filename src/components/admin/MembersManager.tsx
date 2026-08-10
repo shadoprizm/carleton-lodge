@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
-import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Wand2 } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
 
 type LinkModalState = {
   member: LodgeMemberWithPosition;
@@ -21,11 +22,14 @@ function isOfficer(member: LodgeMemberWithPosition) {
   return !!member.lodge_positions && !isRegularMemberPosition(member.lodge_positions);
 }
 
-function generateTemporaryPassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  const values = crypto.getRandomValues(new Uint32Array(14));
-  return Array.from(values, value => alphabet[value % alphabet.length]).join('');
-}
+const mailboxStatusLabel = (status: LodgeMemberWithPosition['mailbox_status']) => ({
+  unprovisioned: 'Not created',
+  provisioning: 'Creating…',
+  pending_activation: 'Waiting for member',
+  active: 'Active',
+  error: 'Needs attention',
+  suspended: 'Suspended',
+}[status]);
 
 export const MembersManager = () => {
   const { hasAdminPermission } = useAuth();
@@ -41,7 +45,7 @@ export const MembersManager = () => {
   const [loginModal, setLoginModal] = useState<LoginModalState | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
-  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [loginRequestId, setLoginRequestId] = useState('');
   const [loginSaving, setLoginSaving] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
@@ -65,9 +69,7 @@ export const MembersManager = () => {
 
     const [membersRes, positionsRes, profilesRes] = await Promise.all([
       supabase
-        .from('lodge_members')
-        .select('*, lodge_positions (*)')
-        .order('full_name', { ascending: true }),
+        .rpc('get_managed_lodge_members'),
       supabase
         .from('lodge_positions')
         .select('*')
@@ -78,8 +80,13 @@ export const MembersManager = () => {
         .order('email', { ascending: true }),
     ]);
 
-    if (membersRes.data) setMembers(membersRes.data as LodgeMemberWithPosition[]);
     if (positionsRes.data) setPositions(positionsRes.data);
+    if (membersRes.data) {
+      setMembers((membersRes.data as Omit<LodgeMemberWithPosition, 'lodge_positions'>[]).map(member => ({
+        ...member,
+        lodge_positions: positionsRes.data?.find(position => position.id === member.position_id) ?? null,
+      })));
+    }
     if (profilesRes.data) setProfiles(profilesRes.data);
 
     setLoading(false);
@@ -170,7 +177,7 @@ export const MembersManager = () => {
   const openLoginModal = (member: LodgeMemberWithPosition) => {
     setLoginModal({ member });
     setLoginEmail(member.email || (member.linked_profile_id ? getProfileEmail(member.linked_profile_id) : ''));
-    setTemporaryPassword(generateTemporaryPassword());
+    setLoginRequestId(crypto.randomUUID());
     setLoginError(null);
     setLoginSuccess(null);
   };
@@ -178,7 +185,7 @@ export const MembersManager = () => {
   const closeLoginModal = () => {
     setLoginModal(null);
     setLoginEmail('');
-    setTemporaryPassword('');
+    setLoginRequestId('');
     setLoginError(null);
     setLoginSuccess(null);
   };
@@ -189,31 +196,40 @@ export const MembersManager = () => {
       setLoginError('Email is required.');
       return;
     }
-    if (temporaryPassword.length < 8) {
-      setLoginError('Temporary password must be at least 8 characters.');
-      return;
-    }
-
     setLoginSaving(true);
     setLoginError(null);
     setLoginSuccess(null);
 
-    const { error } = await supabase.functions.invoke('manage-member-login', {
+    const { data, error } = await supabase.functions.invoke('manage-member-login', {
       body: {
         memberId: loginModal.member.id,
         email: loginEmail.trim(),
-        temporaryPassword,
+        requestId: loginRequestId,
       },
     });
 
     setLoginSaving(false);
 
     if (error) {
-      setLoginError(error.message);
+      let message = typeof data?.error === 'string' ? data.error : error.message;
+      const errorResponse = (error as { context?: unknown }).context;
+
+      if (errorResponse instanceof Response) {
+        const errorBody = await errorResponse.clone().json().catch(() => null) as { error?: unknown } | null;
+        if (typeof errorBody?.error === 'string') {
+          message = errorBody.error;
+        }
+      }
+
+      setLoginError(message);
       return;
     }
 
-    setLoginSuccess('Login credentials saved. The member will be required to change this password after signing in.');
+    const lodgeEmail = typeof data?.lodgeEmail === 'string' ? data.lodgeEmail : proposedLodgeEmail(loginModal.member.full_name);
+    const delivered = data?.notificationStatus === 'sent';
+    setLoginSuccess(
+      `${lodgeEmail} is ready for the member to activate. The welcome email ${delivered ? 'has been sent' : 'is safely queued for delivery'}.`
+    );
     fetchData();
   };
 
@@ -289,8 +305,8 @@ export const MembersManager = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                  <span className="ml-1 text-xs font-normal text-gray-400">(used to link account on sign-in)</span>
+                  Personal Email Address
+                  <span className="ml-1 text-xs font-normal text-gray-400">(private sign-in, recovery, and welcome delivery)</span>
                 </label>
                 <input
                   type="email"
@@ -443,19 +459,19 @@ export const MembersManager = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <h4 className="text-lg font-serif text-gray-900">Set Member Login</h4>
+              <h4 className="text-lg font-serif text-gray-900">Send Member Account Email</h4>
               <button onClick={closeLoginModal} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                Assign login credentials for <strong>{loginModal.member.full_name}</strong>. They will be prompted to change
-                the temporary password after signing in.
+                Create or reset secure website access for <strong>{loginModal.member.full_name}</strong> and prepare their lodge mailbox.
+                You will not create or see either password—the member will choose their own.
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Login Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Personal Sign-in & Recovery Email</label>
                 <input
                   type="email"
                   value={loginEmail}
@@ -465,23 +481,16 @@ export const MembersManager = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={temporaryPassword}
-                    onChange={(event) => setTemporaryPassword(event.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900 font-mono text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setTemporaryPassword(generateTemporaryPassword())}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    <Wand2 size={15} />
-                    Generate
-                  </button>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="flex items-start gap-2.5">
+                  <Mail size={17} className="mt-0.5 shrink-0 text-amber-700" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">What the member receives</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      A branded welcome message sent to their personal address, their new <strong>{loginModal.member.lodge_email || proposedLodgeEmail(loginModal.member.full_name)}</strong> address,
+                      and one secure link that guides them through website and mailbox activation.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -501,10 +510,14 @@ export const MembersManager = () => {
               </button>
               <button
                 onClick={handleLoginSave}
-                disabled={loginSaving}
+                disabled={loginSaving || !!loginSuccess}
                 className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors disabled:opacity-60"
               >
-                {loginSaving ? 'Saving...' : 'Save Login'}
+                {loginSaving
+                  ? 'Queuing...'
+                  : loginModal.member.linked_profile_id
+                    ? 'Send Access Email'
+                    : 'Set Up Account & Send'}
               </button>
             </div>
           </div>
@@ -557,7 +570,8 @@ export const MembersManager = () => {
                 {activeTab === 'officers' && (
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Position</th>
                 )}
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Personal Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Lodge Email</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Account</th>
                   {canWrite && <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>}
               </tr>
@@ -573,6 +587,18 @@ export const MembersManager = () => {
                   )}
                   <td className="py-3 px-4 text-sm text-gray-600">
                     {member.email || <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-gray-600">
+                    <span className="block">{member.lodge_email || <span className="text-gray-400">Not created</span>}</span>
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      member.mailbox_status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : member.mailbox_status === 'error' || member.mailbox_status === 'suspended'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {mailboxStatusLabel(member.mailbox_status)}
+                    </span>
                   </td>
                   <td className="py-3 px-4">
                     {member.linked_profile_id ? (
@@ -615,7 +641,7 @@ export const MembersManager = () => {
                       <button
                         onClick={() => openLoginModal(member)}
                         className="text-slate-500 hover:text-blue-900"
-                        title={member.linked_profile_id ? 'Reset login credentials' : 'Set login credentials'}
+                        title={member.linked_profile_id ? 'Send account access email' : 'Create account and send welcome email'}
                       >
                         <KeyRound size={16} />
                       </button>

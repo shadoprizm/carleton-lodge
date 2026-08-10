@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
+import { SUPPORT_EMAIL, supportMailto } from '../lib/contact';
 
 export const PrivacyPolicyPage = () => {
   return (
@@ -21,7 +22,7 @@ export const PrivacyPolicyPage = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 md:p-12">
             <h1 className="text-4xl md:text-5xl font-serif text-blue-900 mb-2">Privacy Policy</h1>
-            <p className="text-stone-500 text-sm mb-10">Last updated: March 1, 2026</p>
+            <p className="text-stone-500 text-sm mb-10">Last updated: August 8, 2026</p>
 
             <div className="prose prose-stone max-w-none space-y-8 text-stone-700 leading-relaxed">
 
@@ -42,6 +43,7 @@ export const PrivacyPolicyPage = () => {
                   <li><strong>Profile Information:</strong> Membership rank, contact details, and other information you choose to provide in your member profile.</li>
                   <li><strong>Usage Data:</strong> Information about how you interact with our website, including pages visited, documents accessed, and events viewed.</li>
                   <li><strong>Communications:</strong> Records of correspondence if you contact us by email or through our website.</li>
+                  <li><strong>AI-Assisted Feature Content:</strong> Questions submitted to Lodge Guide and lodge emails or documents that an authorised administrator selects for Mailroom draft preparation.</li>
                 </ul>
               </section>
 
@@ -53,6 +55,7 @@ export const PrivacyPolicyPage = () => {
                   <li>Send notifications about Lodge events, summons, and announcements.</li>
                   <li>Maintain and update the members directory (visible only to authenticated members).</li>
                   <li>Communicate important Lodge business and correspondence.</li>
+                  <li>Generate source-grounded Lodge Guide answers and administrator-reviewed Mailroom drafts.</li>
                   <li>Improve and administer our website and services.</li>
                   <li>Comply with our obligations under applicable Masonic jurisdiction rules.</li>
                 </ul>
@@ -67,9 +70,13 @@ export const PrivacyPolicyPage = () => {
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Within the Lodge:</strong> Member information is accessible to other verified Lodge members through the members directory, in accordance with Lodge custom and practice.</li>
                   <li><strong>Grand Lodge:</strong> We may share relevant information with the Grand Lodge of Canada in the Province of Ontario as required by our Masonic obligations.</li>
-                  <li><strong>Service Providers:</strong> We use trusted third-party services (such as Supabase for data storage) that are bound by confidentiality obligations.</li>
+                  <li><strong>Service Providers:</strong> We use third-party processors including Supabase for authentication and data storage, Resend for email delivery and receipt, Vercel for website hosting, and OpenAI for the optional AI-assisted features.</li>
                   <li><strong>Legal Requirements:</strong> We may disclose information when required by law or to protect the rights and safety of the Lodge and its members.</li>
                 </ul>
+                <p className="mt-3">
+                  OpenAI API inputs and outputs are not used to train OpenAI models by default unless the Lodge explicitly opts in. Our requests disable response storage, but provider abuse-monitoring logs may still be retained for a limited period under the provider&apos;s{' '}
+                  <a href="https://platform.openai.com/docs/models/default-usage-policies-by-endpoint" className="text-blue-700 underline hover:text-blue-900">data controls</a>. AI-generated Mailroom drafts cannot publish without an authorised human review.
+                </p>
               </section>
 
               <section>
@@ -90,6 +97,9 @@ export const PrivacyPolicyPage = () => {
                   please contact us. We may retain certain information as required by law or for legitimate Lodge
                   record-keeping purposes.
                 </p>
+                <p className="mt-3">
+                  Lodge Guide answers are not automatically saved as Lodge records. Approved Mailroom imports retain the source email, file provenance, extracted draft, final reviewed content, and approval audit needed for Lodge record-keeping. Rejected and failed imports may also be retained for security, troubleshooting, and duplicate prevention.
+                </p>
               </section>
 
               <section>
@@ -103,8 +113,8 @@ export const PrivacyPolicyPage = () => {
                 </ul>
                 <p className="mt-3">
                   To exercise any of these rights, please contact us at{' '}
-                  <a href="mailto:info@carletonlodge465.org" className="text-blue-700 hover:text-blue-900 underline">
-                    info@carletonlodge465.org
+                  <a href={supportMailto('Privacy request')} className="text-blue-700 hover:text-blue-900 underline">
+                    {SUPPORT_EMAIL}
                   </a>.
                 </p>
               </section>
@@ -146,8 +156,8 @@ export const PrivacyPolicyPage = () => {
                   <p>Carp, Ontario, West Ottawa</p>
                   <p>
                     Email:{' '}
-                    <a href="mailto:info@carletonlodge465.org" className="text-blue-700 hover:text-blue-900 underline">
-                      info@carletonlodge465.org
+                    <a href={supportMailto('Privacy policy question')} className="text-blue-700 hover:text-blue-900 underline">
+                      {SUPPORT_EMAIL}
                     </a>
                   </p>
                 </div>
