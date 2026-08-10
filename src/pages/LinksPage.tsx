@@ -16,7 +16,6 @@ const resourceGroups = [
     links: [
       { name: 'Ottawa District 1', description: 'District news, lodges, officers, resources, and events. Carleton Lodge is part of Ottawa District 1.', url: 'https://www.ottawadistrict1masons.ca/' },
       { name: 'Ottawa District 2', description: 'Neighbouring district lodge information, officers, and public events.', url: 'https://www.ottawamasons.ca/' },
-      { name: 'Ottawa District 2', description: 'Neighbouring district information, lodge directory, and regional events.', url: 'https://www.ottawamasons.ca/' },
       { name: 'Ottawa Masonic Association', description: 'Information and coordination across Ottawa-area Freemasonry.', url: 'https://www.ottawamasonicassociation.com/' },
     ],
   },
