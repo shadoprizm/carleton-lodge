@@ -125,4 +125,42 @@ describe('history archive data integrity', () => {
     const charterMembers = allHistoryPeople.filter((person) => person.category === 'charter_member');
     expect(charterMembers.length).toBeLessThan(23);
   });
+
+  // The public UI must never expose internal curation/workflow language.
+  // Only fields that actually render are checked; internal metadata fields
+  // (rightsStatus, acquisitionNote, openQuestions, …) are the Lodge's
+  // working record and intentionally keep that vocabulary.
+  it('keeps internal workflow language out of every public-rendered field', () => {
+    const forbidden = /pending|acquisition|permission|to be confirmed|under research|unresolved|rights|placeholder|reserved|awaiting/i;
+
+    for (const image of historyImages) {
+      if (!image.localPath) continue; // images without a local file never render
+      for (const text of [image.title, image.caption, image.alt]) {
+        expect(text, `image ${image.id}`).not.toMatch(forbidden);
+      }
+    }
+    for (const event of historyEvents) {
+      for (const text of [event.title, event.summary, event.dateLabel]) {
+        expect(text, `event ${event.id}`).not.toMatch(forbidden);
+      }
+    }
+    for (const person of allHistoryPeople) {
+      for (const text of [person.name, person.role, person.bio]) {
+        expect(text, `person ${person.id}`).not.toMatch(forbidden);
+      }
+    }
+    for (const place of historyPlaces) {
+      expect(place.name, `place ${place.id}`).not.toMatch(forbidden);
+      expect(place.description, `place ${place.id}`).not.toMatch(forbidden);
+    }
+    for (const artifact of historyArtifacts) {
+      expect(artifact.name, `artifact ${artifact.id}`).not.toMatch(forbidden);
+      expect(artifact.description, `artifact ${artifact.id}`).not.toMatch(forbidden);
+    }
+    for (const chapter of historyChapters) {
+      for (const text of [chapter.title, chapter.tagline, chapter.description]) {
+        expect(text, `chapter ${chapter.id}`).not.toMatch(forbidden);
+      }
+    }
+  });
 });

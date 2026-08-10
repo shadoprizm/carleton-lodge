@@ -142,17 +142,17 @@ export const HistoryLandingPage = () => {
           >
             <h3 className="font-serif text-xl text-slate-900">Sources &amp; research</h3>
             <p className="mt-1 text-sm text-slate-600">
-              How this history is evidenced, and what remains unresolved.
+              How this history is evidenced, and the sources behind it.
             </p>
           </Link>
         </div>
         <p className="mt-8 text-sm leading-relaxed text-slate-500">
-          Every claim in this archive carries its sources and a confidence level. Items still under
-          research are flagged rather than smoothed over — see the{' '}
+          Every chapter of this archive is grounded in the Lodge's documented sources, and where
+          the surviving record is incomplete the text says so plainly. Read more on the{' '}
           <Link to="/history/sources" className="font-semibold text-amber-700 hover:text-amber-800">
-            source register
+            Sources &amp; Research
           </Link>{' '}
-          for the full picture.
+          page.
           <ArrowRight size={13} className="ml-1 inline text-amber-700" aria-hidden="true" />
         </p>
       </section>

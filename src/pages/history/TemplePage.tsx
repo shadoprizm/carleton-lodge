@@ -1,20 +1,13 @@
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { Timeline } from '../../components/history/Timeline';
 import { HistoryFigure } from '../../components/history/HistoryFigure';
-import { SourceNotes, UnresolvedCallout } from '../../components/history/SourceNotes';
-import {
-  historyEvents,
-  imageById,
-  openQuestions,
-} from '../../lib/history';
+import { SourceNotes } from '../../components/history/SourceNotes';
+import { historyEvents, imageById, type HistoryImage } from '../../lib/history';
 
 export const TemplePage = () => {
-  const modernPhoto = imageById('local-temple-modern');
-  const churchPhoto = imageById('IMG03');
-  const legacyExteriors = ['LEG03', 'LEG04', 'LEG05']
+  const templePhotos = ['local-temple-modern', 'LEG03', 'LEG04', 'LEG05']
     .map((id) => imageById(id))
-    .filter((img): img is NonNullable<typeof img> => Boolean(img));
-  const deedQuestion = openQuestions.find((question) => question.id === 'church-deed-date');
+    .filter((img): img is HistoryImage => Boolean(img?.localPath));
 
   return (
     <HistoryLayout
@@ -38,7 +31,9 @@ export const TemplePage = () => {
             <p>
               Members of Carleton Lodge approached the congregation. The District history records
               that the church building and land were to be deeded to the Freemasons for $250 plus
-              legal transfer fees.
+              legal transfer fees. The precise date of the legal transfer has not been established;
+              what is documented is the agreement, the renovation that followed, and the Lodge's
+              occupancy by the spring of 1927.
             </p>
             <p>
               The building was extensively refurbished. Importantly, the former church was
@@ -49,28 +44,9 @@ export const TemplePage = () => {
               Grand Lodge formally dedicated the Masonic Temple at Carp on 18 October 1930.
             </p>
             <p className="text-sm text-slate-500">
-              St. Andrew's is dated 1876 by local-history source S03 (Carp Heritage Walk). An
-              earlier 1872–1875 construction claim has been set aside until primary records settle
-              the chronology.
+              St. Andrew's is dated 1876 by the Carp Heritage Walk history of the village.
             </p>
           </div>
-        </section>
-
-        {deedQuestion && <UnresolvedCallout question={deedQuestion} />}
-
-        <section aria-labelledby="temple-images">
-          <h2 id="temple-images" className="font-serif text-3xl text-slate-900">
-            The building, then and now
-          </h2>
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {churchPhoto && <HistoryFigure image={churchPhoto} />}
-            {modernPhoto && <HistoryFigure image={modernPhoto} />}
-          </div>
-          <p className="mt-4 text-sm leading-relaxed text-slate-600">
-            The archival slot is reserved for Library and Archives Canada photograph C-12167, the
-            church before its Masonic conversion; the modern photograph shows the Temple as it
-            stands at 3704 Carp Road.
-          </p>
         </section>
 
         <section aria-labelledby="temple-today">
@@ -78,10 +54,10 @@ export const TemplePage = () => {
             The Temple today
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-            Modern exterior photographs of the Temple, recovered from the Lodge's retired website:
+            The Masonic Temple at 3704 Carp Road, photographed in the modern era:
           </p>
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            {legacyExteriors.map((image) => (
+          <div className="mt-6 grid gap-6 sm:grid-cols-2">
+            {templePhotos.map((image) => (
               <HistoryFigure key={image.id} image={image} />
             ))}
           </div>

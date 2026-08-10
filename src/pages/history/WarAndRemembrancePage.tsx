@@ -7,15 +7,14 @@ import {
   historyEvents,
   imageById,
   keyFigures,
+  type HistoryImage,
 } from '../../lib/history';
 
 export const WarAndRemembrancePage = () => {
-  const tabletImage = imageById('IMG10');
-  const maulImage = imageById('IMG09');
   const panoramaImage = imageById('LEG02');
   const cornerstoneImages = ['LEG07', 'LEG08']
     .map((id) => imageById(id))
-    .filter((img): img is NonNullable<typeof img> => Boolean(img));
+    .filter((img): img is HistoryImage => Boolean(img?.localPath));
   const wilson = keyFigures.find((person) => person.id === 'calvin-potters-wilson');
   const hughes = keyFigures.find((person) => person.id === 'sam-hughes');
 
@@ -58,31 +57,6 @@ export const WarAndRemembrancePage = () => {
           </div>
         </section>
 
-        <section aria-labelledby="modern-remembrance" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h2 id="modern-remembrance" className="font-serif text-3xl text-slate-900">
-            A century later
-          </h2>
-          <p className="mt-4 leading-relaxed text-slate-700">
-            A century after the creation of the Le Havre Lodge, the historic Le Havre setting maul
-            was associated with Carleton Lodge's participation in the cornerstone ceremony for the
-            West Carleton War Memorial in 2016 — the maul described in the District history as
-            presented by Captain Firebrace, the wartime Lodge's first Master.
-          </p>
-          <p className="mt-4 leading-relaxed text-slate-700">
-            The Lodge laid the memorial's cornerstone and time capsule on 28 May 2016. The engraved
-            granite stone — photographed that day and recovered from the Lodge's retired website —
-            is direct evidence of the ceremony:
-          </p>
-        </section>
-
-        {cornerstoneImages.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-2">
-            {cornerstoneImages.map((image) => (
-              <HistoryFigure key={image.id} image={image} />
-            ))}
-          </div>
-        )}
-
         {panoramaImage && (
           <section aria-labelledby="tablet-in-situ">
             <h2 id="tablet-in-situ" className="font-serif text-3xl text-slate-900">
@@ -98,19 +72,29 @@ export const WarAndRemembrancePage = () => {
           </section>
         )}
 
-        <section aria-labelledby="remembrance-images">
-          <h2 id="remembrance-images" className="font-serif text-3xl text-slate-900">
-            Reserved image slots
+        <section aria-labelledby="modern-remembrance" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <h2 id="modern-remembrance" className="font-serif text-3xl text-slate-900">
+            A century later
           </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-            On-site photography of the 1919 memorial tablet (including a transcription of its
-            inscription) and of the Le Havre setting maul is planned:
+          <p className="mt-4 leading-relaxed text-slate-700">
+            A century after the creation of the Le Havre Lodge, the historic Le Havre setting maul
+            was associated with Carleton Lodge's participation in the cornerstone ceremony for the
+            West Carleton War Memorial in 2016 — the maul described in the District history as
+            presented by Captain Firebrace, the wartime Lodge's first Master.
           </p>
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {tabletImage && <HistoryFigure image={tabletImage} />}
-            {maulImage && <HistoryFigure image={maulImage} />}
-          </div>
+          <p className="mt-4 leading-relaxed text-slate-700">
+            The Lodge laid the memorial's cornerstone and time capsule on 28 May 2016, and the
+            engraved granite stone was photographed that day:
+          </p>
         </section>
+
+        {cornerstoneImages.length > 0 && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {cornerstoneImages.map((image) => (
+              <HistoryFigure key={image.id} image={image} />
+            ))}
+          </div>
+        )}
 
         <section aria-labelledby="remembrance-timeline">
           <h2 id="remembrance-timeline" className="font-serif text-3xl text-slate-900">

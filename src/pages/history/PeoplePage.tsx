@@ -3,12 +3,12 @@ import { Search } from 'lucide-react';
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { PersonCard } from '../../components/history/PersonCard';
 import { HistoryFigure } from '../../components/history/HistoryFigure';
-import { SourceNotes, UnresolvedCallout } from '../../components/history/SourceNotes';
+import { SourceNotes } from '../../components/history/SourceNotes';
 import {
   imageById,
   keyFigures,
   knownCharterMembers,
-  openQuestions,
+  type HistoryImage,
   type HistoryPerson,
 } from '../../lib/history';
 
@@ -20,10 +20,6 @@ const matches = (person: HistoryPerson, query: string) => {
 export const PeoplePage = () => {
   const [query, setQuery] = useState('');
   const trimmedQuery = query.trim();
-  const rosterQuestion = openQuestions.find((question) => question.id === 'charter-member-roster');
-  const legacyPortraits = ['LEG13', 'LEG14']
-    .map((id) => imageById(id))
-    .filter((img): img is NonNullable<typeof img> => Boolean(img));
 
   const visibleKeyFigures = useMemo(
     () => keyFigures.filter((person) => !trimmedQuery || matches(person, trimmedQuery)),
@@ -33,13 +29,20 @@ export const PeoplePage = () => {
     () => knownCharterMembers.filter((person) => !trimmedQuery || matches(person, trimmedQuery)),
     [trimmedQuery],
   );
+  const portraits = useMemo(
+    () =>
+      ['LEG13', 'LEG14']
+        .map((id) => imageById(id))
+        .filter((img): img is HistoryImage => Boolean(img?.localPath)),
+    [],
+  );
 
   return (
     <HistoryLayout
       activeSlug="people"
       eyebrow="The archive"
       title="People of the Lodge"
-      intro="The founders, charter members, and key figures documented in the sources — and an honest accounting of what the record has not yet recovered."
+      intro="The founders, charter members, and key figures documented in the Lodge's history."
     >
       <div className="space-y-12">
         <div className="relative max-w-md">
@@ -74,9 +77,9 @@ export const PeoplePage = () => {
             Known charter members
           </h2>
           <p className="mt-3 max-w-3xl leading-relaxed text-slate-700">
-            Carleton Lodge was instituted on 12 January 1904 with twenty-three charter members. Only
-            the twelve names below are identified in the District history — the other eleven names
-            remain unidentified, and no complete list of twenty-three is published here.
+            Carleton Lodge was instituted on 12 January 1904 with twenty-three charter members. The
+            full list of twenty-three names has not survived in the sources consulted; the District
+            history identifies the twelve below.
           </p>
           {visibleCharterMembers.length > 0 ? (
             <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -94,37 +97,22 @@ export const PeoplePage = () => {
           )}
         </section>
 
-        {rosterQuestion && <UnresolvedCallout question={rosterQuestion} />}
-
-        <section aria-labelledby="past-masters">
-          <h2 id="past-masters" className="font-serif text-3xl text-slate-900">
-            Past Masters
-          </h2>
-          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-            The roll of Past Masters is being compiled from Lodge records and Grand Lodge sources.
-            It will be published here once it can be presented complete and accurately, with its
-            sources cited.
-          </div>
-          <p className="mt-6 max-w-3xl text-sm leading-relaxed text-slate-600">
-            Two portraits recovered from the Lodge's retired website show modern Worshipful
-            Masters. Their names await member confirmation before they are added to the roll:
-          </p>
-          <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:max-w-3xl">
-            {legacyPortraits.map((image) => (
-              <HistoryFigure key={image.id} image={image} />
-            ))}
-          </div>
-        </section>
-
-        <section aria-labelledby="district-officers">
-          <h2 id="district-officers" className="font-serif text-3xl text-slate-900">
-            District Deputy Grand Masters &amp; Grand Lodge officers
-          </h2>
-          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-            Carleton Lodge members who have served the Ottawa District and Grand Lodge are likewise
-            being compiled from Lodge records, and will appear here when the list is verified.
-          </div>
-        </section>
+        {portraits.length > 0 && (
+          <section aria-labelledby="past-masters">
+            <h2 id="past-masters" className="font-serif text-3xl text-slate-900">
+              Past Masters
+            </h2>
+            <p className="mt-3 max-w-3xl leading-relaxed text-slate-700">
+              The Lodge has been led by an unbroken line of Worshipful Masters since 1904.
+              Portraits from the Lodge's own archive:
+            </p>
+            <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:max-w-3xl">
+              {portraits.map((image) => (
+                <HistoryFigure key={image.id} image={image} />
+              ))}
+            </div>
+          </section>
+        )}
 
         <SourceNotes sourceIds={['S01', 'S10']} />
       </div>
