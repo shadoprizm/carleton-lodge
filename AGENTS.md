@@ -35,16 +35,24 @@ src/
 │   ├── EventModal.tsx
 │   ├── Events.tsx
 │   ├── Hero.tsx
-│   ├── History.tsx
+│   ├── History.tsx          # Homepage history teaser (static chapter data)
 │   ├── MembersDirectory.tsx
 │   ├── Navigation.tsx
 │   ├── NotificationSettings.tsx
+│   ├── PageMetadata.tsx     # Per-route <title>/meta management
 │   ├── PlacesAutocomplete.tsx
 │   └── Summons.tsx
+│   ├── history/             # Public history archive building blocks
+│   │   ├── HistoryLayout.tsx  # Breadcrumb + chapter sub-nav wrapper for /history/*
+│   │   ├── Timeline.tsx, HistoryFigure.tsx, Lightbox.tsx, SourceNotes.tsx,
+│   │   └── ChapterCard.tsx, PersonCard.tsx, PlaceCard.tsx, ArtifactCard.tsx
 ├── contexts/            # React contexts
 │   └── AuthContext.tsx  # Authentication state management
 ├── lib/                 # Core libraries
-│   └── supabase.ts      # Supabase client and TypeScript types
+│   ├── supabase.ts      # Supabase client and TypeScript types
+│   └── history/         # Static curated history archive data (+ historyData.test.ts)
+│                        #   types, sources, events, chapters, people, places,
+│                        #   artifacts, images, openQuestions, index (barrel)
 ├── pages/               # Page components
 │   ├── admin/           # Admin pages
 │   │   ├── AdminLayout.tsx
@@ -56,9 +64,12 @@ src/
 │   │   ├── AdminLibraryPage.tsx
 │   │   ├── AdminGalleryPage.tsx
 │   │   └── AdminContactPage.tsx
+│   ├── history/         # Public history archive (lazy-loaded): HistoryLandingPage,
+│   │                    #   FoundingPage, FireAndDisplacementPage, TemplePage,
+│   │                    #   LeHavrePage, WarAndRemembrancePage, PeoplePage,
+│   │                    #   HistoryGalleryPage, HistorySourcesPage
 │   ├── CalendarPage.tsx
 │   ├── GalleryPage.tsx
-│   ├── HistoryPage.tsx
 │   ├── HomePage.tsx
 │   ├── LibraryPage.tsx
 │   ├── MembersPage.tsx
@@ -77,9 +88,16 @@ supabase/
 │   └── send-summons-notification/  # Email notifications
 └── migrations/          # Database migrations (chronological order)
 
-static/                  # Static assets (images, files)
-public/                  # Public assets
+static/                  # Static assets served at the site root (vite.config.ts sets publicDir: 'static')
+│   └── history/         # History archive assets: photo-pending.svg placeholder + legacy/ display copies
+public/                  # NOT served by Vite — holds the legacy photo preservation store
+│   └── history/archive/legacy-owned/  # Recovered Lodge photos (originals/ + manifest: never modify or reference)
+k3-handoff/              # Source research package behind the history archive data
 ```
+
+### Public history archive
+
+`/history` and its chapter sub-routes (`/history/founding`, `/history/fire-and-displacement`, `/history/temple`, `/history/le-havre`, `/history/war-and-remembrance`, `/history/people`, `/history/gallery`, `/history/sources`) render static, source-grounded data from `src/lib/history/` — they do **not** read from Supabase. Legacy slugs redirect: `/history/formative-era-1904-1920` → `/history/founding`, `/history/great-fire-1920` → `/history/fire-and-displacement`, `/history/international-connection-1916-1930` → `/history/le-havre`, `/history/architectural-heritage-1872-1925` → `/history/temple`, `/history/modern-era-2000-2026` → `/history`. The Supabase `history_entries` table and `AdminHistoryPage` remain unchanged for admin editing. Image slots without rights-cleared assets render the neutral placeholder `static/history/photo-pending.svg`; recovered Lodge-owned legacy photos are registered as `LEG01`–`LEG14` (source S10); AI reconstructions are confined to the clearly labelled "AI reconstructions" gallery filter.
 
 ## Database Schema
 
@@ -123,6 +141,9 @@ npm run lint
 
 # Run TypeScript type checking
 npm run typecheck
+
+# Run unit tests (Vitest)
+npm test
 ```
 
 ## Environment Variables
@@ -195,9 +216,9 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 ## Testing Strategy
 
-Currently, the project does not have automated tests configured. When adding tests:
+Vitest is available (`npm test`, zero-config — the Vite config is picked up automatically). The only suite so far is `src/lib/history/historyData.test.ts` (10 tests), which validates the static history archive's data integrity: source/image ID references, unique chapter slugs, valid image types, no AI reconstruction under "Historical photographs", and every `localPath` resolving to a real file in `static/`. When adding tests:
 - Use Vitest (consistent with Vite ecosystem)
-- Test utilities in `src/utils/`
+- Colocate `*.test.ts` next to pure logic in `src/lib/` / `src/utils/`
 - Integration tests for Supabase queries
 
 ## Security Considerations
@@ -226,4 +247,4 @@ Currently, the project does not have automated tests configured. When adding tes
 - Member visibility can be controlled per-member via `visible_to_members` flag
 - Photo albums and photos have visibility levels: 'public', 'members', or 'admin'
 - The lodge logo is stored in `static/Screenshot_2026-03-01_at_08.13.26.png`
-- History entries support deep linking via `/history/:slug` routes
+- The public history archive lives under `/history` with chapter sub-routes; legacy era slugs redirect (see "Public history archive" above)

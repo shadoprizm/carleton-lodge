@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /summons
+Disallow: /members
+Disallow: /library
+
+Sitemap: https://www.carpmasons.ca/sitemap.xml
