@@ -1,5 +1,5 @@
 import { FormEvent, useRef, useState } from 'react';
-import { ArrowRight, BookOpenCheck, Bot, Mail, Send, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Bot, ExternalLink, Mail, Send, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { supportMailto } from '../lib/contact';
@@ -21,12 +21,38 @@ type Answer = {
   suggested_follow_up: string | null;
 };
 
+const isExternalUrl = (url: string) => /^https:\/\//i.test(url);
+
+const CitationTarget = ({ citation, children, className }: {
+  citation: Citation;
+  children: React.ReactNode;
+  className: string;
+}) => isExternalUrl(citation.url) ? (
+  <a href={citation.url} target="_blank" rel="noopener noreferrer" className={className}>{children}</a>
+) : (
+  <Link to={citation.url} className={className}>{children}</Link>
+);
+
+const AnswerWithCitations = ({ answer, citations }: { answer: string; citations: Citation[] }) => {
+  const citationByNumber = new Map(citations.map((citation) => [citation.number, citation]));
+  return cleanLodgeGuideAnswer(answer).split(/(\[\d+\])/g).map((part, index) => {
+    const match = part.match(/^\[(\d+)\]$/);
+    const citation = match ? citationByNumber.get(Number(match[1])) : undefined;
+    if (!citation) return <span key={`${part}-${index}`}>{part}</span>;
+    return (
+      <CitationTarget key={`${part}-${index}`} citation={citation} className="mx-0.5 inline-flex rounded px-1 font-bold text-blue-900 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+        {part}<span className="sr-only">, {citation.title}</span>
+      </CitationTarget>
+    );
+  });
+};
+
 const starters = [
   'When is the next lodge event?',
   'Where can I find the latest summons?',
   'How do I change my email notifications?',
   'What is the Lodge Secretary’s contact information?',
-  'What Ottawa District 1 lodges are doing a third degree next month?',
+  'What Ottawa District 1 or 2 lodges are doing a third degree next month?',
   'When is the next meeting of Russell Lodge?',
 ];
 
@@ -106,12 +132,20 @@ export const AskCarletonPage = () => {
               <div className="ml-auto max-w-2xl rounded-2xl rounded-br-sm bg-blue-900 p-4 text-base text-white"><p className="text-xs font-semibold uppercase tracking-wide text-blue-200">You asked</p><p className="mt-1">{item.question}</p></div>
               <div className="max-w-3xl rounded-2xl rounded-bl-sm border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <h2 ref={index === answers.length - 1 ? responseHeadingRef : undefined} tabIndex={-1} className="text-sm font-bold uppercase tracking-wide text-amber-800 outline-none">Lodge Guide</h2>
-                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">{cleanLodgeGuideAnswer(item.answer)}</p>
+                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800"><AnswerWithCitations answer={item.answer} citations={item.citations} /></p>
                 {item.citations.length > 0 && (
                   <div className="mt-5 border-t border-slate-200 pt-4">
                     <h3 className="text-sm font-bold text-slate-900">Sources used</h3>
                     <ul className="mt-2 space-y-2">
-                      {item.citations.map((citation) => <li key={`${citation.number}-${citation.url}`}><Link to={citation.url} className="inline-flex min-h-11 items-center gap-2 font-semibold text-blue-900 underline underline-offset-4"><span aria-hidden="true">[{citation.number}]</span>{citation.title}<ArrowRight size={16} /></Link></li>)}
+                      {item.citations.map((citation) => (
+                        <li key={`${citation.number}-${citation.url}`}>
+                          <CitationTarget citation={citation} className="inline-flex min-h-11 items-center gap-2 font-semibold text-blue-900 underline underline-offset-4">
+                            <span aria-hidden="true">[{citation.number}]</span>{citation.title}
+                            {isExternalUrl(citation.url) ? <ExternalLink size={16} /> : <ArrowRight size={16} />}
+                          </CitationTarget>
+                          {isExternalUrl(citation.url) && <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">Official external source</span>}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 )}

@@ -48,6 +48,7 @@ const AdminLibraryPage = lazy(() => import('./pages/admin/AdminLibraryPage').the
 const AdminGalleryPage = lazy(() => import('./pages/admin/AdminGalleryPage').then((module) => ({ default: module.AdminGalleryPage })));
 const AdminContactPage = lazy(() => import('./pages/admin/AdminContactPage').then((module) => ({ default: module.AdminContactPage })));
 const AdminCommunicationsPage = lazy(() => import('./pages/admin/AdminCommunicationsPage').then((module) => ({ default: module.AdminCommunicationsPage })));
+const AdminTrustedSourcesPage = lazy(() => import('./pages/admin/AdminTrustedSourcesPage').then((module) => ({ default: module.AdminTrustedSourcesPage })));
 
 const PageLoading = () => <div className="min-h-screen bg-slate-50 px-4 pt-32 text-center text-base text-slate-600" role="status">Loading page…</div>;
 function App() {
@@ -84,7 +85,7 @@ const AppShell = () => {
             </>
           )}
           <Route path="/summons" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Summons"><SummonsPage /></MemberGate>} />
-          <Route path="/district" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Ottawa District 1"><DistrictPage /></MemberGate>} />
+          <Route path="/district" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Ottawa Districts 1 and 2"><DistrictPage /></MemberGate>} />
           <Route path="/members" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="The member directory"><MembersPage /></MemberGate>} />
           <Route path="/members/:memberId" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Member profiles"><MemberProfilePage /></MemberGate>} />
           <Route path="/library" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="The lodge library"><LibraryPage /></MemberGate>} />
@@ -121,6 +122,7 @@ const AppShell = () => {
             <Route path="gallery" element={<AdminGalleryPage />} />
             <Route path="contact" element={<AdminContactPage />} />
             <Route path="communications" element={<AdminCommunicationsPage />} />
+            <Route path="trusted-sources" element={<AdminTrustedSourcesPage />} />
           </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
