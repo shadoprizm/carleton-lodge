@@ -24,9 +24,6 @@ export { openQuestions } from './openQuestions';
 export const AI_RECONSTRUCTION_LABEL =
   'Historical reconstruction — AI-generated from documented sources; not an original photograph.';
 
-/** Neutral placeholder shown for image slots that have not been acquired yet. */
-export const PHOTO_PENDING_PATH = '/history/photo-pending.svg';
-
 export const GALLERY_CATEGORY_LABELS: Record<GalleryCategory, string> = {
   historical_photographs: 'Historical photographs',
   buildings: 'Buildings',

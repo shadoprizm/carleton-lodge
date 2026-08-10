@@ -5,8 +5,8 @@ import type { HistoryImage } from './types';
  * plus the Lodge-owned local assets that are cleared for use.
  *
  * Slots without a confirmed, rights-cleared local file keep `localPath`
- * undefined and render as neutral "pending acquisition" placeholders —
- * never AI stand-ins.
+ * undefined and are not displayed on the public site at all; their
+ * metadata stays here as the internal curation record.
  */
 export const historyImages: HistoryImage[] = [
   {
@@ -271,7 +271,7 @@ export const historyImages: HistoryImage[] = [
     rightsStatus: 'lodge_owned',
     creditLine: 'AI-generated reconstruction created for Carleton Lodge No. 465',
     caption:
-      'An evocative reconstruction of a Carp streetscape in the Kidd Block era, generated from documented sources. It is not an original photograph and is shown only because no authentic streetscape image has yet been cleared for use.',
+      'An evocative reconstruction of a Carp streetscape in the Kidd Block era, generated from documented sources. It is not an original photograph.',
     alt: 'AI-generated reconstruction of a Carp streetscape in the early twentieth century.',
     localPath: '/formative-era-local.webp',
     galleryCategory: 'ai_reconstructions',
@@ -293,7 +293,7 @@ export const historyImages: HistoryImage[] = [
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
     caption:
-      'The full Lodge room during an official visit, 27 November 2014 (EXIF). Visible: the chequered pavement, three columns, the panelled oak pedestal with an open Volume of the Sacred Law, and a Gothic-carved kneeling bench. Which pieces, if any, descend from the Le Havre collection is not confirmed from this photograph.',
+      'The full Lodge room during an official visit, 27 November 2014. Visible: the chequered pavement, three columns, the panelled oak pedestal with an open Volume of the Sacred Law, and a Gothic-carved kneeling bench. Whether any of these pieces descend from the Le Havre collection has not been established.',
     alt: 'Members and visiting dignitaries assembled in the Carleton Lodge room, showing the chequered pavement, columns, pedestal and kneeling bench, 27 November 2014.',
     localPath: '/history/legacy/lodge-interior/lodge-room-interior-and-assembly-2014-11-27.jpg',
     galleryCategory: 'modern_lodge_history',
@@ -309,7 +309,7 @@ export const historyImages: HistoryImage[] = [
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
     caption:
-      'Members and visiting dignitaries in the Lodge room, 25 October 2014 (EXIF). The framed Warrant and a bronze memorial tablet naming Bro. Calvin Potters Wilson, C.E. are visible on the wall. Names of those pictured to be confirmed.',
+      'Members and visiting dignitaries in the Lodge room, 25 October 2014. The framed Warrant and a bronze memorial tablet naming Bro. Calvin Potters Wilson, C.E. are visible on the wall.',
     alt: 'Group photograph of Carleton Lodge members and visiting dignitaries in the Lodge room, 25 October 2014, with the framed Warrant and a memorial tablet on the wall.',
     localPath: '/history/legacy/lodge-meetings-visits/lodge-assembly-panorama-2014-10-25.jpg',
     galleryCategory: 'modern_lodge_history',
@@ -411,7 +411,7 @@ export const historyImages: HistoryImage[] = [
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
     caption:
-      'The Lodge\'s Santa Claus parade float; the banner reads "CARLETON MASONIC LODGE No. 465 Carp Ont — 2B1-ASK1". Year to be confirmed.',
+      'The Lodge\'s Santa Claus parade float; the banner reads "CARLETON MASONIC LODGE No. 465 Carp Ont — 2B1-ASK1".',
     alt: 'Carleton Lodge Santa Claus parade float with a banner reading "Carleton Masonic Lodge No. 465 Carp Ont — 2B1-ASK1".',
     localPath: '/history/legacy/parades/santa-parade-float-carleton-lodge.jpg',
     galleryCategory: 'modern_lodge_history',
@@ -438,7 +438,7 @@ export const historyImages: HistoryImage[] = [
     sourceInstitution: 'Carleton Lodge No. 465',
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
-    caption: 'Officers and visiting dignitaries in Grand Lodge regalia in the Lodge room. Date and names to be confirmed.',
+    caption: 'Officers and visiting dignitaries in Grand Lodge regalia in the Lodge room.',
     alt: 'Carleton Lodge officers and visiting dignitaries in Grand Lodge regalia assembled in the Lodge room.',
     localPath: '/history/legacy/lodge-interior/lodge-room-officers-and-visitors.jpg',
     galleryCategory: 'people',
@@ -451,7 +451,7 @@ export const historyImages: HistoryImage[] = [
     sourceInstitution: 'Carleton Lodge No. 465',
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
-    caption: 'Members assembled in the Lodge room. Date and names to be confirmed.',
+    caption: 'Members assembled in the Lodge room.',
     alt: 'Carleton Lodge members assembled together in the Lodge room.',
     localPath: '/history/legacy/lodge-interior/lodge-room-interior-with-members.jpg',
     galleryCategory: 'people',
@@ -465,7 +465,7 @@ export const historyImages: HistoryImage[] = [
     sourceInstitution: 'Carleton Lodge No. 465',
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
-    caption: 'A portrait of the Worshipful Master, 2014. Name to be confirmed.',
+    caption: 'A portrait of the Worshipful Master of Carleton Lodge, 2014.',
     alt: 'Portrait of the Worshipful Master of Carleton Lodge in 2014.',
     localPath: '/history/legacy/people-past-masters/worshipful-master-2014.jpg',
     galleryCategory: 'people',
@@ -480,7 +480,7 @@ export const historyImages: HistoryImage[] = [
     sourceInstitution: 'Carleton Lodge No. 465',
     rightsStatus: 'lodge_owned',
     creditLine: 'Carleton Lodge No. 465 archive — retired carletonlodge465.com',
-    caption: 'A member in Master\'s collar and jewel, holding a gavel, 2013 (EXIF). Name to be confirmed.',
+    caption: 'A member in Master\'s collar and jewel, holding a gavel, 2013.',
     alt: 'A Carleton Lodge member wearing a Master\'s collar and jewel and holding a gavel, 2013.',
     localPath: '/history/legacy/people-past-masters/member-with-gavel.jpg',
     galleryCategory: 'people',

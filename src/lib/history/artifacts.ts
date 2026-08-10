@@ -5,7 +5,7 @@ export const historyArtifacts: HistoryArtifact[] = [
     id: 'le-havre-furniture',
     name: 'The Le Havre furniture collection',
     description:
-      'The Lodge furniture and documents of La Loge Le Havre de Grâce No. 4, packed into sixteen wooden crates after the wartime Lodge closed and shipped to London aboard the Perseverence. Stored with Taylor & Son in Pimlico, the collection faced auction when storage charges went unpaid around 1924–25. Carleton Lodge acquired the furniture and documents with clear title, and Bro. William Stuart offered on 26 February 1926 to pay the expenses of the acquisition.',
+      'The Lodge furniture and documents of La Loge Le Havre de Grâce No. 4, packed into sixteen wooden crates after the wartime Lodge closed and shipped to London aboard the Perseverence. Stored with Taylor & Son in Pimlico, the collection faced auction when storage charges went unpaid around 1924–25. Carleton Lodge acquired the furniture and documents with clear title, and Bro. William Stuart offered on 26 February 1926 to pay the expenses himself.',
     status: 'held',
     sources: ['S01', 'S07'],
     imageId: 'IMG08',
@@ -31,7 +31,7 @@ export const historyArtifacts: HistoryArtifact[] = [
     id: 'memorial-tablet-1919',
     name: '1919 WWI memorial tablet',
     description:
-      'A memorial tablet unveiled in Carleton Lodge on 19 May 1919 by Lt.-Gen. Sir Sam Hughes, former Minister of Militia and Defence. Photography and a transcription of the inscription are planned.',
+      'A memorial tablet unveiled in Carleton Lodge on 19 May 1919 by Lt.-Gen. Sir Sam Hughes, former Minister of Militia and Defence.',
     status: 'pending_documentation',
     sources: ['S01'],
     imageId: 'IMG10',
@@ -40,7 +40,7 @@ export const historyArtifacts: HistoryArtifact[] = [
     id: 'warrant-465',
     name: 'Warrant No. 465',
     description:
-      'The warrant for Carleton Lodge No. 465, signed and dated 20 July 1904 — the Lodge\'s foundational document. A high-resolution archival scan is planned, condition permitting.',
+      'The warrant for Carleton Lodge No. 465, signed and dated 20 July 1904 — the Lodge\'s foundational document.',
     status: 'pending_documentation',
     sources: ['S01'],
     imageId: 'IMG11',
@@ -49,7 +49,7 @@ export const historyArtifacts: HistoryArtifact[] = [
     id: 'le-havre-minute-book',
     name: 'Le Havre Minute Book & Register of Members',
     description:
-      'The Ottawa District history lists the Minute Book and Register of Members of La Loge Le Havre de Grâce No. 4 as held in the archives of Carleton Lodge. Their present physical location and condition have not been confirmed, and they are being sought before they can be described as currently extant.',
+      'The Ottawa District history lists the Minute Book and Register of Members of La Loge Le Havre de Grâce No. 4 as held in the archives of Carleton Lodge. Whether those records survive today has not been established.',
     status: 'reported_unconfirmed',
     sources: ['S01'],
     imageId: 'IMG12',

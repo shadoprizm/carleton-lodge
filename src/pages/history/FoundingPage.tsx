@@ -1,4 +1,3 @@
-import { Link } from 'react-router';
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { Timeline } from '../../components/history/Timeline';
 import { HistoryFigure } from '../../components/history/HistoryFigure';
@@ -9,15 +8,11 @@ import {
   historyPlaces,
   imageById,
   knownCharterMembers,
-  type HistoryImage,
 } from '../../lib/history';
-
-const figure = (id: string): HistoryImage | undefined => imageById(id);
 
 export const FoundingPage = () => {
   const kiddBlock = historyPlaces.find((place) => place.id === 'kidd-block');
-  const authenticSlots = ['IMG01', 'IMG02', 'IMG04'].map(figure).filter((img): img is HistoryImage => Boolean(img));
-  const aiReconstruction = figure('local-formative-ai');
+  const reconstruction = imageById('local-formative-ai');
 
   return (
     <HistoryLayout
@@ -56,9 +51,9 @@ export const FoundingPage = () => {
             The charter members
           </h2>
           <p className="mt-3 max-w-3xl leading-relaxed text-slate-700">
-            Carleton Lodge was instituted with twenty-three charter members. The District history
-            names only twelve of them — the remaining eleven names have not yet been identified,
-            and this list must not be treated as complete:
+            Carleton Lodge was instituted with twenty-three charter members. The full list of
+            twenty-three names has not survived in the sources consulted; the District history
+            identifies these twelve:
           </p>
           <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {knownCharterMembers.map((member) => (
@@ -71,8 +66,7 @@ export const FoundingPage = () => {
             ))}
           </ul>
           <p className="mt-3 text-sm text-slate-500">
-            Identified in the Ottawa District history (S01). Research into the complete roster
-            continues — see <Link to="/history/sources" className="text-amber-700 underline decoration-amber-300 underline-offset-2">Sources &amp; research</Link>.
+            Identified in the Ottawa District history (S01).
           </p>
         </section>
 
@@ -86,32 +80,25 @@ export const FoundingPage = () => {
           <p className="mt-4 text-sm leading-relaxed text-slate-600">
             Grand Lodge-derived history identifies the Bank of Nova Scotia, the Carp Review
             Printing Office, the Huntley Public Library, and the Carp Drug Store as occupants of
-            the Kidd Block when it was destroyed. Carp Heritage Walk material identifies authentic
-            circa-1910 photographs of the Kidd Block and nearby Kidd Street in the Huntley Township
-            Historical Society collection.
+            the Kidd Block when it was destroyed.
           </p>
         </section>
 
-        <section aria-labelledby="founding-images">
-          <h2 id="founding-images" className="font-serif text-3xl text-slate-900">
-            The founding era in images
-          </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-            Authentic photographs of the Kidd Block and founding-era Carp are known to exist in the
-            Huntley Township Historical Society and Library and Archives Canada collections. These
-            slots are reserved for them pending reproduction permission:
-          </p>
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            {authenticSlots.map((image) => (
-              <HistoryFigure key={image.id} image={image} />
-            ))}
-          </div>
-          {aiReconstruction && (
-            <div className="mt-8 max-w-xl">
-              <HistoryFigure image={aiReconstruction} />
+        {reconstruction && (
+          <section aria-labelledby="founding-images">
+            <h2 id="founding-images" className="font-serif text-3xl text-slate-900">
+              Picturing the founding era
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
+              No photograph of the Lodge's first home survives in the Lodge's own collection. The
+              reconstruction below was generated from documented sources to evoke the streetscape
+              the first members knew — it is a visual impression, not evidence.
+            </p>
+            <div className="mt-6 max-w-xl">
+              <HistoryFigure image={reconstruction} />
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         <section aria-labelledby="founding-timeline">
           <h2 id="founding-timeline" className="font-serif text-3xl text-slate-900">
