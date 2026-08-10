@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Mail, MapPin } from 'lucide-react';
 import { Link } from 'react-router';
 import { ContactForm } from './ContactForm';
+import { SUPPORT_EMAIL, supportMailto } from '../lib/contact';
 
 const FacebookIcon = ({ size = 20 }: { size?: number }) => (
   <svg
@@ -65,10 +66,10 @@ export const Contact = () => {
             </div>
             <h3 className="text-xl font-serif mb-2">Email</h3>
             <a 
-              href="mailto:carpmasons@gmail.com"
+              href={supportMailto()}
               className="text-white/80 font-light hover:text-amber-300 transition-colors"
             >
-              carpmasons@gmail.com
+              {SUPPORT_EMAIL}
             </a>
           </div>
 

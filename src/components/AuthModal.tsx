@@ -1,35 +1,135 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Mail, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SUPPORT_EMAIL, supportMailto } from '../lib/contact';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type AuthMode = 'sign-in' | 'reset';
+
+const focusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<AuthMode>('sign-in');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const { signIn, sendMagicLink, sendPasswordReset } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const closeModal = useCallback(() => {
     setError('');
+    setMessage('');
+    setMode('sign-in');
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusTimer = window.setTimeout(() => emailRef.current?.focus(), 0);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [closeModal, isOpen]);
+
+  const validateEmail = () => {
+    if (email.trim()) return true;
+    setError('Enter the email address used for your lodge account.');
+    return false;
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!validateEmail()) return;
+
+    setError('');
+    setMessage('');
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    if (mode === 'reset') {
+      const { error: resetError } = await sendPasswordReset(email.trim());
+      setLoading(false);
+      if (resetError) {
+        setError('We could not send the reset email. Please try again or contact the Secretary.');
+      } else {
+        setMessage('If this email belongs to a lodge account, a password-reset link is on its way.');
+      }
+      return;
+    }
 
+    const { error: signInError } = await signIn(email.trim(), password);
     setLoading(false);
 
-    if (error) {
+    if (signInError) {
       setError('The email or password is incorrect, or this account is unavailable.');
     } else {
-      onClose();
       setEmail('');
       setPassword('');
+      closeModal();
+    }
+  };
+
+  const handleMagicLink = async () => {
+    if (!validateEmail()) return;
+    setError('');
+    setMessage('');
+    setLoading(true);
+    const { error: magicLinkError } = await sendMagicLink(email.trim());
+    setLoading(false);
+
+    if (magicLinkError) {
+      setError('We could not send a sign-in link. Please try again or contact the Secretary.');
+    } else {
+      setMessage('If this email belongs to a lodge account, a one-time sign-in link is on its way.');
     }
   };
 
@@ -37,78 +137,136 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
+          <motion.button
+            type="button"
+            aria-label="Close member sign in"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
+            className="absolute inset-0 h-full w-full cursor-default bg-black/60 backdrop-blur-sm"
+            onClick={closeModal}
           />
           <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-white rounded-lg shadow-2xl max-w-md w-full p-8"
+            className="relative w-full max-w-md rounded-xl bg-white p-7 shadow-2xl sm:p-8"
           >
             <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              type="button"
+              onClick={closeModal}
+              aria-label="Close"
+              className="absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900"
             >
               <X size={24} />
             </button>
 
-            <h2 className="text-3xl font-serif text-gray-900 mb-2">
-              Member Sign In
+            <h2 id={titleId} className="pr-10 text-3xl font-serif text-gray-900">
+              {mode === 'reset' ? 'Reset Your Password' : 'Member Sign In'}
             </h2>
-            <p className="text-gray-600 mb-6">
-              Welcome back, Brother
+            <p id={descriptionId} className="mb-6 mt-2 text-base leading-relaxed text-gray-600">
+              {mode === 'reset'
+                ? 'Enter your lodge account email and we will send a secure reset link.'
+                : 'Sign in with your password, or ask us to email you a one-time sign-in link.'}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label htmlFor="member-email" className="mb-1 block text-base font-medium text-gray-800">
+                  Email address
                 </label>
                 <input
-                  id="email"
+                  ref={emailRef}
+                  id="member-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
                   maxLength={254}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
+                  className="min-h-12 w-full rounded-md border border-gray-400 px-4 py-2 text-base outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-900"
                   required
                 />
               </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
-                  required
-                />
-              </div>
-
-              {error && (
-                <p className="text-red-600 text-sm">{error}</p>
+              {mode === 'sign-in' && (
+                <div>
+                  <label htmlFor="member-password" className="mb-1 block text-base font-medium text-gray-800">
+                    Password
+                  </label>
+                  <input
+                    id="member-password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    className="min-h-12 w-full rounded-md border border-gray-400 px-4 py-2 text-base outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-900"
+                    required
+                  />
+                </div>
               )}
+
+              <div aria-live="polite" aria-atomic="true">
+                {error && <p className="rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+                {message && <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-900">{message}</p>}
+              </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-900 text-white py-3 rounded-md hover:bg-blue-800 transition-colors font-medium disabled:opacity-50"
+                className="min-h-12 w-full rounded-md bg-blue-900 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 focus-visible:ring-offset-2 disabled:opacity-50"
               >
-                {loading ? 'Loading...' : 'Sign In'}
+                {loading ? 'Please wait…' : mode === 'reset' ? 'Email My Reset Link' : 'Sign In'}
               </button>
             </form>
 
+            {mode === 'sign-in' ? (
+              <div className="mt-5 space-y-3 border-t border-gray-200 pt-5">
+                <button
+                  type="button"
+                  onClick={handleMagicLink}
+                  disabled={loading}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-blue-900 px-4 py-3 text-base font-semibold text-blue-900 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 focus-visible:ring-offset-2 disabled:opacity-50"
+                >
+                  <Mail size={19} />
+                  Email Me a One-Time Sign-In Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('reset');
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="min-h-11 w-full rounded-md text-base font-medium text-blue-900 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900"
+                >
+                  I forgot my password
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('sign-in');
+                  setError('');
+                  setMessage('');
+                }}
+                className="mt-5 min-h-11 w-full rounded-md text-base font-medium text-blue-900 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900"
+              >
+                Back to sign in
+              </button>
+            )}
+
+            <p className="mt-5 text-center text-sm leading-relaxed text-gray-600">
+              Still need help? Email{' '}
+              <a className="font-semibold text-blue-900 underline" href={supportMailto('Help signing in')}>
+                {SUPPORT_EMAIL}
+              </a>
+            </p>
           </motion.div>
         </div>
       )}

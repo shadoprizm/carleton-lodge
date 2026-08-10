@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../lib/supabase';
+import { EventVisibility, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { PlacesAutocomplete } from './PlacesAutocomplete';
 import { RichTextEditor } from './RichTextEditor';
@@ -23,6 +23,7 @@ export const EventModal = ({ isOpen, onClose, onEventSubmitted }: EventModalProp
   const [eventEndTime, setEventEndTime] = useState('');
   const [pocName, setPocName] = useState('');
   const [pocContact, setPocContact] = useState('');
+  const [visibility, setVisibility] = useState<EventVisibility>('members');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -54,6 +55,7 @@ export const EventModal = ({ isOpen, onClose, onEventSubmitted }: EventModalProp
       location_address: locationAddress.trim() || null,
       poc_name: pocName.trim() || null,
       poc_contact: pocContact.trim() || null,
+      visibility,
       created_by: user.id,
     });
 
@@ -71,6 +73,7 @@ export const EventModal = ({ isOpen, onClose, onEventSubmitted }: EventModalProp
       setLocationAddress('');
       setPocName('');
       setPocContact('');
+      setVisibility('members');
       onEventSubmitted();
       setSubmitted(true);
     }
@@ -197,6 +200,22 @@ export const EventModal = ({ isOpen, onClose, onEventSubmitted }: EventModalProp
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition-all"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="eventVisibility" className="block text-sm font-medium text-gray-700 mb-1">
+                  Who should see this event?
+                </label>
+                <select
+                  id="eventVisibility"
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as EventVisibility)}
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-4 py-2 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-900"
+                >
+                  <option value="members">Lodge members only</option>
+                  <option value="public">Everyone (public website)</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">An event approver will confirm this choice before publishing.</p>
               </div>
 
               <div>

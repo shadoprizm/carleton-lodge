@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Historical photograph pending acquisition">
+  <rect width="800" height="450" fill="#1e293b"/>
+  <rect x="16" y="16" width="768" height="418" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="10 8"/>
+  <g fill="none" stroke="#94a3b8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M330 195 h-30 a14 14 0 0 0 -14 14 v56 a14 14 0 0 0 14 14 h120 a14 14 0 0 0 14 -14 v-56 a14 14 0 0 0 -14 -14 h-30 l-14 -20 h-32 z"/>
+    <circle cx="360" cy="237" r="22"/>
+  </g>
+  <text x="400" y="330" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="26" fill="#e2e8f0">Historical photograph pending acquisition</text>
+  <text x="400" y="365" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#94a3b8">This slot is reserved for a rights-cleared authentic image</text>
+</svg>

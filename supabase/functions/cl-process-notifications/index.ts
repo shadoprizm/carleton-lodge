@@ -29,6 +29,47 @@ const payloadStringArray = (payload: Record<string, unknown>, key: string) =>
     ? payload[key].filter((value): value is string => typeof value === "string")
     : [];
 
+const payloadPlainText = (payload: Record<string, unknown>, key: string) =>
+  payloadString(payload, key)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const createRawActionToken = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+};
+
+const sha256 = async (value: string) => {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+const productionSiteUrl = (configuredValue: string | undefined) => {
+  const configured = configuredValue?.replace(/\/$/, "");
+  return configured === "https://www.carpmasons.ca" ||
+      configured === "https://carpmasons.ca"
+    ? configured
+    : "https://www.carpmasons.ca";
+};
+
 const formatEventDate = (value: string) => {
   if (!value) return "";
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00Z`);
@@ -140,6 +181,59 @@ const renderEmail = (
     });
   }
 
+  if (["new_event", "event_updated"].includes(job.notification_type)) {
+    const eventTime = payloadString(job.payload, "event_time").slice(0, 5);
+    const location = payloadString(job.payload, "location");
+    const eventStatus = payloadString(job.payload, "event_status") || "scheduled";
+    const statusNote = payloadString(job.payload, "status_note");
+    const isNew = job.notification_type === "new_event";
+    const heading = eventStatus === "cancelled"
+      ? `Cancelled: ${title}`
+      : eventStatus === "postponed"
+      ? `Postponed: ${title}`
+      : isNew
+      ? `New lodge event: ${title}`
+      : `Event updated: ${title}`;
+
+    return renderBrandedEmail({
+      subject: heading,
+      preheader: statusNote || `${title} is ${eventStatus}.`,
+      eyebrow: "Lodge calendar",
+      heading,
+      paragraphs: [
+        statusNote || (isNew
+          ? "A new event has been added to the Carleton Lodge calendar."
+          : "Details for this lodge event have changed. Please review the latest information on the website."),
+      ],
+      details: [
+        { label: "Event", value: title },
+        ...(eventDate ? [{ label: "Date", value: eventDate }] : []),
+        ...(eventTime ? [{ label: "Time", value: eventTime }] : []),
+        ...(location ? [{ label: "Location", value: location }] : []),
+        { label: "Status", value: eventStatus },
+      ],
+      cta: { label: "View current event details", url: calendarUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "new_announcement") {
+    const priority = payloadString(job.payload, "priority") || "normal";
+    const body = payloadPlainText(job.payload, "body").slice(0, 1200);
+    const myLodgeUrl = `${siteUrl.replace(/\/$/, "")}/my-lodge`;
+
+    return renderBrandedEmail({
+      subject: `${priority === "urgent" ? "Urgent lodge notice" : "Lodge announcement"}: ${title}`,
+      preheader: body.slice(0, 180) || "A new lodge announcement is available.",
+      eyebrow: priority === "normal" ? "Lodge announcement" : `${priority} notice`,
+      heading: title,
+      paragraphs: body ? [body] : ["A new lodge announcement has been posted."],
+      details: [{ label: "Priority", value: priority }],
+      cta: { label: "View announcements on My Lodge", url: myLodgeUrl },
+      siteUrl,
+    });
+  }
+
   if (job.notification_type === "standard_template_preview") {
     return renderBrandedEmail({
       subject: "Carleton Lodge email template preview",
@@ -167,6 +261,9 @@ const renderEmail = (
 
     const memberName = payloadString(job.payload, "member_name") ||
       "Brother";
+    const lodgeEmail = payloadString(job.payload, "lodge_email");
+    const mailboxStatus = payloadString(job.payload, "mailbox_status");
+    const mailboxAlreadyActive = mailboxStatus === "active";
     const permissionSummary = payloadStringArray(job.payload, "permissions");
     const baseAccess = [
       "Lodge calendar and event submissions",
@@ -179,15 +276,23 @@ const renderEmail = (
     return renderBrandedEmail({
       subject: "Welcome to the Carleton Lodge members' website",
       preheader:
-        "Your lodge member account is ready. Choose your password to get started.",
-      eyebrow: "Member account",
+        "Your lodge website account and carpmasons.ca email are ready for setup.",
+      eyebrow: "Member welcome",
       heading: `Welcome, ${memberName}`,
       paragraphs: [
-        "Your account for the Carleton Lodge members' website is ready.",
-        "Use the secure button below to choose your password and sign in. For your protection, the link is temporary and can only be used once. If it has expired, ask a lodge administrator to send a new account email.",
+        "Your account for the Carleton Lodge members' website is ready, and a personal lodge email address has been reserved for you.",
+        mailboxAlreadyActive
+          ? "Use the secure button below to choose your website password. Your lodge mailbox is already active and will be available from your member profile after you sign in. For your protection, this link is temporary and can only be used once."
+          : "Use the secure button below to choose your website password. The website will then guide you through one short final step to activate your lodge mailbox. For your protection, this link is temporary and can only be used once.",
       ],
       details: [
-        { label: "Login email", value: job.recipient_email },
+        { label: "Website sign-in email", value: job.recipient_email },
+        ...(lodgeEmail
+          ? [{ label: "Your lodge email", value: lodgeEmail }]
+          : []),
+        ...(mailboxAlreadyActive
+          ? [{ label: "Lodge mailbox", value: "Already active" }]
+          : [{ label: "Lodge mailbox", value: "Ready to activate during setup" }]),
         { label: "Member access", value: baseAccess },
         ...(permissionSummary.length
           ? [{
@@ -196,7 +301,76 @@ const renderEmail = (
           }]
           : []),
       ],
-      cta: { label: "Choose my password and sign in", url: secureActionUrl },
+      cta: { label: "Start my account setup", url: secureActionUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "role_mailbox_invitation") {
+    if (!secureActionUrl) {
+      throw new Error("The secure role-mailbox activation URL was not generated");
+    }
+    const memberName = payloadString(job.payload, "member_name") || "Brother";
+    const lodgeEmail = payloadString(job.payload, "lodge_email");
+    const displayName = payloadString(job.payload, "display_name") || "Lodge role";
+    return renderBrandedEmail({
+      subject: `Activate the ${displayName} Lodge mailbox`,
+      preheader: `Your temporary access to ${lodgeEmail} is ready for secure setup.`,
+      eyebrow: "Officer account",
+      heading: `Your ${displayName} mailbox is ready`,
+      paragraphs: [
+        `${memberName}, Carleton Lodge No. 465 has assigned you temporary access to its ${displayName} mailbox.`,
+        "This mailbox belongs permanently to the Lodge and retains its existing messages, folders, attachments, and correspondence when office holders change.",
+        "Use the secure button below to review the Officer and Functional Email Account Agreement and choose a new mailbox password. The link is time-limited and can only be used once.",
+      ],
+      details: [
+        { label: "Lodge role", value: displayName },
+        { label: "Lodge mailbox", value: lodgeEmail },
+        { label: "Ownership", value: "Carleton Lodge No. 465" },
+        { label: "Access", value: "Temporary while assigned to this role" },
+      ],
+      cta: { label: "Activate the role mailbox", url: secureActionUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "email_account_password_reset") {
+    if (!secureActionUrl) {
+      throw new Error("The secure mailbox password-reset URL was not generated");
+    }
+    const lodgeEmail = payloadString(job.payload, "lodge_email");
+    const displayName = payloadString(job.payload, "display_name") || "Lodge email";
+    return renderBrandedEmail({
+      subject: `Reset the password for ${lodgeEmail}`,
+      preheader: "A secure Lodge mailbox password reset was requested.",
+      eyebrow: "Mailbox security",
+      heading: "Choose a new mailbox password",
+      paragraphs: [
+        `A password reset was requested for the ${displayName} mailbox shown below.`,
+        "Use the secure button to choose a new password. The link is time-limited, can only be used once, and does not contain or reveal your password.",
+        "If you did not request this reset, do not use the link and contact Lodge Support.",
+      ],
+      details: [{ label: "Lodge mailbox", value: lodgeEmail }],
+      cta: { label: "Reset mailbox password", url: secureActionUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "email_account_activation_confirmation") {
+    const lodgeEmail = payloadString(job.payload, "lodge_email");
+    const displayName = payloadString(job.payload, "display_name") || "Lodge email";
+    const mailboxUrl = `${siteUrl.replace(/\/$/, "")}/my-lodge/email`;
+    return renderBrandedEmail({
+      subject: `${displayName} mailbox activated`,
+      preheader: `${lodgeEmail} is ready to use.`,
+      eyebrow: "Mailbox ready",
+      heading: "Your Lodge mailbox is active",
+      paragraphs: [
+        "Your agreement and new mailbox credentials have been recorded successfully.",
+        "You can open Webmail or connect the account to your phone or computer from the Lodge website.",
+      ],
+      details: [{ label: "Lodge mailbox", value: lodgeEmail }],
+      cta: { label: "View my Lodge email", url: mailboxUrl },
       siteUrl,
     });
   }
@@ -297,7 +471,9 @@ Deno.serve(async (req: Request) => {
   const apiKey = Deno.env.get("EMAIL_API_KEY");
   const fromAddress = Deno.env.get("EMAIL_FROM");
   const inboxId = Deno.env.get("EMAIL_INBOX_ID");
-  const siteUrl = Deno.env.get("SITE_URL") ?? "https://www.carpmasons.ca";
+  // Welcome and recovery links must never inherit a development/localhost URL
+  // from a stale secret. Only the two production origins are accepted.
+  const siteUrl = productionSiteUrl(Deno.env.get("SITE_URL"));
 
   if (!supabaseUrl || !serviceRoleKey) {
     return jsonResponse(req, {
@@ -390,7 +566,7 @@ Deno.serve(async (req: Request) => {
             type: "recovery",
             email: job.recipient_email,
             options: {
-              redirectTo: siteUrl.replace(/\/$/, ""),
+              redirectTo: `${siteUrl.replace(/\/$/, "")}/reset-password`,
             },
           });
 
@@ -399,6 +575,44 @@ Deno.serve(async (req: Request) => {
         if (!secureActionUrl) {
           throw new Error("Supabase Auth did not return an account setup link");
         }
+      } else if (["role_mailbox_invitation", "email_account_password_reset"].includes(job.notification_type)) {
+        const accountId = payloadString(job.payload, "email_account_id");
+        const memberId = payloadString(job.payload, "member_id");
+        const handoverId = payloadString(job.payload, "handover_id") || null;
+        const purpose = job.notification_type === "role_mailbox_invitation"
+          ? "ROLE_ACTIVATION"
+          : "PASSWORD_RESET";
+        if (!accountId || !memberId) {
+          throw new Error("The mailbox action notification is missing its account or member");
+        }
+
+        const rawActionToken = createRawActionToken();
+        const tokenHash = await sha256(rawActionToken);
+        const expiresInHours = purpose === "ROLE_ACTIVATION" ? 72 : 2;
+        const now = new Date().toISOString();
+        const { error: revokeError } = await supabase
+          .from("email_account_action_tokens")
+          .update({ revoked_at: now })
+          .eq("email_account_id", accountId)
+          .eq("member_id", memberId)
+          .eq("purpose", purpose)
+          .is("consumed_at", null)
+          .is("revoked_at", null);
+        if (revokeError) throw revokeError;
+
+        const { error: tokenInsertError } = await supabase
+          .from("email_account_action_tokens")
+          .insert({
+            token_hash: tokenHash,
+            purpose,
+            email_account_id: accountId,
+            member_id: memberId,
+            handover_id: handoverId,
+            expires_at: new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString(),
+          });
+        if (tokenInsertError) throw tokenInsertError;
+
+        secureActionUrl = `${siteUrl.replace(/\/$/, "")}/my-lodge/email?account=${encodeURIComponent(accountId)}#token=${encodeURIComponent(rawActionToken)}&purpose=${encodeURIComponent(purpose)}`;
       }
 
       const rendered = renderEmail(job, siteUrl, secureActionUrl);

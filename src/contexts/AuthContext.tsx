@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthError, User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
@@ -19,6 +20,9 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  sendMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
+  sendPasswordReset: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
   completeRequiredPasswordChange: (newPassword: string) => Promise<{ error: Error | AuthError | null }>;
   signOut: () => Promise<void>;
 }
@@ -142,6 +146,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
+  const sendMagicLink = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/my-lodge`,
+      },
+    });
+    return { error };
+  };
+
+  const sendPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error };
+  };
+
   const completeRequiredPasswordChange = async (newPassword: string) => {
     if (!user?.id) {
       return { error: new Error('No active user session found.') };
@@ -189,6 +216,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         signIn,
         signUp,
+        sendMagicLink,
+        sendPasswordReset,
+        updatePassword,
         completeRequiredPasswordChange,
         signOut,
       }}

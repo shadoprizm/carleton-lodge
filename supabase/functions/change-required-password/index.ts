@@ -152,9 +152,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { error: updateError } = await supabaseUser.auth.updateUser({
-      password,
-    });
+    // `supabaseUser` is intentionally stateless on the server. Calling
+    // `supabaseUser.auth.updateUser()` here asks supabase-js for a locally
+    // persisted session and fails with "Auth session missing", even though the
+    // bearer token above was already verified. Update the verified user by ID
+    // with the server-only admin client instead.
+    const { error: updateError } = await supabaseAdmin.auth.admin
+      .updateUserById(user.id, {
+        password,
+        user_metadata: {
+          ...user.user_metadata,
+          force_password_change: false,
+        },
+      });
     if (updateError) {
       console.error("Auth rejected required password change:", updateError);
       // Supabase Auth's own error messages (e.g. "New password should be

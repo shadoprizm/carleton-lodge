@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Lock, LogOut } from 'lucide-react';
+import { useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 
 export const ForcePasswordChangeModal = () => {
   const { profile, completeRequiredPasswordChange, signOut } = useAuth();
+  const location = useLocation();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!profile?.force_password_change) return null;
+  if (!profile?.force_password_change || location.pathname === '/reset-password') return null;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

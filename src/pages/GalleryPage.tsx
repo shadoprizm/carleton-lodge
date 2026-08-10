@@ -15,11 +15,7 @@ export const GalleryPage = () => {
   const isAdmin = profile?.is_admin ?? false;
   const isMember = !!user;
 
-  useEffect(() => {
-    loadAlbums();
-  }, [isMember, isAdmin]);
-
-  const loadAlbums = async () => {
+  const loadAlbums = useCallback(async () => {
     setLoading(true);
 
     let query = supabase.from('photo_albums').select('*').order('created_at', { ascending: false });
@@ -60,7 +56,11 @@ export const GalleryPage = () => {
 
     setAlbums(enriched.filter(a => a.photos.length > 0 || isAdmin));
     setLoading(false);
-  };
+  }, [isAdmin, isMember]);
+
+  useEffect(() => {
+    void loadAlbums();
+  }, [loadAlbums]);
 
   const openLightbox = (idx: number) => setLightboxIndex(idx);
   const closeLightbox = () => setLightboxIndex(null);

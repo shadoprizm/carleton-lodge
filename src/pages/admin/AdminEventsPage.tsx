@@ -13,16 +13,17 @@ import {
   Mail,
   XCircle,
 } from 'lucide-react';
-import { supabase, Event, EventSubmission } from '../../lib/supabase';
+import { supabase, Event, EventStatus, EventSubmission, EventVisibility } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PlacesAutocomplete } from '../../components/PlacesAutocomplete';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { prepareRichTextForStorage, richTextHasEmbeds, richTextToPlainText } from '../../utils/richText';
+import { formatDateOnly } from '../../utils/dateTime';
 
 const getMapsUrl = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
-const emptyForm = {
+const submissionEmptyForm = {
   title: '',
   description: '',
   event_date: '',
@@ -32,6 +33,13 @@ const emptyForm = {
   location_address: '',
   poc_name: '',
   poc_contact: '',
+  visibility: 'members' as EventVisibility,
+};
+
+const eventEditEmptyForm = {
+  ...submissionEmptyForm,
+  event_status: 'scheduled' as EventStatus,
+  status_note: '',
 };
 
 export const AdminEventsPage = () => {
@@ -43,9 +51,9 @@ export const AdminEventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState(emptyForm);
+  const [formData, setFormData] = useState(submissionEmptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState(emptyForm);
+  const [editData, setEditData] = useState(eventEditEmptyForm);
 
   useEffect(() => {
     fetchEvents();
@@ -98,7 +106,7 @@ export const AdminEventsPage = () => {
       return;
     }
     setShowForm(false);
-    setFormData(emptyForm);
+    setFormData(submissionEmptyForm);
     fetchEvents();
   };
 
@@ -149,12 +157,15 @@ export const AdminEventsPage = () => {
       location_address: event.location_address || '',
       poc_name: event.poc_name || '',
       poc_contact: event.poc_contact || '',
+      visibility: event.visibility,
+      event_status: event.event_status,
+      status_note: event.status_note || '',
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditData(emptyForm);
+    setEditData(eventEditEmptyForm);
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -174,6 +185,7 @@ export const AdminEventsPage = () => {
         location_address: editData.location_address.trim() || null,
         poc_name: editData.poc_name.trim() || null,
         poc_contact: editData.poc_contact.trim() || null,
+        status_note: editData.status_note.trim() || null,
       })
       .eq('id', editingId);
     if (error) {
@@ -181,7 +193,7 @@ export const AdminEventsPage = () => {
       return;
     }
     setEditingId(null);
-    setEditData(emptyForm);
+    setEditData(eventEditEmptyForm);
     fetchEvents();
   };
 
@@ -267,6 +279,18 @@ export const AdminEventsPage = () => {
               </div>
             </div>
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Audience</label>
+              <select
+                value={formData.visibility}
+                onChange={(e) => setFormData({ ...formData, visibility: e.target.value as EventVisibility })}
+                className={inputClass}
+              >
+                <option value="members">Lodge members only</option>
+                <option value="public">Everyone (public website)</option>
+                <option value="admin">Administrators only</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Location Name</label>
               <input type="text" required placeholder="e.g. Carleton Lodge Hall" value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -342,6 +366,9 @@ export const AdminEventsPage = () => {
                     <span className="text-[11px] font-medium uppercase tracking-wide text-amber-800 bg-amber-100 rounded-full px-2 py-0.5">
                       Pending
                     </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-700">
+                      {submission.visibility === 'public' ? 'Public' : submission.visibility === 'admin' ? 'Admins only' : 'Members only'}
+                    </span>
                   </div>
                   {(richTextToPlainText(submission.description) || richTextHasEmbeds(submission.description)) && (
                     <p className="text-sm text-slate-600 mt-1">
@@ -351,7 +378,7 @@ export const AdminEventsPage = () => {
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-slate-500">
                     <span className="flex items-center gap-1.5">
                       <Calendar size={13} />
-                      {new Date(`${submission.event_date}T00:00:00`).toLocaleDateString('en-CA', {
+                      {formatDateOnly(submission.event_date, {
                         weekday: 'short',
                         day: 'numeric',
                         month: 'short',
@@ -471,6 +498,43 @@ export const AdminEventsPage = () => {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Audience</label>
+                      <select
+                        value={editData.visibility}
+                        onChange={(e) => setEditData({ ...editData, visibility: e.target.value as EventVisibility })}
+                        className={inputClass}
+                      >
+                        <option value="public">Everyone (public website)</option>
+                        <option value="members">Lodge members only</option>
+                        <option value="admin">Administrators only</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Event status</label>
+                      <select
+                        value={editData.event_status}
+                        onChange={(e) => setEditData({ ...editData, event_status: e.target.value as EventStatus })}
+                        className={inputClass}
+                      >
+                        <option value="scheduled">Scheduled</option>
+                        <option value="postponed">Postponed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    {editData.event_status !== 'scheduled' && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Status message</label>
+                        <textarea
+                          value={editData.status_note}
+                          onChange={(e) => setEditData({ ...editData, status_note: e.target.value })}
+                          maxLength={500}
+                          rows={2}
+                          placeholder="Explain the cancellation or postponement and what members should do."
+                          className={inputClass}
+                        />
+                      </div>
+                    )}
+                    <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">Location Name</label>
                       <input type="text" required placeholder="e.g. Carleton Lodge Hall" value={editData.location}
                         onChange={(e) => setEditData({ ...editData, location: e.target.value })}
@@ -523,7 +587,24 @@ export const AdminEventsPage = () => {
               ) : (
                 <div className="flex items-start justify-between p-4">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-slate-900">{event.title}</h4>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-semibold text-slate-900">{event.title}</h4>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-700">
+                        {event.visibility === 'public' ? 'Public' : event.visibility === 'admin' ? 'Admins only' : 'Members only'}
+                      </span>
+                      {event.event_status !== 'scheduled' && (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
+                          event.event_status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {event.event_status}
+                        </span>
+                      )}
+                    </div>
+                    {event.status_note && (
+                      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm font-medium text-slate-700">
+                        {event.status_note}
+                      </p>
+                    )}
                     {(richTextToPlainText(event.description) || richTextHasEmbeds(event.description)) && (
                       <p className="text-sm text-slate-500 mt-1">
                         {richTextToPlainText(event.description) || 'Contains embedded media or files.'}
@@ -532,7 +613,7 @@ export const AdminEventsPage = () => {
                     <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
                       <span className="flex items-center space-x-1">
                         <Calendar size={12} />
-                        <span>{new Date(event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        <span>{formatDateOnly(event.event_date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
                       </span>
                       {event.event_time && (
                         <span className="flex items-center space-x-1">

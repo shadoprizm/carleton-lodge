@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
+import { SUPPORT_EMAIL, supportMailto } from '../lib/contact';
 
 export const TermsAndConditionsPage = () => {
   return (
@@ -156,8 +157,8 @@ export const TermsAndConditionsPage = () => {
                   <p>Carp, Ontario, West Ottawa</p>
                   <p>
                     Email:{' '}
-                    <a href="mailto:info@carletonlodge465.org" className="text-blue-700 hover:text-blue-900 underline">
-                      info@carletonlodge465.org
+                    <a href={supportMailto('Terms and conditions question')} className="text-blue-700 hover:text-blue-900 underline">
+                      {SUPPORT_EMAIL}
                     </a>
                   </p>
                 </div>

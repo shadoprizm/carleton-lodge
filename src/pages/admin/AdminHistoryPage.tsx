@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2, Image as ImageIcon, X, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateOnly } from '../../utils/dateTime';
 
 interface HistoryEra {
   id: string;
@@ -620,7 +621,7 @@ export const AdminHistoryPage = () => {
                             <div className="flex items-center space-x-2">
                               <span className="font-medium text-slate-900">{milestone.title}</span>
                               <span className="text-xs text-slate-500">
-                                {new Date(milestone.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                {formatDateOnly(milestone.date, { year: 'numeric', month: 'long', day: 'numeric' })}
                               </span>
                             </div>
                             <p className="text-sm text-slate-500 line-clamp-1">{milestone.description}</p>
@@ -666,7 +667,7 @@ export const AdminHistoryPage = () => {
                       <div className="flex items-center space-x-2">
                         <span className="font-semibold text-slate-900">{milestone.title}</span>
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          {new Date(milestone.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          {formatDateOnly(milestone.date, { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                       </div>
                       <p className="text-sm text-slate-500 mt-1 line-clamp-2">{milestone.description}</p>

@@ -6,9 +6,27 @@ import { supabase, Event } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { EventModal } from './EventModal';
 import { RichTextContent } from './RichTextContent';
+import { formatDateOnly, formatTime, todayDateKey } from '../utils/dateTime';
+
+type PublicEvent = Pick<
+  Event,
+  | 'id'
+  | 'title'
+  | 'description'
+  | 'event_date'
+  | 'event_time'
+  | 'event_end_time'
+  | 'location'
+  | 'location_address'
+  | 'visibility'
+  | 'event_status'
+  | 'status_note'
+  | 'created_at'
+  | 'updated_at'
+>;
 
 export const Events = () => {
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
@@ -20,33 +38,14 @@ export const Events = () => {
   const fetchEvents = async () => {
     const { data, error } = await supabase
       .from('events')
-      .select('*')
-      .gte('event_date', new Date().toISOString().split('T')[0])
+      .select('id, title, description, event_date, event_time, event_end_time, location, location_address, visibility, event_status, status_note, created_at, updated_at')
+      .gte('event_date', todayDateKey())
       .order('event_date', { ascending: true });
 
     if (!error && data) {
       setEvents(data);
     }
     setLoading(false);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (timeString: string | null) => {
-    if (!timeString) return null;
-    const [hours, minutes] = timeString.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   const container = {
@@ -132,15 +131,31 @@ export const Events = () => {
                   </div>
                   <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
                     <p className="text-white text-sm font-medium">
-                      {formatDate(event.event_date)}
+                      {formatDateOnly(event.event_date)}
                     </p>
                   </div>
                 </div>
 
                 <div className="p-6">
-                  <h3 className="text-2xl font-serif text-gray-900 mb-3 group-hover:text-blue-900 transition-colors">
-                    {event.title}
-                  </h3>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <h3 className="text-2xl font-serif text-gray-900 group-hover:text-blue-900 transition-colors">
+                      {event.title}
+                    </h3>
+                    {event.event_status !== 'scheduled' && (
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                        event.event_status === 'cancelled'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}>
+                        {event.event_status}
+                      </span>
+                    )}
+                  </div>
+                  {event.status_note && (
+                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-slate-800">
+                      {event.status_note}
+                    </p>
+                  )}
                   {event.description && (
                     <RichTextContent
                       html={event.description}

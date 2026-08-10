@@ -7,7 +7,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    db: { schema: 'carletonlodge' }
+});
 
 export type Event = {
   id: string;
@@ -20,11 +22,16 @@ export type Event = {
   location_address: string | null;
   poc_name: string | null;
   poc_contact: string | null;
+  visibility: EventVisibility;
+  event_status: EventStatus;
+  status_note: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
 };
 
+export type EventVisibility = 'public' | 'members' | 'admin';
+export type EventStatus = 'scheduled' | 'cancelled' | 'postponed';
 export type EventSubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export type EventSubmission = {
@@ -38,6 +45,7 @@ export type EventSubmission = {
   location_address: string | null;
   poc_name: string | null;
   poc_contact: string | null;
+  visibility: EventVisibility;
   status: EventSubmissionStatus;
   created_by: string;
   submitter_email: string;
@@ -107,11 +115,190 @@ export type LodgeMember = {
   bio: string | null;
   visible_to_members: boolean;
   linked_profile_id: string | null;
+  lodge_email: string | null;
+  mailbox_status: MailboxStatus;
+  mailbox_quota_mb: number;
+  mailbox_send_limit: number;
+  mailbox_provisioned_at: string | null;
+  mailbox_activated_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type MailboxStatus =
+  | 'unprovisioned'
+  | 'provisioning'
+  | 'pending_activation'
+  | 'active'
+  | 'error'
+  | 'suspended';
+
+export type LodgeEmailAccountType = 'MEMBER' | 'OFFICER' | 'FUNCTIONAL';
+export type LodgeEmailAccountStatus =
+  | 'NOT_PROVISIONED'
+  | 'PROVISIONING'
+  | 'INVITATION_PENDING'
+  | 'TERMS_PENDING'
+  | 'PASSWORD_SETUP_PENDING'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'DISABLED'
+  | 'ERROR';
+export type LodgeEmailCredentialStatus =
+  | 'UNKNOWN'
+  | 'PROVISIONED_LOCKED'
+  | 'USER_SET'
+  | 'ROTATED'
+  | 'ERROR';
+
+export type LodgeEmailAccount = {
+  id: string;
+  address: string;
+  account_type: LodgeEmailAccountType;
+  status: LodgeEmailAccountStatus;
+  provider: 'mxroute';
+  provider_mailbox_identifier: string | null;
+  associated_member_id: string | null;
+  position_id: string | null;
+  current_authorized_member_id: string | null;
+  display_name: string;
+  enabled: boolean;
+  handover_behavior: 'ROTATE_CREDENTIALS';
+  agreement_required: boolean;
+  credential_status: LodgeEmailCredentialStatus;
+  provider_status: Record<string, unknown>;
+  provisioned_at: string | null;
+  activated_at: string | null;
+  suspended_at: string | null;
+  disabled_at: string | null;
+  last_credential_rotation_at: string | null;
+  last_handover_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MyLodgeEmailAccount = {
+  id: string;
+  address: string;
+  account_type: LodgeEmailAccountType;
+  status: LodgeEmailAccountStatus;
+  display_name: string;
+  position_id: string | null;
+  position_name: string | null;
+  credential_status: LodgeEmailCredentialStatus;
+  provisioned_at: string | null;
+  activated_at: string | null;
+  last_credential_rotation_at: string | null;
+  last_handover_at: string | null;
+  policy_version_id: string;
+  policy_title: string;
+  policy_version: number;
+  policy_content: string;
+  policy_acknowledgement: string;
+  policy_effective_at: string;
+  agreement_accepted_at: string | null;
+  needs_agreement: boolean;
+  needs_password_setup: boolean;
+};
+
+export type EmailAgreementReceipt = {
+  acceptance_id: string;
+  member_name: string;
+  email_address: string;
+  position_name: string | null;
+  agreement_title: string;
+  agreement_version: number;
+  effective_at: string;
+  accepted_at: string;
+  acknowledgement: string;
+  policy_content: string;
+};
+
+export type EmailPolicyVersion = {
+  id: string;
+  policy_type: 'MEMBER_EMAIL_TERMS' | 'OFFICER_EMAIL_AGREEMENT';
+  title: string;
+  version: number;
+  content: string;
+  acknowledgement: string;
+  effective_at: string;
+  is_active: boolean;
+  requires_reacceptance: boolean;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type OfficerMailboxAssignment = {
+  id: string;
+  email_account_id: string;
+  position_id: string;
+  member_id: string;
+  assignment_start: string;
+  assignment_end: string | null;
+  status: 'PENDING' | 'ACTIVE' | 'ENDED' | 'REVOKED' | 'CANCELLED';
+  handover_id: string | null;
+  assigned_by: string | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OfficerEmailHandover = {
+  id: string;
+  email_account_id: string;
+  position_id: string;
+  outgoing_member_id: string | null;
+  incoming_member_id: string | null;
+  initiated_by: string;
+  initiated_at: string;
+  confirmed_at: string | null;
+  state:
+    | 'PENDING_CONFIRMATION'
+    | 'INITIATED'
+    | 'REVOKING_ACCESS'
+    | 'ROTATING_CREDENTIALS'
+    | 'WAITING_FOR_ACCEPTANCE'
+    | 'WAITING_FOR_PASSWORD'
+    | 'ACTIVE'
+    | 'FAILED'
+    | 'CANCELLED';
+  outgoing_access_revoked_at: string | null;
+  credentials_rotated_at: string | null;
+  incoming_invited_at: string | null;
+  incoming_accepted_at: string | null;
+  incoming_activated_at: string | null;
+  completed_at: string | null;
+  failure_step: string | null;
+  failure_message: string | null;
+  reason: string | null;
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LodgeEmailAuditEvent = {
+  id: string;
+  event_type: string;
+  email_account_id: string | null;
+  member_id: string | null;
+  position_id: string | null;
+  handover_id: string | null;
+  actor_profile_id: string | null;
+  outcome: 'SUCCESS' | 'FAILURE' | 'WARNING';
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
 export type LodgeMemberWithPosition = LodgeMember & {
+  lodge_positions: LodgePosition | null;
+};
+
+export type MemberDirectoryProfile = Omit<
+  LodgeMember,
+  'email' | 'address' | 'mailbox_quota_mb' | 'mailbox_send_limit'
+>;
+
+export type MemberDirectoryProfileWithPosition = MemberDirectoryProfile & {
   lodge_positions: LodgePosition | null;
 };
 
@@ -133,8 +320,58 @@ export type NotificationPreferences = {
   notify_new_summons: boolean;
   notify_new_events: boolean;
   notify_event_updates: boolean;
+  notify_announcements: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  priority: 'normal' | 'important' | 'urgent';
+  visibility: 'public' | 'members';
+  is_published: boolean;
+  published_at: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HelpTopic = {
+  id: string;
+  category: string;
+  title: string;
+  body: string;
+  keywords: string[];
+  url: string;
+  visibility: 'public' | 'members';
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LodgeSearchResult = {
+  id: string;
+  source_type:
+    | 'event'
+    | 'announcement'
+    | 'summons'
+    | 'document'
+    | 'history'
+    | 'member'
+    | 'help'
+    | 'district_lodge'
+    | 'district_summons'
+    | 'district_event';
+  source_id: string;
+  title: string;
+  snippet: string;
+  source_url: string;
+  visibility: 'public' | 'members' | 'admin';
+  source_updated_at: string;
+  rank: number;
 };
 
 export type NotificationOutboxItem = {
@@ -177,6 +414,164 @@ export type InboundEmail = {
   last_error: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type TrustedEmailSender = {
+  id: string;
+  email: string;
+  label: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MailroomSummonsDraft = {
+  title: string;
+  month: string;
+  issue_date: string | null;
+  content: string;
+};
+
+export type MailroomDistrictLodgeDraft = {
+  name: string;
+  lodge_number: string;
+  location: string;
+  website_url: string;
+  worshipful_master_name: string;
+  secretary_name: string;
+  contact_email: string;
+  contact_phone: string;
+  details_as_of: string | null;
+};
+
+export type MailroomEventDraft = {
+  title: string;
+  description: string;
+  event_date: string | null;
+  event_time: string | null;
+  event_end_time: string | null;
+  location: string;
+  location_address: string;
+  poc_name: string;
+  poc_contact: string;
+  event_kind: 'meeting' | 'emergent' | 'installation' | 'social' | 'official_visit' | 'other';
+  degree: 'unspecified' | 'none' | 'first' | 'second' | 'third' | 'installation' | 'other';
+  visibility: EventVisibility;
+};
+
+export type MailroomAnnouncementDraft = {
+  title: string;
+  body: string;
+  priority: Announcement['priority'];
+  visibility: Announcement['visibility'];
+};
+
+export type MailroomProposal = {
+  publication_target: 'carleton' | 'district';
+  classification: 'summons' | 'event' | 'announcement' | 'mixed' | 'other';
+  confidence: number;
+  summary: string;
+  summons: MailroomSummonsDraft | null;
+  district_lodge: MailroomDistrictLodgeDraft | null;
+  events: MailroomEventDraft[];
+  announcements: MailroomAnnouncementDraft[];
+  warnings: string[];
+  source_file?: {
+    storage_path: string;
+    file_name: string;
+    file_size: number;
+    content_type: string;
+    provider_attachment_id: string;
+  } | null;
+};
+
+export type MailroomImport = {
+  id: string;
+  inbound_email_id: string;
+  status: 'drafting' | 'needs_review' | 'approved' | 'rejected' | 'failed';
+  sender_email: string;
+  sender_verified: boolean;
+  classification: MailroomProposal['classification'] | null;
+  confidence: number | null;
+  summary: string | null;
+  extracted_payload: MailroomProposal;
+  approved_payload: MailroomProposal | null;
+  source_file_sha256: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  published_summons_id: string | null;
+  published_event_ids: string[];
+  published_announcement_ids: string[];
+  published_district_summons_id: string | null;
+  published_district_event_ids: string[];
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DistrictLodge = {
+  id: string;
+  district_name: string;
+  name: string;
+  lodge_number: string | null;
+  slug: string;
+  location: string | null;
+  website_url: string | null;
+  worshipful_master_name: string | null;
+  secretary_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  details_as_of: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DistrictSummons = {
+  id: string;
+  lodge_id: string;
+  title: string;
+  issue_label: string;
+  issue_date: string | null;
+  content: string;
+  pdf_url: string | null;
+  published_by: string | null;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+  district_lodges: DistrictLodge | null;
+};
+
+export type DistrictEventDegree =
+  | 'unspecified'
+  | 'none'
+  | 'first'
+  | 'second'
+  | 'third'
+  | 'installation'
+  | 'other';
+
+export type DistrictEvent = {
+  id: string;
+  lodge_id: string;
+  summons_id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  event_time: string | null;
+  event_end_time: string | null;
+  location: string;
+  location_address: string | null;
+  event_kind: 'meeting' | 'emergent' | 'installation' | 'social' | 'official_visit' | 'other';
+  degree: DistrictEventDegree;
+  contact_name: string | null;
+  contact_details: string | null;
+  created_at: string;
+  updated_at: string;
+  district_lodges: DistrictLodge | null;
+  district_summons: Pick<DistrictSummons, 'id' | 'title' | 'pdf_url'> | null;
 };
 
 export type DocumentCategory = {

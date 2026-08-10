@@ -3,6 +3,7 @@ import { Hero } from '../components/Hero';
 import { Events } from '../components/Events';
 import { History } from '../components/History';
 import { Contact } from '../components/Contact';
+import { Announcements } from '../components/Announcements';
 
 export const HomePage = () => {
   const eventsRef = useRef<HTMLDivElement>(null);
@@ -17,6 +18,7 @@ export const HomePage = () => {
   return (
     <>
       <Hero onScrollToEvents={scrollToEvents} />
+      <Announcements />
       <div ref={eventsRef}>
         <Events />
       </div>

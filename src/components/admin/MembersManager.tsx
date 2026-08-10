@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
 import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
 
 type LinkModalState = {
   member: LodgeMemberWithPosition;
@@ -20,6 +21,15 @@ function isRegularMemberPosition(position: LodgePosition | null | undefined) {
 function isOfficer(member: LodgeMemberWithPosition) {
   return !!member.lodge_positions && !isRegularMemberPosition(member.lodge_positions);
 }
+
+const mailboxStatusLabel = (status: LodgeMemberWithPosition['mailbox_status']) => ({
+  unprovisioned: 'Not created',
+  provisioning: 'Creating…',
+  pending_activation: 'Waiting for member',
+  active: 'Active',
+  error: 'Needs attention',
+  suspended: 'Suspended',
+}[status]);
 
 export const MembersManager = () => {
   const { hasAdminPermission } = useAuth();
@@ -59,9 +69,7 @@ export const MembersManager = () => {
 
     const [membersRes, positionsRes, profilesRes] = await Promise.all([
       supabase
-        .from('lodge_members')
-        .select('*, lodge_positions (*)')
-        .order('full_name', { ascending: true }),
+        .rpc('get_managed_lodge_members'),
       supabase
         .from('lodge_positions')
         .select('*')
@@ -72,8 +80,13 @@ export const MembersManager = () => {
         .order('email', { ascending: true }),
     ]);
 
-    if (membersRes.data) setMembers(membersRes.data as LodgeMemberWithPosition[]);
     if (positionsRes.data) setPositions(positionsRes.data);
+    if (membersRes.data) {
+      setMembers((membersRes.data as Omit<LodgeMemberWithPosition, 'lodge_positions'>[]).map(member => ({
+        ...member,
+        lodge_positions: positionsRes.data?.find(position => position.id === member.position_id) ?? null,
+      })));
+    }
     if (profilesRes.data) setProfiles(profilesRes.data);
 
     setLoading(false);
@@ -212,8 +225,10 @@ export const MembersManager = () => {
       return;
     }
 
+    const lodgeEmail = typeof data?.lodgeEmail === 'string' ? data.lodgeEmail : proposedLodgeEmail(loginModal.member.full_name);
+    const delivered = data?.notificationStatus === 'sent';
     setLoginSuccess(
-      'The secure account email has been queued. The member will choose their own password from the link in the message.'
+      `${lodgeEmail} is ready for the member to activate. The welcome email ${delivered ? 'has been sent' : 'is safely queued for delivery'}.`
     );
     fetchData();
   };
@@ -290,8 +305,8 @@ export const MembersManager = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                  <span className="ml-1 text-xs font-normal text-gray-400">(used to link account on sign-in)</span>
+                  Personal Email Address
+                  <span className="ml-1 text-xs font-normal text-gray-400">(private sign-in, recovery, and welcome delivery)</span>
                 </label>
                 <input
                   type="email"
@@ -451,12 +466,12 @@ export const MembersManager = () => {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                Create or reset secure website access for <strong>{loginModal.member.full_name}</strong>.
-                You will not create or see a temporary password—the member will choose their own.
+                Create or reset secure website access for <strong>{loginModal.member.full_name}</strong> and prepare their lodge mailbox.
+                You will not create or see either password—the member will choose their own.
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Login Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Personal Sign-in & Recovery Email</label>
                 <input
                   type="email"
                   value={loginEmail}
@@ -472,8 +487,8 @@ export const MembersManager = () => {
                   <div>
                     <p className="text-sm font-medium text-amber-900">What the member receives</p>
                     <p className="mt-1 text-xs leading-5 text-amber-800">
-                      A branded welcome message, their current member and administrative access,
-                      and a temporary single-use link to choose a password and sign in.
+                      A branded welcome message sent to their personal address, their new <strong>{loginModal.member.lodge_email || proposedLodgeEmail(loginModal.member.full_name)}</strong> address,
+                      and one secure link that guides them through website and mailbox activation.
                     </p>
                   </div>
                 </div>
@@ -555,7 +570,8 @@ export const MembersManager = () => {
                 {activeTab === 'officers' && (
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Position</th>
                 )}
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Personal Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Lodge Email</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Account</th>
                   {canWrite && <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>}
               </tr>
@@ -571,6 +587,18 @@ export const MembersManager = () => {
                   )}
                   <td className="py-3 px-4 text-sm text-gray-600">
                     {member.email || <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-gray-600">
+                    <span className="block">{member.lodge_email || <span className="text-gray-400">Not created</span>}</span>
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      member.mailbox_status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : member.mailbox_status === 'error' || member.mailbox_status === 'suspended'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {mailboxStatusLabel(member.mailbox_status)}
+                    </span>
                   </td>
                   <td className="py-3 px-4">
                     {member.linked_profile_id ? (

@@ -68,8 +68,23 @@ const verifySvixWebhook = async (
     });
 };
 
-const asStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const asAddressString = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const address = value as Record<string, unknown>;
+    const email = typeof address.email === "string"
+      ? address.email
+      : typeof address.address === "string" ? address.address : "";
+    const name = typeof address.name === "string" ? address.name.trim() : "";
+    return name && email ? `${name} <${email}>` : email;
+  }
+  return "";
+};
+
+const asStringArray = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value];
+  return values.map(asAddressString).filter(Boolean);
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
@@ -121,9 +136,20 @@ Deno.serve(async (req: Request) => {
     ? event.data as Record<string, unknown>
     : {};
 
-  let message = webhookData;
+  // AgentMail's current message.received payload places the message at the
+  // top-level `message` key. Older payloads and Resend use `data`.
+  const agentMailMessage = provider === "agentmail"
+    && event.message
+    && typeof event.message === "object"
+    ? event.message as Record<string, unknown>
+    : null;
+
+  let message = agentMailMessage ?? webhookData;
   let providerMessageId = String(
-    webhookData.email_id
+    message.email_id
+      ?? message.message_id
+      ?? message.id
+      ?? webhookData.email_id
       ?? webhookData.message_id
       ?? req.headers.get("svix-id")
       ?? crypto.randomUUID(),
@@ -145,7 +171,7 @@ Deno.serve(async (req: Request) => {
       ? result.data as Record<string, unknown>
       : result;
   } else {
-    const inboxId = String(webhookData.inbox_id ?? "");
+    const inboxId = String(message.inbox_id ?? webhookData.inbox_id ?? "");
     if (inboxId && providerMessageId) {
       const response = await fetch(
         `https://api.agentmail.to/v0/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(providerMessageId)}`,
@@ -155,7 +181,10 @@ Deno.serve(async (req: Request) => {
         },
       );
       if (response.ok) {
-        message = await response.json() as Record<string, unknown>;
+        const result = await response.json() as Record<string, unknown>;
+        message = result.message && typeof result.message === "object"
+          ? result.message as Record<string, unknown>
+          : result;
       }
     }
   }
@@ -178,7 +207,7 @@ Deno.serve(async (req: Request) => {
     .upsert({
       provider,
       provider_message_id: providerMessageId,
-      from_address: String(message.from ?? webhookData.from ?? "") || null,
+      from_address: asAddressString(message.from ?? webhookData.from) || null,
       to_addresses: asStringArray(message.to ?? webhookData.to),
       cc_addresses: asStringArray(message.cc ?? webhookData.cc),
       subject: String(message.subject ?? webhookData.subject ?? "").slice(0, 1000) || null,

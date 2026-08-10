@@ -1,0 +1,216 @@
+{
+  "meta": {
+    "lodge": "Carleton Lodge No. 465",
+    "location": "Carp, Ontario, Canada",
+    "website": "https://www.carpmasons.ca",
+    "integrationPrinciple": "History is a secondary branch under /history, not the central identity of carpmasons.ca."
+  },
+  "events": [
+    {
+      "date": "1903-10-24",
+      "precision": "exact",
+      "title": "Dispensation issued",
+      "summary": "Dispensation issued to form Carleton Lodge at Carp in Ottawa District No. 16.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1904-01-12",
+      "precision": "exact",
+      "title": "Carleton Lodge instituted",
+      "summary": "Carleton Lodge was instituted with 23 charter members.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1904-01-28",
+      "precision": "exact",
+      "title": "First applications",
+      "summary": "First three applications for initiation and two for affiliation were received and balloted on.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1904-07-20",
+      "precision": "exact",
+      "title": "Warrant No. 465 issued",
+      "summary": "Warrant for Carleton Lodge No. 465 was signed and dated July 20, 1904.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1904-10-04",
+      "precision": "exact",
+      "title": "Lodge consecrated",
+      "summary": "Carleton Lodge was consecrated by R.W. Bro. Sidney Albert Luke.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1920-07-20",
+      "precision": "exact",
+      "title": "Kidd Block destroyed by fire",
+      "summary": "Fire destroyed the original Lodge rooms over the Carp Drug Store in the Kidd Block.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1920",
+      "precision": "year",
+      "title": "Orange Hall used temporarily",
+      "summary": "The local Orange Lodge offered its hall to Carleton Lodge after the fire.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1921-05",
+      "precision": "month",
+      "title": "Memorial Hall financing effort",
+      "summary": "A stock company sought to finance a memorial hall with an upper-storey Lodge room; funds were insufficient for the second storey.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1923-05",
+      "precision": "month",
+      "title": "Temporary Lodge in Russell's store",
+      "summary": "By May 1923 the Lodge was housed temporarily in the upper portion of Bro. F. C. Russell's store.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1925",
+      "precision": "year",
+      "title": "Church Union creates opportunity",
+      "summary": "The former Presbyterian congregation joined the Methodists under the United Church of Canada; Carleton Lodge later approached the congregation regarding the former church.",
+      "confidence": "high",
+      "sources": [
+        "S01",
+        "S03"
+      ]
+    },
+    {
+      "date": "1925/1926",
+      "precision": "range",
+      "title": "Church transfer agreement",
+      "summary": "The former congregation agreed to deed the church and land to the Freemasons for $250 plus legal transfer fees. Exact deed date remains unresolved.",
+      "confidence": "medium",
+      "sources": [
+        "S01",
+        "S03"
+      ]
+    },
+    {
+      "date": "1926-02-26",
+      "precision": "exact",
+      "title": "William Stuart offers to fund Le Havre acquisition",
+      "summary": "Bro. William Stuart offered to pay expenses associated with acquiring the historic Le Havre furniture stored in London.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1927-04-15",
+      "precision": "exact",
+      "title": "First meeting in present Temple",
+      "summary": "Carleton Lodge held its first meeting in the present Masonic Temple.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1930-10-18",
+      "precision": "exact",
+      "title": "Temple dedicated",
+      "summary": "Grand Lodge formally dedicated the Masonic Temple at Carp.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "1916-10-31",
+      "precision": "exact",
+      "title": "La Loge Le Havre de Grâce consecrated",
+      "summary": "The wartime Lodge at Le Havre was consecrated.",
+      "confidence": "high",
+      "sources": [
+        "S01",
+        "S07"
+      ]
+    },
+    {
+      "date": "1919-01-07",
+      "precision": "exact",
+      "title": "La Loge Le Havre de Grâce closes",
+      "summary": "The wartime Lodge ceased work.",
+      "confidence": "high",
+      "sources": [
+        "S01",
+        "S07"
+      ]
+    },
+    {
+      "date": "1919-05-19",
+      "precision": "exact",
+      "title": "WWI memorial tablet unveiled",
+      "summary": "A memorial tablet was unveiled in Carleton Lodge by Lt.-Gen. Sir Sam Hughes.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "date": "2005-09-24",
+      "precision": "exact",
+      "title": "Formal centennial celebration",
+      "summary": "Ottawa District history records Carleton Lodge's formal centennial celebration on this date.",
+      "confidence": "high",
+      "sources": [
+        "S01"
+      ]
+    }
+  ],
+  "knownCharterMembers": [
+    "G. N. Kidd",
+    "G. H. Groves",
+    "John Argue",
+    "T. A. Brown",
+    "Robert Richardson",
+    "R. J. Gordon",
+    "R. H. McElroy",
+    "Henry F. Johnston",
+    "Adam Green",
+    "James Argue",
+    "Revillow Elliot",
+    "G. M. McKay"
+  ],
+  "unresolved": [
+    "Complete roster of all 23 charter members.",
+    "Exact legal deed/transfer date of St. Andrew's Presbyterian Church to Carleton Lodge.",
+    "Independent contemporary-newspaper confirmation of the stated origin of the July 20, 1920 fire.",
+    "Current physical location and condition of the Le Havre Minute Book and Register of Members.",
+    "Precise construction chronology of St. Andrew's; strong local-history source uses 1876.",
+    "High-resolution acquisition and reuse permissions for HTHS historical photographs."
+  ]
+}
