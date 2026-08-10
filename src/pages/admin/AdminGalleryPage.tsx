@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2, Upload, X, Image, Eye, Lock, Globe, Users, ChevronLeft, Check, Loader, Crop } from 'lucide-react';
-import { supabase, signPhotoPaths, PhotoAlbum, Photo } from '../../lib/supabase';
+import { getSignedStorageUrl, supabase, PhotoAlbum, Photo } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processImage } from '../../utils/imageProcessor';
 import { CoverCropModal } from '../../components/CoverCropModal';
@@ -67,34 +67,31 @@ export const AdminGalleryPage = () => {
 
     const enriched = await Promise.all(albumData.map(async (album) => {
       const { count } = await supabase.from('photos').select('*', { count: 'exact', head: true }).eq('album_id', album.id);
-      // A baked cover crop wins, then the nominated cover photo, then the first photo.
-      let cover_path: string | null = album.cover_image_path ?? null;
-      if (!cover_path && album.cover_photo_id) {
-        const { data: cp } = await supabase.from('photos').select('storage_path').eq('id', album.cover_photo_id).maybeSingle();
-        cover_path = cp?.storage_path ?? null;
-      }
-      if (!cover_path) {
+      const cover_url = await (async () => {
+        if (album.cover_image_path) {
+          return getSignedStorageUrl('lodge-photos', album.cover_image_path);
+        }
+        if (album.cover_photo_id) {
+          const { data: cp } = await supabase.from('photos').select('storage_path').eq('id', album.cover_photo_id).maybeSingle();
+          return getSignedStorageUrl('lodge-photos', cp?.storage_path);
+        }
         const { data: first } = await supabase.from('photos').select('storage_path').eq('album_id', album.id).order('display_order').limit(1).maybeSingle();
-        cover_path = first?.storage_path ?? null;
-      }
-      return { ...album, photo_count: count ?? 0, cover_path };
+        return getSignedStorageUrl('lodge-photos', first?.storage_path);
+      })();
+      return { ...album, photo_count: count ?? 0, cover_url };
     }));
 
-    // Private bucket: covers are displayed through signed URLs, signed in one batch.
-    const signed = await signPhotoPaths(enriched.map(a => a.cover_path));
-
-    setAlbums(enriched.map(({ cover_path, ...album }) => ({
-      ...album,
-      cover_url: cover_path ? signed.get(cover_path) ?? null : null,
-    })));
+    setAlbums(enriched);
     setLoading(false);
   };
 
   const loadPhotos = async (albumId: string) => {
     const { data } = await supabase.from('photos').select('*').eq('album_id', albumId).order('display_order').order('created_at');
-    const rows = data ?? [];
-    const signed = await signPhotoPaths(rows.map(p => p.storage_path));
-    setPhotos(rows.map(p => ({ ...p, public_url: signed.get(p.storage_path) ?? '' })));
+    const signedPhotos = await Promise.all((data ?? []).map(async (photo) => {
+      const signedUrl = await getSignedStorageUrl('lodge-photos', photo.storage_path);
+      return signedUrl ? { ...photo, public_url: signedUrl } : null;
+    }));
+    setPhotos(signedPhotos.filter((photo): photo is Photo => photo !== null));
   };
 
   const openAlbumForm = (album?: PhotoAlbum) => {
@@ -175,7 +172,6 @@ export const AdminGalleryPage = () => {
         const filename = `${selectedAlbum.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
         const { error: uploadError } = await supabase.storage.from('lodge-photos').upload(filename, processed.blob, { contentType: 'image/webp', upsert: false });
         if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from('lodge-photos').getPublicUrl(filename);
         const { count: photoCount } = await supabase.from('photos').select('*', { count: 'exact', head: true }).eq('album_id', selectedAlbum.id);
         await supabase.from('photos').insert({
           album_id: selectedAlbum.id,
@@ -184,7 +180,7 @@ export const AdminGalleryPage = () => {
           taken_at: item.form.taken_at || null,
           visibility: item.form.visibility,
           storage_path: filename,
-          public_url: urlData.publicUrl,
+          public_url: filename,
           original_filename: item.file.name,
           file_size: processed.blob.size,
           width: processed.width,
@@ -238,11 +234,10 @@ export const AdminGalleryPage = () => {
       const path = `${selectedAlbum.id}/cover-${Date.now()}.webp`;
       const { error: uploadError } = await supabase.storage.from('lodge-photos').upload(path, blob, { contentType: 'image/webp', upsert: false });
       if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from('lodge-photos').getPublicUrl(path);
       // Capture the previous cover file so we can remove it after the new one is committed.
       const { data: existing } = await supabase.from('photo_albums').select('cover_image_path').eq('id', selectedAlbum.id).maybeSingle();
       const { error: updateError } = await supabase.from('photo_albums').update({
-        cover_image_url: urlData.publicUrl,
+        cover_image_url: path,
         cover_image_path: path,
         cover_photo_id: croppingPhoto.id,
         updated_at: new Date().toISOString(),

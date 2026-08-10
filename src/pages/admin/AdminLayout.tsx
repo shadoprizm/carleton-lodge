@@ -1,17 +1,19 @@
-import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
-import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare } from 'lucide-react';
+import { NavLink, Outlet, Navigate, useLocation } from 'react-router';
+import { Shield, Users, UserCircle, Calendar, FileText, BookOpen, ChevronRight, Library, Images, MessageSquare, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminSection } from '../../lib/adminPermissions';
 
 const navItems = [
   { label: 'Users', path: '/admin/users', icon: Users, fullAdminOnly: true },
   { label: 'Members', path: '/admin/members', icon: UserCircle, section: 'members' },
+  { label: 'Lodge Email', path: '/admin/email-accounts', icon: Mail, section: 'members' },
   { label: 'Events', path: '/admin/events', icon: Calendar, section: 'events' },
   { label: 'Summons', path: '/admin/summons', icon: FileText, section: 'summons' },
   { label: 'Library', path: '/admin/library', icon: Library, section: 'library' },
   { label: 'History', path: '/admin/history', icon: BookOpen, section: 'history' },
   { label: 'Gallery', path: '/admin/gallery', icon: Images, section: 'gallery' },
   { label: 'Contact', path: '/admin/contact', icon: MessageSquare, section: 'contact' },
+  { label: 'Communications', path: '/admin/communications', icon: Mail, section: 'communications' },
 ];
 
 export const AdminLayout = () => {
@@ -91,11 +93,11 @@ export const AdminLayout = () => {
             </nav>
           </aside>
 
-          <main className="flex-1 min-w-0">
+          <section className="flex-1 min-w-0" aria-label="Administration workspace">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <Outlet />
             </div>
-          </main>
+          </section>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 import { Search, FileText, Download, Tag, ChevronDown, ChevronRight, Folder, FolderOpen, File, Eye } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

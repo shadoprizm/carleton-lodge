@@ -2,7 +2,16 @@ import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import { Bold, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Paperclip } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { processImage } from '../utils/imageProcessor';
-import { escapeHtml, normalizeRichTextHref, normalizeRichTextHtml, sanitizeRichTextHtml } from '../utils/richText';
+import { escapeHtml, normalizeRichTextHref, sanitizeRichTextHtml } from '../utils/richText';
+
+const MAXIMUM_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAXIMUM_ASSET_BYTES = 15 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const ALLOWED_ASSET_TYPES = new Set([
+  'application/pdf',
+  'text/plain',
+  ...ALLOWED_IMAGE_TYPES,
+]);
 
 interface RichTextEditorProps {
   id?: string;
@@ -10,6 +19,7 @@ interface RichTextEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  allowUploads?: boolean;
 }
 
 export const RichTextEditor = ({
@@ -18,6 +28,7 @@ export const RichTextEditor = ({
   onChange,
   placeholder = 'Add event details, images, posters, or supporting files...',
   className = '',
+  allowUploads = true,
 }: RichTextEditorProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -30,7 +41,7 @@ export const RichTextEditor = ({
     const editor = editorRef.current;
     if (!editor) return;
 
-    const normalized = normalizeRichTextHtml(value);
+    const normalized = sanitizeRichTextHtml(value);
     if (editor.innerHTML !== normalized) {
       editor.innerHTML = normalized;
     }
@@ -133,6 +144,23 @@ export const RichTextEditor = ({
     try {
       setError('');
       setUploadingLabel(`Uploading ${file.name}...`);
+
+      const maximumBytes = kind === 'image' ? MAXIMUM_IMAGE_BYTES : MAXIMUM_ASSET_BYTES;
+      const allowedTypes = kind === 'image' ? ALLOWED_IMAGE_TYPES : ALLOWED_ASSET_TYPES;
+      if (file.size <= 0 || file.size > maximumBytes) {
+        throw new Error(
+          kind === 'image'
+            ? 'Images must be 12 MB or smaller.'
+            : 'Event files must be 15 MB or smaller.'
+        );
+      }
+      if (!allowedTypes.has(file.type)) {
+        throw new Error(
+          kind === 'image'
+            ? 'Use a JPEG, PNG, WebP, or GIF image.'
+            : 'Use a PDF, text file, JPEG, PNG, WebP, or GIF.'
+        );
+      }
 
       const {
         data: { session },
@@ -250,30 +278,36 @@ export const RichTextEditor = ({
           >
             <Link2 size={15} />
           </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => imageInputRef.current?.click()}
-            className={toolbarButtonClass}
-            aria-label="Upload image"
-            title="Upload image or poster"
-            disabled={!!uploadingLabel}
-          >
-            <ImagePlus size={15} />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className={toolbarButtonClass}
-            aria-label="Upload file"
-            title="Upload file attachment"
-            disabled={!!uploadingLabel}
-          >
-            <Paperclip size={15} />
-          </button>
+          {allowUploads && (
+            <>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => imageInputRef.current?.click()}
+                className={toolbarButtonClass}
+                aria-label="Upload image"
+                title="Upload image or poster"
+                disabled={!!uploadingLabel}
+              >
+                <ImagePlus size={15} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className={toolbarButtonClass}
+                aria-label="Upload file"
+                title="Upload file attachment"
+                disabled={!!uploadingLabel}
+              >
+                <Paperclip size={15} />
+              </button>
+            </>
+          )}
           <div className="ml-auto text-xs text-slate-500">
-            Add text, images, PDFs, or linked files directly in the event details.
+            {allowUploads
+              ? 'Add text, images, PDFs, or linked files directly in the event details.'
+              : 'Add formatted text and links to help the approver understand the event.'}
           </div>
         </div>
 
@@ -296,36 +330,40 @@ export const RichTextEditor = ({
         />
       </div>
 
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = '';
-          if (!file) return;
-          if (!selectionRef.current) {
-            focusEditorAtEnd();
-          }
-          void uploadAsset(file, 'image');
-        }}
-      />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.webp"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = '';
-          if (!file) return;
-          if (!selectionRef.current) {
-            focusEditorAtEnd();
-          }
-          void uploadAsset(file, 'file');
-        }}
-      />
+      {allowUploads && (
+        <>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              if (!selectionRef.current) {
+                focusEditorAtEnd();
+              }
+              void uploadAsset(file, 'image');
+            }}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,.jpg,.jpeg,.png,.gif,.webp,application/pdf,text/plain,image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              if (!selectionRef.current) {
+                focusEditorAtEnd();
+              }
+              void uploadAsset(file, 'file');
+            }}
+          />
+        </>
+      )}
 
       {(uploadingLabel || error) && (
         <div className="mt-2 flex items-center gap-2 text-xs">

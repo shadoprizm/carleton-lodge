@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router';
 import { ChevronRight } from 'lucide-react';
 import { historyChapters } from '../../lib/history';
 

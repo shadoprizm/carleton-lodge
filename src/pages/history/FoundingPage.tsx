@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { HistoryLayout } from '../../components/history/HistoryLayout';
 import { Timeline } from '../../components/history/Timeline';
 import { HistoryFigure } from '../../components/history/HistoryFigure';

@@ -8,17 +8,11 @@ type ProfileWithLastLogin = Profile & {
   last_sign_in_at: string | null;
 };
 
-type LastSignInRow = {
-  id: string;
-  last_sign_in_at: string | null;
-};
-
 export const AdminUsersPage = () => {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState<ProfileWithLastLogin[]>([]);
   const [permissions, setPermissions] = useState<Record<string, AdminSectionPermission[]>>({});
   const [loading, setLoading] = useState(true);
-  const [lastLoginError, setLastLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfiles();
@@ -26,33 +20,22 @@ export const AdminUsersPage = () => {
 
   const fetchProfiles = async () => {
     setLoading(true);
-    setLastLoginError(null);
 
-    const [profilesRes, signInsRes, permissionsRes] = await Promise.all([
+    const [profilesRes, permissionsRes] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false }),
-      supabase.rpc('get_admin_user_last_signins'),
       supabase.from('admin_section_permissions').select('*'),
     ]);
 
     if (profilesRes.data) {
-      const signInsById = new Map(
-        ((signInsRes.data as LastSignInRow[] | null) ?? []).map((row) => [row.id, row.last_sign_in_at])
-      );
-
       setProfiles(
         profilesRes.data.map((profile) => ({
           ...profile,
-          last_sign_in_at: signInsById.get(profile.id) ?? profile.last_sign_in_at ?? null,
+          last_sign_in_at: profile.last_sign_in_at ?? null,
         }))
       );
-    }
-
-    if (signInsRes.error) {
-      console.warn('Could not load last login timestamps:', signInsRes.error.message);
-      setLastLoginError(signInsRes.error.message);
     }
 
     if (permissionsRes.data) {
@@ -80,25 +63,27 @@ export const AdminUsersPage = () => {
   const setPermissionFlag = async (
     profileId: string,
     section: AdminSection,
-    field: 'can_read' | 'can_write',
+    field: 'can_read' | 'can_write' | 'can_approve',
     enabled: boolean
   ) => {
     const existing = getPermission(profileId, section);
     const next = {
       can_read: existing?.can_read ?? false,
       can_write: existing?.can_write ?? false,
+      can_approve: existing?.can_approve ?? false,
       [field]: enabled,
     };
 
-    if (field === 'can_write' && enabled) {
+    if ((field === 'can_write' || field === 'can_approve') && enabled) {
       next.can_read = true;
     }
 
     if (field === 'can_read' && !enabled) {
       next.can_write = false;
+      next.can_approve = false;
     }
 
-    if (!next.can_read && !next.can_write) {
+    if (!next.can_read && !next.can_write && !next.can_approve) {
       if (existing) {
         await supabase.from('admin_section_permissions').delete().eq('id', existing.id);
       }
@@ -117,6 +102,7 @@ export const AdminUsersPage = () => {
         section,
         can_read: next.can_read,
         can_write: next.can_write,
+        can_approve: next.can_approve,
         granted_by: user?.id ?? null,
       });
     }
@@ -128,12 +114,7 @@ export const AdminUsersPage = () => {
     <div>
       <div className="mb-6">
         <h2 className="text-xl font-serif text-slate-900">User Management</h2>
-        <p className="text-sm text-slate-500 mt-1">Manage full admins and section-level read/write access</p>
-        {lastLoginError && (
-          <p className="text-xs text-amber-700 mt-2">
-            Last login data unavailable. Apply latest Supabase migrations and refresh.
-          </p>
-        )}
+        <p className="text-sm text-slate-500 mt-1">Manage full admins and section-level access</p>
       </div>
 
       {loading ? (
@@ -188,16 +169,27 @@ export const AdminUsersPage = () => {
                           return (
                             <div key={section.id} className="border border-slate-200 rounded-lg px-2.5 py-2">
                               <div className="text-xs font-medium text-slate-700 mb-1">{section.label}</div>
-                              <div className="flex items-center gap-3 text-xs text-slate-600">
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
                                 <label className="inline-flex items-center gap-1.5">
                                   <input
                                     type="checkbox"
-                                    checked={!!permission?.can_read || !!permission?.can_write}
+                                    checked={!!permission?.can_read || !!permission?.can_write || !!permission?.can_approve}
                                     onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_read', event.target.checked)}
                                     className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                                   />
                                   Read
                                 </label>
+                                {section.id === 'events' && (
+                                  <label className="inline-flex items-center gap-1.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!permission?.can_approve}
+                                      onChange={(event) => setPermissionFlag(profile.id, section.id, 'can_approve', event.target.checked)}
+                                      className="h-3.5 w-3.5 rounded border-slate-300 text-amber-700 focus:ring-amber-700"
+                                    />
+                                    Approve
+                                  </label>
+                                )}
                                 <label className="inline-flex items-center gap-1.5">
                                   <input
                                     type="checkbox"

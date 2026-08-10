@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowRight, BookOpen, Church, Flame, Images, Landmark, Medal, Ship, Users } from 'lucide-react';
 import type { HistoryChapter } from '../../lib/history';
 

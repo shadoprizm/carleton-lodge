@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, X, Crown, Shield, Star, Users } from 'lucide-react';
-import { supabase, LodgeMemberWithPosition } from '../lib/supabase';
+import { Mail, Phone, X, Crown, Shield, Star, Users } from 'lucide-react';
+import { Link } from 'react-router';
+import { supabase, MemberDirectoryProfileWithPosition } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 const ORG_TIERS: Record<string, number> = {
@@ -111,11 +112,11 @@ function getCardStyle(positionName: string): CardStyle {
 }
 
 type OfficerCardProps = {
-  member: LodgeMemberWithPosition;
+  member: MemberDirectoryProfileWithPosition;
   size?: 'lg' | 'md' | 'sm';
-  onClick: (m: LodgeMemberWithPosition) => void;
+  onClick: (m: MemberDirectoryProfileWithPosition) => void;
   delay?: number;
-  cardRef?: React.RefObject<HTMLDivElement>;
+  cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 function OfficerCard({ member, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
@@ -181,12 +182,12 @@ function getLeft(r: Rect) {
 }
 
 type ConnectorSvgProps = {
-  containerRef: React.RefObject<HTMLDivElement>;
-  wmRef: React.RefObject<HTMLDivElement>;
-  secRef: React.RefObject<HTMLDivElement>;
-  swRef: React.RefObject<HTMLDivElement>;
-  jwRef: React.RefObject<HTMLDivElement>;
-  tier3Refs: React.RefObject<HTMLDivElement>[];
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  wmRef: React.RefObject<HTMLDivElement | null>;
+  secRef: React.RefObject<HTMLDivElement | null>;
+  swRef: React.RefObject<HTMLDivElement | null>;
+  jwRef: React.RefObject<HTMLDivElement | null>;
+  tier3Refs: React.RefObject<HTMLDivElement | null>[];
   hasWm: boolean;
   hasSec: boolean;
   hasWardens: boolean;
@@ -347,17 +348,17 @@ function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, ha
 
 export const MembersDirectory = () => {
   const { user } = useAuth();
-  const [members, setMembers] = useState<LodgeMemberWithPosition[]>([]);
+  const [members, setMembers] = useState<MemberDirectoryProfileWithPosition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMember, setSelectedMember] = useState<LodgeMemberWithPosition | null>(null);
+  const [selectedMember, setSelectedMember] = useState<MemberDirectoryProfileWithPosition | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const wmRef = useRef<HTMLDivElement>(null);
   const secRef = useRef<HTMLDivElement>(null);
   const swRef = useRef<HTMLDivElement>(null);
   const jwRef = useRef<HTMLDivElement>(null);
-  const tier3RefsMap = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
-  const tier3RefsArray = useRef<React.RefObject<HTMLDivElement>[]>([]);
+  const tier3RefsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map());
+  const tier3RefsArray = useRef<React.RefObject<HTMLDivElement | null>[]>([]);
 
   useEffect(() => {
     if (user) fetchMembers();
@@ -367,9 +368,9 @@ export const MembersDirectory = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('lodge_members')
-      .select('*, lodge_positions (*)')
+      .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, created_at)')
       .eq('visible_to_members', true);
-    if (!error && data) setMembers(data as LodgeMemberWithPosition[]);
+    if (!error && data) setMembers(data as unknown as MemberDirectoryProfileWithPosition[]);
     setLoading(false);
   };
 
@@ -628,15 +629,38 @@ export const MembersDirectory = () => {
                           </div>
                         </div>
                       )}
+                      {selectedMember.lodge_email && (
+                        <div className="flex items-center space-x-3 rounded-lg bg-amber-50 p-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                            <Mail size={14} className="text-amber-800" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-stone-500">Lodge email</p>
+                            <a
+                              href={`mailto:${selectedMember.lodge_email}`}
+                              className="block break-all text-sm font-semibold text-blue-950 underline underline-offset-4"
+                            >
+                              {selectedMember.lodge_email}
+                            </a>
+                          </div>
+                        </div>
+                      )}
                       {selectedMember.bio && (
                         <div className="pt-2 border-t border-stone-100">
                           <p className="text-xs text-stone-400 font-medium mb-2">About</p>
                           <p className="text-sm text-stone-700 leading-relaxed">{selectedMember.bio}</p>
                         </div>
                       )}
-                      {!selectedMember.phone && !selectedMember.bio && (
+                      {!selectedMember.phone && !selectedMember.lodge_email && !selectedMember.bio && (
                         <p className="text-sm text-stone-400 text-center py-2">No additional details on file.</p>
                       )}
+                      <Link
+                        to={`/members/${selectedMember.id}`}
+                        onClick={() => setSelectedMember(null)}
+                        className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-slate-900 px-5 font-semibold text-amber-300"
+                      >
+                        View Full Member Profile
+                      </Link>
                     </div>
                   </>
                 );

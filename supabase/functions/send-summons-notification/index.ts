@@ -1,130 +1,165 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
+import {
+  contentLengthExceeds,
+  handlePreflight,
+  jsonResponse,
+  rejectDisallowedOrigin,
+} from "../_shared/http-security.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+type RequestBody = {
+  summonsId?: unknown;
 };
 
-interface RequestBody {
-  summonsId?: string;
-}
+type NotificationPreference = {
+  id: string;
+  profiles: { email: string } | Array<{ email: string }> | null;
+};
 
-interface NotificationPreferenceWithProfile {
-  profiles: {
-    email: string;
-  };
-}
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function profileEmail(preference: NotificationPreference) {
+  if (Array.isArray(preference.profiles)) {
+    return preference.profiles[0]?.email?.trim().toLowerCase() ?? "";
+  }
+  return preference.profiles?.email?.trim().toLowerCase() ?? "";
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return handlePreflight(req);
+
+  const originRejection = rejectDisallowedOrigin(req);
+  if (originRejection) return originRejection;
 
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse(req, { error: "Method not allowed" }, 405, {
+      "Allow": "POST, OPTIONS",
+    });
+  }
+  if (contentLengthExceeds(req, 4096)) {
+    return jsonResponse(req, { error: "Request body is too large" }, 413);
+  }
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) {
+    return jsonResponse(req, { error: "Unauthorized" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    console.error("send-summons-notification is missing required secrets");
+    return jsonResponse(req, { error: "Service unavailable" }, 503);
   }
 
   try {
-    // --- Authorization (SEC-2) -------------------------------------------
-    // Require a real member session (not the public anon key) and confirm the
-    // caller may write summons. Without this, anyone holding the public anon
-    // key could invoke the function and harvest the member email list.
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
-      return jsonResponse({ error: "Server is missing required Supabase secrets" }, 500);
-    }
-
-    // Caller-scoped client: identity + permission are evaluated as the user,
-    // never trusting a client-supplied role claim.
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
       global: { headers: { Authorization: authHeader } },
     });
-
     const {
       data: { user },
       error: authError,
     } = await supabaseUser.auth.getUser();
-
     if (authError || !user) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      return jsonResponse(req, { error: "Unauthorized" }, 401);
     }
 
     const { data: canManage, error: permissionError } = await supabaseUser.rpc(
       "has_admin_section_permission",
       { target_section: "summons", access_level: "write" },
     );
-
     if (permissionError || canManage !== true) {
-      return jsonResponse({ error: "Forbidden" }, 403);
+      return jsonResponse(req, { error: "Forbidden" }, 403);
     }
 
-    // --- Input ------------------------------------------------------------
     let body: RequestBody;
     try {
-      body = (await req.json()) as RequestBody;
+      body = await req.json() as RequestBody;
     } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+      return jsonResponse(req, { error: "Invalid JSON body" }, 400);
+    }
+    const summonsId = typeof body.summonsId === "string"
+      ? body.summonsId.trim()
+      : "";
+    if (!UUID_PATTERN.test(summonsId)) {
+      return jsonResponse(req, { error: "A valid summonsId is required" }, 400);
     }
 
-    const summonsId = body.summonsId?.trim();
-    if (!summonsId) {
-      return jsonResponse({ error: "summonsId is required" }, 400);
-    }
-
-    // --- Work (service role, only after authorization) --------------------
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    const limit = await consumeRateLimit(
+      supabaseAdmin,
+      "summons-notify:user",
+      user.id,
+      10,
+      60,
+    );
+    if (!limit.allowed) {
+      return jsonResponse(
+        req,
+        { error: "Too many notification requests. Please wait a moment." },
+        429,
+        { "Retry-After": String(Math.max(limit.retry_after_seconds, 1)) },
+      );
+    }
 
-    const { data: summons, error: summonsError } = await supabase
+    const { data: summons, error: summonsError } = await supabaseAdmin
       .from("summons")
       .select("id, title, month, content")
       .eq("id", summonsId)
-      .single();
-
-    if (summonsError || !summons) {
-      return jsonResponse({ error: "Summons not found" }, 404);
+      .maybeSingle();
+    if (summonsError) throw summonsError;
+    if (!summons) {
+      return jsonResponse(req, { error: "Summons not found" }, 404);
     }
 
-    const { data: notificationPrefs } = await supabase
+    const { data: preferences, error: preferencesError } = await supabaseAdmin
       .from("notification_preferences")
-      .select("id, email_notifications, notify_new_summons, profiles!inner ( email )")
+      .select("id, profiles!inner(email)")
       .eq("email_notifications", true)
       .eq("notify_new_summons", true);
+    if (preferencesError) throw preferencesError;
 
-    const recipients = ((notificationPrefs ?? []) as NotificationPreferenceWithProfile[])
-      .map((pref) => pref.profiles?.email)
-      .filter((email): email is string => Boolean(email));
+    const jobs = ((preferences ?? []) as NotificationPreference[])
+      .map((preference) => ({
+        preference,
+        email: profileEmail(preference),
+      }))
+      .filter(({ email }) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      .map(({ preference, email }) => ({
+        notification_type: "new_summons",
+        recipient_profile_id: preference.id,
+        recipient_email: email,
+        payload: {
+          summons_id: summons.id,
+          title: String(summons.title).slice(0, 200),
+          month: String(summons.month).slice(0, 100),
+          excerpt: String(summons.content ?? "").slice(0, 600),
+        },
+        idempotency_key: `new-summons:${summons.id}:${preference.id}`,
+      }));
 
-    // NOTE: Email delivery is not yet wired to a provider. Once a provider
-    // (e.g. Resend/SendGrid) and its API key are configured, send one message
-    // per recipient here using BCC / individual sends. The recipient list is
-    // intentionally NOT returned to the caller.
-    console.log(`Queued summons notification ${summons.id} for ${recipients.length} recipient(s).`);
+    if (jobs.length > 0) {
+      const { error: queueError } = await supabaseAdmin
+        .from("notification_outbox")
+        .upsert(jobs, {
+          onConflict: "idempotency_key",
+          ignoreDuplicates: true,
+        });
+      if (queueError) throw queueError;
+    }
 
-    return jsonResponse({
+    return jsonResponse(req, {
       message: "Notifications queued",
-      sent: recipients.length,
+      queued: jobs.length,
     });
   } catch (error) {
-    console.error("send-summons-notification error:", error);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    console.error("send-summons-notification failed:", error);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   }
 });
