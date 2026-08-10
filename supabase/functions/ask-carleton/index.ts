@@ -276,9 +276,16 @@ Search only the approved official Masonic domains provided by the web_search too
     allowedDomains,
   );
   if (cited.citations.length === 0) return null;
+  // Responses web search can include a Markdown-formatted source link even
+  // when plain text is requested. The UI already renders verified citations
+  // as accessible links, so keep the label and remove the raw Markdown URL.
+  const cleanAnswer = cited.answer.replace(
+    /\[([^\]]+)]\(https:\/\/[^)\s]+\)/g,
+    "$1",
+  );
   const checkedAt = new Date().toISOString();
   return {
-    answer: cited.answer.slice(0, 5000),
+    answer: cleanAnswer.slice(0, 5000),
     citations: cited.citations.map((citation) => ({
       ...citation,
       source_type: "live_web",
