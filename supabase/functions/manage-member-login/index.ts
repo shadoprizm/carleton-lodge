@@ -358,7 +358,7 @@ Deno.serve(async (req: Request) => {
     const { data: existingRequest, error: existingRequestError } =
       await supabaseAdmin
         .from("notification_outbox")
-        .select("id, status, provisioned_at, activated_at")
+        .select("id, status")
         .eq("idempotency_key", idempotencyKey)
         .maybeSingle();
 
