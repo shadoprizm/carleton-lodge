@@ -62,6 +62,27 @@ const sha256 = async (value: string) => {
     .join("");
 };
 
+const isServiceRoleJwtForProject = (token: string, supabaseUrl: string) => {
+  try {
+    const [, encodedPayload] = token.split(".");
+    if (!encodedPayload) return false;
+
+    const normalizedPayload = encodedPayload
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(encodedPayload.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(normalizedPayload)) as {
+      ref?: string;
+      role?: string;
+    };
+    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+
+    return payload.role === "service_role" && payload.ref === projectRef;
+  } catch {
+    return false;
+  }
+};
+
 const productionSiteUrl = (configuredValue: string | undefined) => {
   const configured = configuredValue?.replace(/\/$/, "");
   return configured === "https://www.carpmasons.ca" ||
@@ -524,7 +545,12 @@ Deno.serve(async (req: Request) => {
 
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  let authorized = token === serviceRoleKey;
+  // Supabase projects can expose a modern sb_secret key to Edge Functions while
+  // scheduled jobs still authenticate with the project's verified legacy
+  // service_role JWT. The gateway verifies that JWT before this handler runs;
+  // also bind its project ref so a token from another project is rejected.
+  let authorized = token === serviceRoleKey ||
+    isServiceRoleJwtForProject(token, supabaseUrl);
 
   if (!authorized && token) {
     const { data: userResult } = await supabase.auth.getUser(token);
