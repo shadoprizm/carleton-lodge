@@ -14,6 +14,7 @@ import {
   prepareMailroomDraft,
 } from "../_shared/mailroom-processor.ts";
 import { asObject } from "../_shared/mailroom-security.ts";
+import { createMxrouteProvider } from "../_shared/lodge-email-provider.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
 type RequestBody = {
@@ -100,6 +101,7 @@ Deno.serve(async (req: Request) => {
     "approve",
     "reject",
     "purgeExpired",
+    "configureForwarder",
   ];
   if (!allowedActions.includes(action)) {
     return jsonResponse(req, { error: "Invalid Mailroom action" }, 400);
@@ -108,7 +110,8 @@ Deno.serve(async (req: Request) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const serviceAction = ["processQueue", "purgeExpired"].includes(action);
+  const serviceAction = ["processQueue", "purgeExpired", "configureForwarder"]
+    .includes(action);
   const serviceAuthorized = token === serviceRoleKey ||
     isServiceRoleJwtForProject(token, supabaseUrl);
   let userClient: SupabaseClient | null = null;
@@ -160,6 +163,25 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    if (action === "configureForwarder") {
+      const publicAddress = Deno.env.get("MAILROOM_PUBLIC_ADDRESS") ?? "";
+      const recipient = (Deno.env.get("MAILROOM_RECIPIENT") ?? "").trim()
+        .toLowerCase();
+      if (
+        !publicAddress ||
+        !/^[a-z0-9._+-]+@inbound[.]carpmasons[.]ca$/.test(recipient)
+      ) {
+        return jsonResponse(req, {
+          error: "Mailroom forwarding is not configured",
+        }, 503);
+      }
+      const forwarder = await createMxrouteProvider().ensureForwarder(
+        publicAddress,
+        [recipient],
+      );
+      return jsonResponse(req, { configured: true, forwarder });
+    }
+
     if (action === "approve" || action === "reject") {
       const importId = typeof body.importId === "string" ? body.importId : "";
       if (!UUID_PATTERN.test(importId)) {

@@ -26,6 +26,11 @@ export type UpdateMailboxInput = {
   dailySendLimit?: number;
 };
 
+export type ProviderForwarderStatus = {
+  address: string;
+  destinations: string[];
+};
+
 export interface LodgeEmailProvider {
   readonly name: "mxroute";
   readonly capabilities: {
@@ -35,6 +40,7 @@ export interface LodgeEmailProvider {
     updateQuota: true;
     updateDailySendLimit: true;
     deleteMailbox: true;
+    ensureForwarder: true;
     suspendMailbox: false;
     revokeSessions: false;
     revokeAppPasswords: false;
@@ -43,6 +49,10 @@ export interface LodgeEmailProvider {
   createMailbox(input: CreateMailboxInput): Promise<ProviderMailboxStatus>;
   updateMailbox(address: string, input: UpdateMailboxInput): Promise<void>;
   deleteMailbox(address: string): Promise<void>;
+  ensureForwarder(
+    address: string,
+    destinations: string[],
+  ): Promise<ProviderForwarderStatus>;
 }
 
 type MxrouteApiAccount = {
@@ -53,6 +63,12 @@ type MxrouteApiAccount = {
   limit?: unknown;
   sent?: unknown;
   suspended?: unknown;
+};
+
+type MxrouteApiForwarder = {
+  alias?: unknown;
+  email?: unknown;
+  destinations?: unknown;
 };
 
 const numericOrNull = (value: unknown) =>
@@ -159,6 +175,7 @@ export function createMxrouteProvider(
       updateQuota: true,
       updateDailySendLimit: true,
       deleteMailbox: true,
+      ensureForwarder: true,
       suspendMailbox: false,
       revokeSessions: false,
       revokeAppPasswords: false,
@@ -224,6 +241,78 @@ export function createMxrouteProvider(
       if (!response.ok && response.status !== 404) {
         throw new Error(await mxrouteError(response));
       }
+    },
+    async ensureForwarder(address, destinations) {
+      const normalizedAddress = normalizeLodgeEmailAddress(address);
+      const alias = lodgeEmailLocalPart(normalizedAddress);
+      const normalizedDestinations = [
+        ...new Set(destinations.map((value) => value.trim().toLowerCase())),
+      ].filter((value) =>
+        /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+[.][a-z]{2,}$/i.test(value)
+      );
+      if (
+        normalizedDestinations.length === 0 ||
+        normalizedDestinations.length > 10
+      ) {
+        throw new Error("One to ten valid forwarder destinations are required");
+      }
+
+      const listForwarders = async () => {
+        const response = await request(
+          `/domains/${encodeURIComponent(LODGE_EMAIL_DOMAIN)}/forwarders`,
+          { method: "GET" },
+        );
+        if (!response.ok) throw new Error(await mxrouteError(response));
+        const body = await response.json().catch(() => null) as {
+          data?: MxrouteApiForwarder[];
+        } | null;
+        if (!Array.isArray(body?.data)) {
+          throw new Error("MXroute returned an invalid forwarder response");
+        }
+        return body.data;
+      };
+
+      const toStatus = (forwarder: MxrouteApiForwarder) => ({
+        address: normalizedAddress,
+        destinations: Array.isArray(forwarder.destinations)
+          ? forwarder.destinations.filter((value): value is string =>
+            typeof value === "string"
+          ).map((value) => value.trim().toLowerCase())
+          : [],
+      });
+      const findExisting = (forwarders: MxrouteApiForwarder[]) =>
+        forwarders.find((forwarder) =>
+          String(forwarder.alias ?? "").toLowerCase() === alias ||
+          String(forwarder.email ?? "").toLowerCase() === normalizedAddress
+        );
+
+      const existing = findExisting(await listForwarders());
+      if (existing) {
+        const status = toStatus(existing);
+        if (
+          JSON.stringify([...status.destinations].sort()) !==
+            JSON.stringify([...normalizedDestinations].sort())
+        ) {
+          throw new Error(
+            "MXroute forwarder already exists with different destinations",
+          );
+        }
+        return status;
+      }
+
+      const response = await request(
+        `/domains/${encodeURIComponent(LODGE_EMAIL_DOMAIN)}/forwarders`,
+        {
+          method: "POST",
+          body: JSON.stringify({ alias, destinations: normalizedDestinations }),
+        },
+      );
+      if (!response.ok) throw new Error(await mxrouteError(response));
+      const created = findExisting(await listForwarders());
+      if (!created) {
+        throw new Error("MXroute did not return the newly created forwarder");
+      }
+      return toStatus(created);
     },
   };
 }
