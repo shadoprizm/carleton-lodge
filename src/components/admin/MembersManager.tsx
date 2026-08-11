@@ -12,6 +12,10 @@ type LoginModalState = {
   member: LodgeMemberWithPosition;
 };
 
+type DeleteModalState = {
+  member: LodgeMemberWithPosition;
+};
+
 const REGULAR_MEMBER_POSITION_NAME = 'member';
 
 function isRegularMemberPosition(position: LodgePosition | null | undefined) {
@@ -66,6 +70,7 @@ export const MembersManager = () => {
   const [editingMember, setEditingMember] = useState<LodgeMemberWithPosition | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
   const [loginModal, setLoginModal] = useState<LoginModalState | null>(null);
+  const [deleteModal, setDeleteModal] = useState<DeleteModalState | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginRequestId, setLoginRequestId] = useState('');
@@ -164,19 +169,23 @@ export const MembersManager = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (member: LodgeMemberWithPosition) => {
+  const openDeleteModal = (member: LodgeMemberWithPosition) => {
     if (deletingMemberId) return;
+    setDeleteModal({ member });
+    setDeleteError(null);
+    setDeleteSuccess(null);
+  };
 
-    const linkedItems = [
-      member.linked_profile_id ? 'their website login' : '',
-      member.lodge_email ? `the ${member.lodge_email} Lodge mailbox` : '',
-    ].filter(Boolean);
-    const linkedWarning = linkedItems.length > 0
-      ? ` This will also permanently remove ${linkedItems.join(' and ')}.`
-      : '';
-    if (!confirm(`Permanently delete ${member.full_name} from the Lodge roster?${linkedWarning} This cannot be undone.`)) {
-      return;
-    }
+  const closeDeleteModal = () => {
+    if (deletingMemberId) return;
+    setDeleteModal(null);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteModal || deletingMemberId) return;
+
+    const { member } = deleteModal;
 
     setDeletingMemberId(member.id);
     setDeleteError(null);
@@ -197,6 +206,7 @@ export const MembersManager = () => {
       }
 
       setDeleteSuccess(`${member.full_name} and the eligible linked account records were deleted.`);
+      setDeleteModal(null);
       await fetchData();
     } catch (error) {
       setDeleteError(await functionErrorMessage(error, null, 'The member could not be deleted.'));
@@ -325,19 +335,10 @@ export const MembersManager = () => {
         )}
       </div>
 
-      {deleteError || deleteSuccess ? (
-        <div aria-live="polite" className="space-y-2">
-          {deleteError ? (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {deleteError}
-            </p>
-          ) : null}
-          {deleteSuccess ? (
-            <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-              {deleteSuccess}
-            </p>
-          ) : null}
-        </div>
+      {deleteSuccess ? (
+        <p aria-live="polite" className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {deleteSuccess}
+        </p>
       ) : null}
 
       {canWrite && showForm && (
@@ -586,6 +587,93 @@ export const MembersManager = () => {
         </div>
       )}
 
+      {canWrite && deleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') closeDeleteModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-member-title"
+            aria-describedby="delete-member-description"
+            className="w-full max-w-lg rounded-lg bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 p-6">
+              <h4 id="delete-member-title" className="text-lg font-serif text-gray-900">
+                Permanently delete member?
+              </h4>
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deletingMemberId !== null}
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                aria-label="Close delete member dialog"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              <p id="delete-member-description" className="text-sm leading-6 text-gray-700">
+                <strong>{deleteModal.member.full_name}</strong> will be permanently removed from the Lodge roster.
+              </p>
+
+              {(deleteModal.member.linked_profile_id || deleteModal.member.lodge_email) && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <p className="font-semibold">Linked records included</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {deleteModal.member.linked_profile_id ? <li>The linked website login</li> : null}
+                    {deleteModal.member.lodge_email ? <li>{deleteModal.member.lodge_email} Lodge mailbox</li> : null}
+                  </ul>
+                </div>
+              )}
+
+              <p className="text-sm font-medium text-red-700">
+                This cannot be undone. Mailboxes with activity or protected Lodge records will be refused without deleting anything.
+              </p>
+
+              {deleteError ? (
+                <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                  <p className="font-semibold">Nothing was deleted</p>
+                  <p className="mt-1 leading-5">{deleteError}</p>
+                  {deleteError.includes('mail activity') ? (
+                    <p className="mt-2 leading-5">
+                      Review and preserve that mailbox under{' '}
+                      <a className="font-semibold underline" href="/admin/email-accounts">Lodge Email</a>
+                      {' '}instead of hard-deleting it.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 p-6">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deletingMemberId !== null}
+                autoFocus
+                className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deletingMemberId !== null}
+                className="inline-flex min-w-44 items-center justify-center gap-2 rounded-md bg-red-700 px-5 py-2 font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingMemberId === deleteModal.member.id ? <Loader2 size={16} className="animate-spin" /> : null}
+                {deletingMemberId === deleteModal.member.id ? 'Checking and deleting…' : 'Permanently Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('officers')}
@@ -708,11 +796,13 @@ export const MembersManager = () => {
                         <KeyRound size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(member)}
+                        type="button"
+                        onClick={() => openDeleteModal(member)}
                         disabled={deletingMemberId !== null}
                         className="text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                         title="Delete"
                         aria-label={`Delete ${member.full_name}`}
+                        aria-haspopup="dialog"
                       >
                         {deletingMemberId === member.id
                           ? <Loader2 size={16} className="animate-spin" />
