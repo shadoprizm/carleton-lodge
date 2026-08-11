@@ -133,23 +133,28 @@ export const MemberProfilePage = () => {
               </p>
             </section>
 
-            {isOwnProfile && member.lodge_email && (
+            {isOwnProfile && (
               <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
                 <h2 className="text-xl font-serif text-slate-900">This is your profile</h2>
-                {member.mailbox_status === 'active' ? (
-                  <div className="mt-4 space-y-2">
+                <div className="mt-4 space-y-3">
+                  <Link to="/my-lodge/profile" className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-slate-900 px-4 font-semibold text-amber-300">
+                    Edit My Profile
+                  </Link>
+                  {member.lodge_email && member.mailbox_status === 'active' ? (
+                    <>
                     <a href="https://webmail.mxroute.com/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 font-semibold text-amber-300">
                       Open My Lodge Email <ExternalLink size={18} />
                     </a>
                     <Link to="/my-lodge/email#connect-device-heading" className="inline-flex min-h-11 w-full items-center justify-center rounded-lg font-semibold text-blue-950 underline underline-offset-4">
                       Connect a phone or computer
                     </Link>
-                  </div>
-                ) : (
-                  <Link to="/my-lodge/email" className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-slate-900 px-4 font-semibold text-amber-300">
-                    Finish Email Setup
-                  </Link>
-                )}
+                    </>
+                  ) : member.lodge_email ? (
+                    <Link to="/my-lodge/email" className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-slate-300 px-4 font-semibold text-slate-900">
+                      Finish Email Setup
+                    </Link>
+                  ) : null}
+                </div>
               </section>
             )}
           </aside>

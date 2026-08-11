@@ -32,6 +32,7 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then((m
 const TermsAndConditionsPage = lazy(() => import('./pages/TermsAndConditionsPage').then((module) => ({ default: module.TermsAndConditionsPage })));
 const LinksPage = lazy(() => import('./pages/LinksPage').then((module) => ({ default: module.LinksPage })));
 const MyLodgePage = lazy(() => import('./pages/MyLodgePage').then((module) => ({ default: module.MyLodgePage })));
+const MyProfilePage = lazy(() => import('./pages/MyProfilePage').then((module) => ({ default: module.MyProfilePage })));
 const MailboxSetupPage = lazy(() => import('./pages/MailboxSetupPage').then((module) => ({ default: module.MailboxSetupPage })));
 const MemberProfilePage = lazy(() => import('./pages/MemberProfilePage').then((module) => ({ default: module.MemberProfilePage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
@@ -81,6 +82,7 @@ const AppShell = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/my-lodge" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="My Lodge"><MyLodgePage /></MemberGate>} />
+          <Route path="/my-lodge/profile" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Your member profile"><MyProfilePage /></MemberGate>} />
           <Route path="/my-lodge/email" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Your lodge email"><MailboxSetupPage /></MemberGate>} />
           {LODGE_GUIDE_ENABLED && (
             <>
