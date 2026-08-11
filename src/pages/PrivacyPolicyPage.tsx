@@ -40,7 +40,7 @@ export const PrivacyPolicyPage = () => {
                 <p className="mb-3">We may collect the following types of information:</p>
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Account Information:</strong> Name, email address, and password when you register for member access.</li>
-                  <li><strong>Profile Information:</strong> Membership rank, contact details, and other information you choose to provide in your member profile.</li>
+                  <li><strong>Profile Information:</strong> Membership rank and identifiers, contact details, biography, and other information maintained in your member profile.</li>
                   <li><strong>Account Activity:</strong> The most recent successful login and the most recent authenticated visit to the website. We do not retain page-by-page browsing history, device details, or IP addresses for this feature.</li>
                   <li><strong>Communications:</strong> Records of correspondence if you contact us by email or through our website.</li>
                   <li><strong>AI-Assisted Feature Content:</strong> Questions submitted to Lodge Guide and lodge emails or documents that an authorised administrator selects for Mailroom draft preparation.</li>
@@ -69,7 +69,7 @@ export const PrivacyPolicyPage = () => {
                   information only in the following circumstances:
                 </p>
                 <ul className="list-disc pl-6 space-y-2">
-                  <li><strong>Within the Lodge:</strong> Member information is accessible to other verified Lodge members through the members directory, in accordance with Lodge custom and practice.</li>
+                  <li><strong>Within the Lodge:</strong> Approved directory information, including a member&apos;s phone number and biography, is accessible to other verified Lodge members in accordance with Lodge custom and practice. Home addresses and Grand Lodge membership numbers are restricted to the member concerned and authorised roster managers.</li>
                   <li><strong>Account Activity:</strong> Login and latest-visit information is restricted to Lodge administrators and members who have been explicitly granted read-only Member Activity access by an administrator.</li>
                   <li><strong>Grand Lodge:</strong> We may share relevant information with the Grand Lodge of Canada in the Province of Ontario as required by our Masonic obligations.</li>
                   <li><strong>Service Providers:</strong> We use third-party processors including Supabase for authentication and data storage, Resend for email delivery and receipt, Vercel for website hosting, and OpenAI for the optional AI-assisted features.</li>

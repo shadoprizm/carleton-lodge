@@ -121,6 +121,7 @@ export type LodgeMember = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  grand_lodge_membership_number: string | null;
   join_date: string | null;
   position_id: string | null;
   bio: string | null;
@@ -306,11 +307,28 @@ export type LodgeMemberWithPosition = LodgeMember & {
 
 export type MemberDirectoryProfile = Omit<
   LodgeMember,
-  'email' | 'address' | 'mailbox_quota_mb' | 'mailbox_send_limit'
+  'email' | 'address' | 'grand_lodge_membership_number' | 'mailbox_quota_mb' | 'mailbox_send_limit'
 >;
 
 export type MemberDirectoryProfileWithPosition = MemberDirectoryProfile & {
   lodge_positions: LodgePosition | null;
+};
+
+export type MyMemberProfile = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  address: string | null;
+  join_date: string | null;
+  position_id: string | null;
+  position_name: string | null;
+  bio: string | null;
+  visible_to_members: boolean;
+  lodge_email: string | null;
+  mailbox_status: MailboxStatus;
+  grand_lodge_membership_number: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Summons = {

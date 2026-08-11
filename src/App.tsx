@@ -31,7 +31,11 @@ const GalleryPage = lazy(() => import('./pages/GalleryPage').then((module) => ({
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then((module) => ({ default: module.PrivacyPolicyPage })));
 const TermsAndConditionsPage = lazy(() => import('./pages/TermsAndConditionsPage').then((module) => ({ default: module.TermsAndConditionsPage })));
 const LinksPage = lazy(() => import('./pages/LinksPage').then((module) => ({ default: module.LinksPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then((module) => ({ default: module.ContactPage })));
+const FreemasonryPage = lazy(() => import('./pages/FreemasonryPage').then((module) => ({ default: module.FreemasonryPage })));
+const BecomingAMasonPage = lazy(() => import('./pages/BecomingAMasonPage').then((module) => ({ default: module.BecomingAMasonPage })));
 const MyLodgePage = lazy(() => import('./pages/MyLodgePage').then((module) => ({ default: module.MyLodgePage })));
+const MyProfilePage = lazy(() => import('./pages/MyProfilePage').then((module) => ({ default: module.MyProfilePage })));
 const MailboxSetupPage = lazy(() => import('./pages/MailboxSetupPage').then((module) => ({ default: module.MailboxSetupPage })));
 const MemberProfilePage = lazy(() => import('./pages/MemberProfilePage').then((module) => ({ default: module.MemberProfilePage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
@@ -81,6 +85,7 @@ const AppShell = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/my-lodge" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="My Lodge"><MyLodgePage /></MemberGate>} />
+          <Route path="/my-lodge/profile" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Your member profile"><MyProfilePage /></MemberGate>} />
           <Route path="/my-lodge/email" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="Your lodge email"><MailboxSetupPage /></MemberGate>} />
           {LODGE_GUIDE_ENABLED && (
             <>
@@ -114,6 +119,9 @@ const AppShell = () => {
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
           <Route path="/links" element={<LinksPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/freemasonry" element={<FreemasonryPage />} />
+          <Route path="/becoming-a-mason" element={<BecomingAMasonPage />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/users" replace />} />
             <Route path="users" element={<AdminUsersPage />} />

@@ -28,21 +28,25 @@ src/
 │   │   ├── MembersManager.tsx
 │   │   └── SummonsManager.tsx
 │   ├── AuthModal.tsx
+│   ├── AboutLodge.tsx        # Homepage "who is Carleton Lodge" identity + meeting info
 │   ├── Calendar.tsx
-│   ├── Contact.tsx
+│   ├── Contact.tsx           # Contact section, rendered by /contact (ContactPage)
+│   ├── ContactCtaBand.tsx    # Homepage closing CTA band linking to /contact
 │   ├── ContactForm.tsx
 │   ├── DocumentPreviewModal.tsx
 │   ├── EventModal.tsx
-│   ├── Events.tsx
+│   ├── Events.tsx            # Homepage events (+ EventsEmptyState seasonal fallback)
 │   ├── Footer.tsx             # Site-wide footer (mounted once in App.tsx after <main>)
-│   ├── Hero.tsx
-│   ├── History.tsx          # Homepage history teaser (static chapter data)
+│   ├── Hero.tsx              # CTAs are route links: /freemasonry and /history
+│   ├── History.tsx          # Homepage history teaser (single curated teaser → /history)
 │   ├── MembersDirectory.tsx
-│   ├── Navigation.tsx
+│   ├── Navigation.tsx        # Primary: Home, About▾, Calendar, Contact, Search, Login
 │   ├── NotificationSettings.tsx
 │   ├── PageMetadata.tsx     # Per-route <title>/meta management
+│   ├── Pathways.tsx          # Homepage visitor-pathways band (curious/visiting/member)
 │   ├── PlacesAutocomplete.tsx
-│   └── Summons.tsx
+│   ├── Summons.tsx
+│   └── WhatIsFreemasonry.tsx # Homepage intro + tenets → /freemasonry
 │   ├── history/             # Public history archive building blocks
 │   │   ├── HistoryLayout.tsx  # Breadcrumb + chapter sub-nav wrapper for /history/*
 │   │   ├── Timeline.tsx, HistoryFigure.tsx, Lightbox.tsx, SourceNotes.tsx,
@@ -51,6 +55,9 @@ src/
 │   └── AuthContext.tsx  # Authentication state management
 ├── lib/                 # Core libraries
 │   ├── supabase.ts      # Supabase client and TypeScript types
+│   ├── contact.ts       # SUPPORT_EMAIL + supportMailto helper
+│   ├── freemasonry.ts   # GL-verified public Freemasonry copy (/freemasonry, /becoming-a-mason, homepage)
+│   ├── lodge.ts         # Core lodge facts (meeting schedule, address) — single source of truth
 │   └── history/         # Static curated history archive data (+ historyData.test.ts)
 │                        #   types, sources, events, chapters, people, places,
 │                        #   artifacts, images, openQuestions, index (barrel)
@@ -69,9 +76,13 @@ src/
 │   │                    #   FoundingPage, FireAndDisplacementPage, TemplePage,
 │   │                    #   LeHavrePage, WarAndRemembrancePage, PeoplePage,
 │   │                    #   HistoryGalleryPage, HistorySourcesPage
+│   ├── BecomingAMasonPage.tsx  # /becoming-a-mason — prospective-member pathway (GL-verified)
 │   ├── CalendarPage.tsx
+│   ├── ContactPage.tsx         # /contact — wraps the Contact component (form + location/email)
+│   ├── FreemasonryPage.tsx     # /freemasonry — public "What is Freemasonry?" explainer
 │   ├── GalleryPage.tsx
-│   ├── HomePage.tsx
+│   ├── HomePage.tsx            # Hero → Announcements → WhatIsFreemasonry → Pathways →
+│   │                           #   AboutLodge → Events → History teaser → ContactCtaBand
 │   ├── LibraryPage.tsx
 │   ├── MembersPage.tsx
 │   ├── PrivacyPolicyPage.tsx
@@ -186,7 +197,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ### Public Features
 - Lodge history timeline
 - Public photo gallery
-- Contact form
+- "What is Freemasonry?" explainer (`/freemasonry`) and prospective-member pathway (`/becoming-a-mason`) — copy lives in `src/lib/freemasonry.ts` and must stay aligned with current Grand Lodge of Canada in the Province of Ontario public language (do not add eligibility/process claims not published by the GL)
+- Contact page (`/contact`) with the contact form (no longer on the homepage)
 - Information about the lodge
 
 ## Code Style Guidelines

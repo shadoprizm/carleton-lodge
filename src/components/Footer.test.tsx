@@ -50,6 +50,7 @@ describe('Footer', () => {
       'Photo Gallery',
       'Calendar',
       'Masonic Links',
+      'Contact',
       'Help',
     ]) {
       expect(screen.getByRole('link', { name })).toBeTruthy();

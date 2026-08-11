@@ -1,11 +1,12 @@
+import { Link } from 'react-router';
 import { motion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 
-interface HeroProps {
-  onScrollToEvents: () => void;
-}
+const scrollToEvents = () => {
+  document.getElementById('events')?.scrollIntoView({ behavior: 'smooth' });
+};
 
-export const Hero = ({ onScrollToEvents }: HeroProps) => {
+export const Hero = () => {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       <div
@@ -85,18 +86,18 @@ export const Hero = ({ onScrollToEvents }: HeroProps) => {
             transition={{ duration: 0.8, delay: 1.1 }}
             className="mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <button
-              onClick={onScrollToEvents}
+            <Link
+              to="/freemasonry"
               className="px-8 py-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-all font-medium tracking-wide shadow-lg"
             >
-              View Upcoming Events
-            </button>
-            <button
-              onClick={() => document.getElementById('history')?.scrollIntoView({ behavior: 'smooth' })}
+              What is Freemasonry?
+            </Link>
+            <Link
+              to="/history"
               className="px-8 py-4 border-2 border-amber-400 text-amber-100 rounded-md hover:bg-amber-400/10 transition-all font-medium tracking-wide"
             >
               Explore Our History
-            </button>
+            </Link>
           </motion.div>
         </motion.div>
 
@@ -104,7 +105,8 @@ export const Hero = ({ onScrollToEvents }: HeroProps) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 1.2 }}
-          onClick={onScrollToEvents}
+          onClick={scrollToEvents}
+          aria-label="Scroll to upcoming events"
           className="absolute bottom-12 text-white/70 hover:text-white transition-colors cursor-pointer"
         >
           <motion.div
