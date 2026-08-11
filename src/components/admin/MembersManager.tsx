@@ -80,11 +80,14 @@ export const MembersManager = () => {
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
     address: '',
+    grand_lodge_membership_number: '',
     join_date: '',
     position_id: '',
     bio: '',
@@ -125,33 +128,47 @@ export const MembersManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formSaving) return;
+
+    setFormSaving(true);
+    setFormError(null);
 
     const memberData = {
-      full_name: formData.full_name,
-      email: formData.email || null,
-      phone: formData.phone || null,
-      address: formData.address || null,
+      full_name: formData.full_name.trim(),
+      email: formData.email.trim() || null,
+      phone: formData.phone.trim() || null,
+      address: formData.address.trim() || null,
+      grand_lodge_membership_number: formData.grand_lodge_membership_number.trim() || null,
       join_date: formData.join_date || null,
       position_id: formData.position_id || null,
-      bio: formData.bio || null,
+      bio: formData.bio.trim() || null,
       visible_to_members: formData.visible_to_members,
     };
 
-    if (editingMember) {
-      await supabase
+    const result = editingMember
+      ? await supabase
         .from('lodge_members')
         .update(memberData)
-        .eq('id', editingMember.id);
-    } else {
-      await supabase
+        .eq('id', editingMember.id)
+      : await supabase
         .from('lodge_members')
         .insert(memberData);
+
+    if (result.error) {
+      const duplicateNumber = result.error.code === '23505'
+        && result.error.message.includes('lodge_members_grand_lodge_number_unique_idx');
+      setFormError(duplicateNumber
+        ? 'That Grand Lodge membership number is already assigned to another roster record.'
+        : result.error.message || 'The member record could not be saved.');
+      setFormSaving(false);
+      return;
     }
 
     setShowForm(false);
     setEditingMember(null);
     resetForm();
-    fetchData();
+    await fetchData();
+    setFormSaving(false);
   };
 
   const handleEdit = (member: LodgeMemberWithPosition) => {
@@ -161,11 +178,13 @@ export const MembersManager = () => {
       email: member.email || '',
       phone: member.phone || '',
       address: member.address || '',
+      grand_lodge_membership_number: member.grand_lodge_membership_number || '',
       join_date: member.join_date || '',
       position_id: isOfficer(member) ? member.position_id || '' : '',
       bio: member.bio || '',
       visible_to_members: member.visible_to_members,
     });
+    setFormError(null);
     setShowForm(true);
   };
 
@@ -296,6 +315,7 @@ export const MembersManager = () => {
       email: '',
       phone: '',
       address: '',
+      grand_lodge_membership_number: '',
       join_date: '',
       position_id: '',
       bio: '',
@@ -321,6 +341,7 @@ export const MembersManager = () => {
             onClick={() => {
               resetForm();
               setEditingMember(null);
+              setFormError(null);
               setShowForm(true);
             }}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
@@ -347,7 +368,7 @@ export const MembersManager = () => {
             <h4 className="text-lg font-serif text-gray-900">
               {editingMember ? 'Edit Member' : 'New Member'}
             </h4>
-            <button onClick={() => { setShowForm(false); setEditingMember(null); resetForm(); }} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setShowForm(false); setEditingMember(null); setFormError(null); resetForm(); }} className="text-gray-400 hover:text-gray-600" aria-label="Close member form">
               <X size={20} />
             </button>
           </div>
@@ -402,6 +423,7 @@ export const MembersManager = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                 <input
                   type="tel"
+                  maxLength={50}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
@@ -425,7 +447,24 @@ export const MembersManager = () => {
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 rows={2}
+                maxLength={500}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="grand-lodge-membership-number" className="block text-sm font-medium text-gray-700 mb-1">
+                Grand Lodge Membership Number
+                <span className="ml-1 text-xs font-normal text-gray-400">(private to this member and roster managers)</span>
+              </label>
+              <input
+                id="grand-lodge-membership-number"
+                type="text"
+                maxLength={50}
+                value={formData.grand_lodge_membership_number}
+                onChange={(e) => setFormData({ ...formData, grand_lodge_membership_number: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+                autoComplete="off"
               />
             </div>
 
@@ -435,9 +474,16 @@ export const MembersManager = () => {
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 rows={3}
+                maxLength={2000}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
               />
             </div>
+
+            {formError ? (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                {formError}
+              </p>
+            ) : null}
 
             <div>
               <label className="flex items-center space-x-2">
@@ -454,16 +500,18 @@ export const MembersManager = () => {
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setEditingMember(null); resetForm(); }}
+                onClick={() => { setShowForm(false); setEditingMember(null); setFormError(null); resetForm(); }}
+                disabled={formSaving}
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
+                disabled={formSaving}
+                className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {editingMember ? 'Save Changes' : 'Add Member'}
+                {formSaving ? 'Saving…' : editingMember ? 'Save Changes' : 'Add Member'}
               </button>
             </div>
           </form>
@@ -721,6 +769,7 @@ export const MembersManager = () => {
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Position</th>
                 )}
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Personal Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Grand Lodge No.</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Lodge Email</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Account</th>
                   {canWrite && <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>}
@@ -737,6 +786,9 @@ export const MembersManager = () => {
                   )}
                   <td className="py-3 px-4 text-sm text-gray-600">
                     {member.email || <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="py-3 px-4 text-sm font-medium text-gray-700">
+                    {member.grand_lodge_membership_number || <span className="font-normal text-gray-400">Not recorded</span>}
                   </td>
                   <td className="py-3 px-4 text-sm text-gray-600">
                     <span className="block">{member.lodge_email || <span className="text-gray-400">Not created</span>}</span>

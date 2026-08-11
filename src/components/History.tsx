@@ -1,14 +1,12 @@
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { Calendar, ArrowRight } from 'lucide-react';
-import { narrativeChapters } from '../lib/history';
+import { ArrowRight } from 'lucide-react';
 
-// The homepage teaser shows the first three narrative chapters from the
-// static history archive (src/lib/history). The public history section no
-// longer reads from Supabase; the history_eras/history_milestones tables
-// remain for the Lodge Guide knowledge search and admin editing.
-const teaserChapters = narrativeChapters.slice(0, 3);
-
+// The homepage history teaser is a single, curated invitation into the full
+// public archive at /history (static data in src/lib/history). The public
+// history section no longer reads from Supabase; the history_eras/
+// history_milestones tables remain for the Lodge Guide knowledge search and
+// admin editing.
 export const History = () => {
   return (
     <section id="history" className="py-24 bg-slate-50 relative">
@@ -20,83 +18,52 @@ export const History = () => {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-5xl md:text-6xl font-serif text-slate-900 mb-4">
-            Our History
-          </h2>
-          <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Over a century of brotherhood, tradition, and service from 1904 to the present day
-          </p>
-        </motion.div>
-
-        <div className="relative">
-          <div className="hidden md:block absolute left-1/2 transform -translate-x-px h-full w-0.5 bg-amber-600/30"></div>
-
-          {teaserChapters.map((chapter, index) => (
-            <motion.div
-              key={chapter.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.15 }}
-              className={`relative mb-16 ${
-                index % 2 === 0 ? 'pr-8 md:pr-0 md:mr-auto md:w-1/2' : 'pl-8 md:pl-0 md:ml-auto md:w-1/2'
-              }`}
-            >
-              <div className={`flex items-center mb-4 ${index % 2 === 1 ? 'md:justify-end' : ''}`}>
-                <div className="hidden md:flex absolute left-1/2 transform -translate-x-1/2 items-center justify-center">
-                  <div className="w-12 h-12 bg-amber-600 rounded-full flex items-center justify-center shadow-lg">
-                    <Calendar className="text-white" size={24} />
-                  </div>
-                </div>
-                <div className={`${index % 2 === 0 ? 'md:mr-16' : 'md:ml-16'}`}>
-                  <span className="inline-block bg-amber-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
-                    {chapter.yearLabel}
-                  </span>
-                </div>
-              </div>
-
-              <div className={`${index % 2 === 0 ? 'md:mr-16' : 'md:ml-16'}`}>
-                <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow">
-                  <div className="p-6">
-                    <h3 className="text-2xl font-serif text-slate-900 mb-2">
-                      {chapter.title}
-                    </h3>
-                    <p className="text-slate-600 mb-4">{chapter.description}</p>
-                    <Link
-                      to={`/history/${chapter.slug}`}
-                      className="inline-flex items-center space-x-2 text-amber-700 hover:text-amber-800 font-semibold"
-                    >
-                      <span>Learn More</span>
-                      <ArrowRight size={16} />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mt-16"
-        >
-          <Link
-            to="/history"
-            className="inline-flex items-center space-x-2 bg-amber-600 text-white px-8 py-3 rounded-md hover:bg-amber-700 transition-colors font-semibold"
+        <div className="grid items-center gap-12 lg:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="order-2 lg:order-1"
           >
-            <span>Explore Full Timeline</span>
-            <ArrowRight size={20} />
-          </Link>
-        </motion.div>
+            <h2 className="text-5xl md:text-6xl font-serif text-slate-900 mb-6">
+              Since 1904
+            </h2>
+            <p className="text-lg text-slate-600 font-light leading-relaxed mb-4">
+              Warranted in rooms above a Carp drug store, Carleton Lodge lost its first
+              home in the great fire of 1920 and rose again — eventually making its
+              temple of the former St. Andrew&rsquo;s Presbyterian Church on Carp Road.
+            </p>
+            <p className="text-lg text-slate-600 font-light leading-relaxed mb-8">
+              Our source-grounded archive traces more than a century of West Carleton
+              life: the founding, the fire, a wartime connection to France, and the
+              people who built the Lodge.
+            </p>
+            <Link
+              to="/history"
+              className="inline-flex items-center space-x-2 bg-amber-600 text-white px-8 py-3 rounded-md hover:bg-amber-700 transition-colors font-semibold"
+            >
+              <span>Explore Our History</span>
+              <ArrowRight size={20} />
+            </Link>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="order-1 lg:order-2"
+          >
+            <img
+              src="/history/legacy/historical-lodge-building/carleton-lodge-building-sepia.jpg"
+              alt="Modern sepia-toned photograph of the Carleton Lodge Masonic Temple at 3704 Carp Road."
+              loading="lazy"
+              decoding="async"
+              className="w-full rounded-lg shadow-xl object-cover"
+            />
+          </motion.div>
+        </div>
       </div>
     </section>
   );

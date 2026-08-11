@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, BookOpen, Bot, CalendarDays, Clock, ExternalLink, FileText, Landmark, Mail, MapPin, Search, ScrollText, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, CalendarDays, Clock, ExternalLink, FileText, Landmark, Mail, MapPin, Search, ScrollText, UserRound, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentWithCategory, Event, MemberDirectoryProfile, MyLodgeEmailAccount, Summons, supabase } from '../lib/supabase';
@@ -231,6 +231,7 @@ export const MyLodgePage = () => {
             })}
 
             <nav aria-label="Member shortcuts" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <QuickLink to="/my-lodge/profile" icon={UserRound} label="My Profile" description="Update your member information" />
               {canAccessLodgeGuidePilot(LODGE_GUIDE_ENABLED, isAdmin) && <QuickLink to="/lodge-guide" icon={Bot} label="Ask the Lodge Guide" description="Answers from approved sources" />}
               <QuickLink to="/calendar" icon={CalendarDays} label="Calendar" description="Meetings and events" />
               <QuickLink to="/summons" icon={ScrollText} label="Latest Summons" description="Official lodge notice" />

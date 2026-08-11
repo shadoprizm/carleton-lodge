@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { EventModal } from './EventModal';
 import { RichTextContent } from './RichTextContent';
 import { formatDateOnly, formatTime, todayDateKey } from '../utils/dateTime';
+import { LODGE_MEETING_SCHEDULE } from '../lib/lodge';
 
 type PublicEvent = Pick<
   Event,
@@ -204,22 +205,7 @@ export const Events = () => {
         )}
 
         {!loading && events.length === 0 && (
-          <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-900/5 rounded-full mb-4">
-              <Calendar size={28} className="text-blue-900/50" />
-            </div>
-            <p className="text-gray-900 font-serif text-xl mb-2">No upcoming events right now</p>
-            <p className="text-gray-600 font-light mb-8">
-              New meetings and gatherings are posted regularly. Check back soon.
-            </p>
-            <Link
-              to="/calendar"
-              className="inline-flex items-center space-x-2 px-8 py-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-all font-medium tracking-wide shadow-lg"
-            >
-              <span>View Full Calendar</span>
-              <ArrowRight size={18} />
-            </Link>
-          </div>
+          <EventsEmptyState />
         )}
       </div>
 
@@ -229,5 +215,36 @@ export const Events = () => {
         onEventSubmitted={() => undefined}
       />
     </section>
+  );
+};
+
+// Shown when no upcoming public events exist. Never implies the Lodge is
+// dormant: it falls back to the regular meeting schedule (and, in July and
+// August, the summer recess) sourced from src/lib/lodge.
+export const EventsEmptyState = ({ now = new Date() }: { now?: Date }) => {
+  const month = now.getMonth();
+  const isSummerRecess = month === 6 || month === 7;
+
+  return (
+    <div className="text-center py-12">
+      <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-900/5 rounded-full mb-4">
+        <Calendar size={28} className="text-blue-900/50" />
+      </div>
+      <p className="text-gray-900 font-serif text-xl mb-2">
+        {isSummerRecess ? 'The Lodge is in summer recess' : 'No upcoming public events right now'}
+      </p>
+      <p className="text-gray-600 font-light mb-8 max-w-xl mx-auto">
+        {isSummerRecess
+          ? `Carleton Lodge does not hold regular communications in July and August. We resume in September — regular communications are held on ${LODGE_MEETING_SCHEDULE}, at the Masonic Hall, 3704 Carp Road, Carp.`
+          : `Carleton Lodge holds regular communications on ${LODGE_MEETING_SCHEDULE}, at the Masonic Hall, 3704 Carp Road, Carp. New public events are posted regularly — check back soon.`}
+      </p>
+      <Link
+        to="/calendar"
+        className="inline-flex items-center space-x-2 px-8 py-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-all font-medium tracking-wide shadow-lg"
+      >
+        <span>View Full Calendar</span>
+        <ArrowRight size={18} />
+      </Link>
+    </div>
   );
 };

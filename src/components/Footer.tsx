@@ -19,6 +19,7 @@ const exploreLinks = [
   { label: 'Photo Gallery', path: '/gallery' },
   { label: 'Calendar', path: '/calendar' },
   { label: 'Masonic Links', path: '/links' },
+  { label: 'Contact', path: '/contact' },
   { label: 'Help', path: '/help' },
 ];
 

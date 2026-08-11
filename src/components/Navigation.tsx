@@ -5,13 +5,16 @@ import {
   BookOpen,
   CalendarDays,
   ChevronDown,
-  CircleHelp,
+  Compass,
+  Handshake,
   House,
+  IdCard,
   Images,
   Landmark,
   Library,
   LogIn,
   LogOut,
+  Mail,
   Menu,
   ScrollText,
   Search,
@@ -41,10 +44,12 @@ interface NavigationItem {
 const primaryNavItems: NavigationItem[] = [
   { label: 'Home', path: '/', icon: House },
   { label: 'Calendar', path: '/calendar', icon: CalendarDays },
-  { label: 'Help', path: '/help', icon: CircleHelp },
+  { label: 'Contact', path: '/contact', icon: Mail },
 ];
 
 const aboutNavItems: NavigationItem[] = [
+  { label: 'What is Freemasonry', path: '/freemasonry', icon: Compass, description: 'An introduction for the curious' },
+  { label: 'Becoming a Mason', path: '/becoming-a-mason', icon: Handshake, description: 'How to start a conversation' },
   { label: 'Our History', path: '/history', icon: Landmark, description: 'Explore the story of the lodge' },
   { label: 'Photo Gallery', path: '/gallery', icon: Images, description: 'See moments from lodge life' },
 ];
@@ -363,6 +368,14 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
                           <House size={17} className="text-amber-400" aria-hidden="true" />
                           My Lodge home
                         </Link>
+                        <Link
+                          to="/my-lodge/profile"
+                          role="menuitem"
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-50/85 transition-colors hover:bg-white/5 hover:text-amber-100"
+                        >
+                          <IdCard size={17} className="text-amber-400" aria-hidden="true" />
+                          My Profile
+                        </Link>
                         {!loading && canAccessAdmin ? (
                           <Link
                             to="/admin"
@@ -437,10 +450,10 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
                   <CalendarDays size={18} className="mr-3 text-amber-400" aria-hidden="true" /> Calendar
                 </Link>
                 <Link
-                  to="/help"
-                  className={desktopLinkClass(isPathActive(location.pathname, '/help'))}
+                  to="/contact"
+                  className={desktopLinkClass(isPathActive(location.pathname, '/contact'))}
                 >
-                  <CircleHelp size={18} className="mr-3 text-amber-400" aria-hidden="true" /> Help
+                  <Mail size={18} className="mr-3 text-amber-400" aria-hidden="true" /> Contact
                 </Link>
               </div>
 
@@ -471,6 +484,12 @@ export const Navigation = ({ onAuthClick, onNotificationClick }: NavigationProps
                       className={desktopLinkClass(isPathActive(location.pathname, '/my-lodge'))}
                     >
                       <House size={18} className="mr-3 text-amber-400" aria-hidden="true" /> My Lodge
+                    </Link>
+                    <Link
+                      to="/my-lodge/profile"
+                      className={desktopLinkClass(isPathActive(location.pathname, '/my-lodge/profile'))}
+                    >
+                      <IdCard size={18} className="mr-3 text-amber-400" aria-hidden="true" /> My Profile
                     </Link>
                     {memberNavItems.map((item) => {
                       const Icon = item.icon;
