@@ -12,6 +12,7 @@ import {
 import { createMxrouteProvider } from "../_shared/lodge-email-provider.ts";
 import {
   isAuthUserMissingError,
+  mailboxDeletionConfirmationError,
   memberDeletionBlocker,
   resolveDeletionProfileId,
 } from "../_shared/member-deletion.ts";
@@ -24,6 +25,7 @@ type LodgeSupabaseClient = SupabaseClient<any, any, any, any, any>;
 type RequestBody = {
   memberId?: unknown;
   confirmed?: unknown;
+  deleteMailboxContents?: unknown;
 };
 
 type RosterMember = {
@@ -225,41 +227,26 @@ Deno.serve(async (req: Request) => {
     const account = accounts[0] ?? null;
 
     const [
-      memberAgreements,
-      accountAgreements,
       memberAssignments,
       accountAssignments,
       profileResult,
       linkedElsewhereResult,
-      acceptedAgreementCount,
-      initiatedHandoverCount,
     ] = await Promise.all([
-      exactCount(
-        adminClient.from("email_agreement_acceptances").select("id", {
-          count: "exact",
-          head: true,
-        }).eq("member_id", member.id),
-      ),
-      account
-        ? exactCount(
-          adminClient.from("email_agreement_acceptances").select("id", {
-            count: "exact",
-            head: true,
-          }).eq("email_account_id", account.id),
-        )
-        : Promise.resolve(0),
       exactCount(
         adminClient.from("officer_mailbox_assignments").select("id", {
           count: "exact",
           head: true,
-        }).eq("member_id", member.id),
+        }).eq("member_id", member.id).in("status", ["PENDING", "ACTIVE"]),
       ),
       account
         ? exactCount(
           adminClient.from("officer_mailbox_assignments").select("id", {
             count: "exact",
             head: true,
-          }).eq("email_account_id", account.id),
+          }).eq("email_account_id", account.id).in("status", [
+            "PENDING",
+            "ACTIVE",
+          ]),
         )
         : Promise.resolve(0),
       profileId
@@ -272,22 +259,6 @@ Deno.serve(async (req: Request) => {
           profileId,
         ).neq("id", member.id).limit(1).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      profileId
-        ? exactCount(
-          adminClient.from("email_agreement_acceptances").select("id", {
-            count: "exact",
-            head: true,
-          }).eq("accepted_by_profile_id", profileId),
-        )
-        : Promise.resolve(0),
-      profileId
-        ? exactCount(
-          adminClient.from("officer_email_handovers").select("id", {
-            count: "exact",
-            head: true,
-          }).eq("initiated_by", profileId),
-        )
-        : Promise.resolve(0),
     ]);
 
     if (profileResult.error) throw profileResult.error;
@@ -297,12 +268,7 @@ Deno.serve(async (req: Request) => {
       actorIsTarget: profileId === user.id,
       targetIsAdmin: profileResult.data?.is_admin === true,
       linkedElsewhere: linkedElsewhereResult.data !== null,
-      agreementCount: memberAgreements + accountAgreements,
       assignmentCount: memberAssignments + accountAssignments,
-      protectedAuthHistoryCount: acceptedAgreementCount +
-        initiatedHandoverCount,
-      mailboxStatus: member.mailbox_status,
-      accountStatus: account?.status ?? null,
     };
     const initialBlocker = memberDeletionBlocker(basePreflight);
     if (initialBlocker) {
@@ -310,6 +276,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const mailboxAddress = account?.address ?? member.lodge_email;
+    const mailboxConfirmationError = mailboxDeletionConfirmationError(
+      mailboxAddress,
+      body.deleteMailboxContents === true,
+    );
+    if (mailboxConfirmationError) {
+      return jsonResponse(req, { error: mailboxConfirmationError }, 400);
+    }
+
     let providerMailbox = null;
     if (mailboxAddress) {
       const provider = createMxrouteProvider();
@@ -323,17 +297,9 @@ Deno.serve(async (req: Request) => {
         }, 502);
       }
 
-      const mailboxBlocker = memberDeletionBlocker({
-        ...basePreflight,
-        providerMailbox,
-      });
-      if (mailboxBlocker) {
-        return jsonResponse(req, { error: mailboxBlocker }, 409);
-      }
-
       // Remove the governed database account first. Its RESTRICT constraints
-      // are the final concurrency guard against deleting a mailbox while an
-      // agreement or officer assignment is being created.
+      // remain the final concurrency guard against deleting a personal
+      // account while an active officer assignment is being created.
       if (account) {
         const { error: accountDeleteError } = await adminClient
           .from("lodge_email_accounts")
@@ -382,6 +348,9 @@ Deno.serve(async (req: Request) => {
           former_email_account_id: account?.id ?? null,
           mailbox_address: mailboxAddress,
           mailbox_removed: Boolean(mailboxAddress),
+          provider_mailbox_found: providerMailbox !== null,
+          provider_usage_mb: providerMailbox?.usageMb ?? null,
+          provider_sent_today: providerMailbox?.sentToday ?? null,
         },
       });
     if (auditError) throw auditError;
@@ -510,7 +479,7 @@ Deno.serve(async (req: Request) => {
       deleted: true,
       memberId: member.id,
       websiteLoginDeleted: Boolean(profileId),
-      lodgeMailboxDeleted: Boolean(mailboxAddress && providerMailbox),
+      lodgeMailboxDeleted: Boolean(mailboxAddress),
     });
   } catch (error) {
     console.error("delete-member failed:", error);

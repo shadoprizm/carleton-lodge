@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
 import {
   isAuthUserMissingError,
+  mailboxDeletionConfirmationError,
   memberDeletionBlocker,
   resolveDeletionProfileId,
 } from "./member-deletion.ts";
@@ -9,70 +10,35 @@ const removable = {
   actorIsTarget: false,
   targetIsAdmin: false,
   linkedElsewhere: false,
-  agreementCount: 0,
   assignmentCount: 0,
-  protectedAuthHistoryCount: 0,
-  mailboxStatus: "pending_activation",
-  accountStatus: "TERMS_PENDING",
-  providerMailbox: {
-    address: "test@carpmasons.ca",
-    quotaMb: 500,
-    usageMb: 0,
-    dailySendLimit: 200,
-    sentToday: 0,
-    suspended: false,
-  },
 };
 
-Deno.test("pending, unused member accounts can be deleted", () => {
+Deno.test("ordinary members can be deleted", () => {
   assertEquals(memberDeletionBlocker(removable), null);
 });
 
-Deno.test("active mailboxes cannot be hard-deleted", () => {
+Deno.test("active officer-mailbox assignments still require handover", () => {
   assertEquals(
-    memberDeletionBlocker({ ...removable, mailboxStatus: "active" }),
-    "Active or suspended Lodge mailboxes cannot be hard-deleted from the roster.",
+    memberDeletionBlocker({ ...removable, assignmentCount: 1 }),
+    "Complete or cancel this member's active officer-mailbox assignment before deleting the member.",
   );
 });
 
-Deno.test("accepted email agreements protect the member audit record", () => {
+Deno.test("mailbox contents require their own explicit confirmation", () => {
   assertEquals(
-    memberDeletionBlocker({ ...removable, agreementCount: 1 }),
-    "This member has accepted a Lodge email agreement and must be retained for the audit record.",
+    mailboxDeletionConfirmationError("test@carpmasons.ca", false),
+    "Confirm that the Lodge mailbox and all email in it may be permanently deleted.",
+  );
+  assertEquals(
+    mailboxDeletionConfirmationError("test@carpmasons.ca", true),
+    null,
   );
 });
 
-Deno.test("mailboxes with activity cannot be hard-deleted", () => {
+Deno.test("members without a mailbox do not need mailbox confirmation", () => {
   assertEquals(
-    memberDeletionBlocker({
-      ...removable,
-      providerMailbox: { ...removable.providerMailbox, usageMb: 1 },
-    }),
-    "This Lodge mailbox contains mail activity (1 MB stored) and cannot be hard-deleted.",
-  );
-});
-
-Deno.test("mailbox activity blockers report both stored and sent activity", () => {
-  assertEquals(
-    memberDeletionBlocker({
-      ...removable,
-      providerMailbox: {
-        ...removable.providerMailbox,
-        usageMb: 0.012345,
-        sentToday: 2,
-      },
-    }),
-    "This Lodge mailbox contains mail activity (0.012 MB stored; 2 messages sent today) and cannot be hard-deleted.",
-  );
-});
-
-Deno.test("mailboxes with unknown activity cannot be hard-deleted", () => {
-  assertEquals(
-    memberDeletionBlocker({
-      ...removable,
-      providerMailbox: { ...removable.providerMailbox, sentToday: null },
-    }),
-    "This Lodge mailbox's activity could not be verified, so it was not deleted.",
+    mailboxDeletionConfirmationError(null, false),
+    null,
   );
 });
 
