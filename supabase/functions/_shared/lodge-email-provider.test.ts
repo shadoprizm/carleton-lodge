@@ -182,3 +182,52 @@ Deno.test("MXroute provider removes a mailbox and treats an absent mailbox as re
   assertEquals(requests[0].method, "DELETE");
   assertEquals(requests[0].url.endsWith("/email-accounts/test"), true);
 });
+
+Deno.test("MXroute provider creates and verifies an idempotent forwarder", async () => {
+  const requests: Array<{ method: string; body: Record<string, unknown> }> = [];
+  let listCount = 0;
+  const provider = createMxrouteProvider({
+    configuration,
+    fetch: (_input, init) => {
+      const requestInit = init as globalThis.RequestInit | undefined;
+      const method = requestInit?.method ?? "GET";
+      requests.push({
+        method,
+        body: typeof requestInit?.body === "string"
+          ? JSON.parse(requestInit.body)
+          : {},
+      });
+      if (method === "POST") {
+        return Promise.resolve(new Response(null, { status: 201 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: listCount++ === 0 ? [] : [{
+              alias: "mailroom",
+              email: "mailroom@carpmasons.ca",
+              destinations: ["mailroom@inbound.carpmasons.ca"],
+            }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    },
+  });
+
+  const forwarder = await provider.ensureForwarder(
+    "mailroom@carpmasons.ca",
+    ["mailroom@inbound.carpmasons.ca"],
+  );
+
+  assertEquals(forwarder.destinations, ["mailroom@inbound.carpmasons.ca"]);
+  assertEquals(requests.map((request) => request.method), [
+    "GET",
+    "POST",
+    "GET",
+  ]);
+  assertEquals(requests[1].body, {
+    alias: "mailroom",
+    destinations: ["mailroom@inbound.carpmasons.ca"],
+  });
+});
