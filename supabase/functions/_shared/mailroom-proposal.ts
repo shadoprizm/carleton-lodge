@@ -79,7 +79,6 @@ export const mailroomExtractionSchema = {
     },
     classification_tags: {
       type: "array",
-      uniqueItems: true,
       maxItems: classificationTags.length,
       items: { type: "string", enum: [...classificationTags] },
     },

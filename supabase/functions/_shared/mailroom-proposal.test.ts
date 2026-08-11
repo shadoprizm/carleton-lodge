@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import {
   type DirectoryLodge,
+  mailroomExtractionSchema,
   normalizeMailroomProposal,
 } from "./mailroom-proposal.ts";
 
@@ -82,4 +83,8 @@ Deno.test("memorial service events remain outside Lodge Guide", () => {
   const event = (proposal.events as Array<Record<string, unknown>>)[0];
   assertEquals(event.visibility, "members");
   assertEquals(event.include_in_lodge_guide, false);
+});
+
+Deno.test("structured-output schema avoids unsupported uniqueness keywords", () => {
+  assertEquals(JSON.stringify(mailroomExtractionSchema).includes('"uniqueItems"'), false);
 });
