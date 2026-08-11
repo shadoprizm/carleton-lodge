@@ -302,8 +302,14 @@ export const normalizeMailroomProposal = (
   const summons = proposal.summons == null
     ? null
     : { ...asObject(proposal.summons) };
+  if (summons?.destination === "carleton") {
+    summons.notify_members = true;
+    summons.include_in_lodge_guide = true;
+  }
   if (summons?.destination === "district") {
     summons.district_lodge_id = normalizeLodgeId(summons.district_lodge_id);
+    summons.notify_members = false;
+    summons.include_in_lodge_guide = true;
     if (!summons.district_lodge_id) {
       warnings.push(
         "The visiting-lodge summons is held because an approved directory match is required.",
@@ -324,14 +330,33 @@ export const normalizeMailroomProposal = (
       if (event.source_issuer == null) {
         event.source_issuer = String(proposal.source_issuer ?? "");
       }
+      event.visibility = "members";
+      if (event.destination === "district") {
+        event.notify_members = false;
+      }
       event.is_memorial_service = event.is_memorial_service === true;
       if (event.is_memorial_service) {
-        event.visibility = "members";
+        event.notify_members = false;
         event.include_in_lodge_guide = false;
       }
       return event;
     },
   );
+
+  const announcements =
+    (Array.isArray(proposal.announcements) ? proposal.announcements : []).map(
+      (item) => {
+        const announcement: JsonObject = {
+          ...asObject(item),
+          visibility: "members",
+        };
+        if (announcement.notice_type === "memorial") {
+          announcement.notify_members = false;
+          announcement.include_in_lodge_guide = false;
+        }
+        return announcement;
+      },
+    );
 
   const districtLodgeValue = asObject(proposal.district_lodge);
   const directoryLodge = byId.get(String(districtLodgeValue.id ?? ""));
@@ -390,9 +415,7 @@ export const normalizeMailroomProposal = (
     summons,
     district_lodge: districtLodge,
     events,
-    announcements: Array.isArray(proposal.announcements)
-      ? proposal.announcements
-      : [],
+    announcements,
     library_items: libraryItems,
     source_files: sourceFiles,
     source_file: sourceFiles.find((file) => file.kind === "attachment") ??
