@@ -18,3 +18,18 @@ entrypoint = "./functions/member-activity/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/delete-member/index.ts"
+
+[functions.cl-email-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/cl-email-webhook/index.ts"
+
+[functions.cl-mailroom]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/cl-mailroom/index.ts"
+
+[functions.cl-process-notifications]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/cl-process-notifications/index.ts"

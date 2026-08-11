@@ -68,13 +68,17 @@ Resend is the active provider. The production configuration is:
 - `carpmasons.ca` is verified for sending as
   `Carleton Lodge No. 465 <notifications@carpmasons.ca>`.
 - `inbound.carpmasons.ca` is verified for receiving. Any address on that
-  subdomain can receive mail, for example
-  `communications@inbound.carpmasons.ca`.
+  subdomain can receive mail. Lodge Mailroom uses
+  `mailroom@inbound.carpmasons.ca`, reached through the public MXroute
+  forwarder `mailroom@carpmasons.ca`.
 - Resend sends `email.received` events to
   `cl-email-webhook`; the function fetches the complete message before
   normalizing it into `inbound_emails`.
 - `cl-process-notifications` runs every minute through the
   `carletonlodge-process-notifications` Supabase Cron job.
+- `cl-mailroom` claims automatic draft work every two minutes and purges
+  expired non-record content daily. Both jobs use the existing service-role
+  credential encrypted in Supabase Vault.
 - The Cron authorization credential is encrypted in Supabase Vault. Provider
   credentials and the webhook signing secret are encrypted Edge Function
   secrets.
@@ -88,13 +92,15 @@ Resend is the active provider. The production configuration is:
 - `event_submission_rejected` to the submitting member.
 - `member_account_invitation` to a roster member when an authorized
   Members administrator creates or resets website access.
+- `mailroom_draft_ready` to full and delegated Communications administrators,
+  with a direct link to the Mailroom review screen.
 
 `standard_template_preview` is an internal delivery-test type used to verify the
 shared template and provider pipeline without implying a real calendar action.
 
-Existing preferences for new-event, event-update, and summons notifications are
-intentionally not wired into the outbox yet. Those audience and frequency
-decisions can be made without changing the provider or calendar architecture.
+New-event, event-update, summons, and announcement preferences are evaluated
+only when the approved record also has its per-action `notify_members` switch
+enabled. District material and memorial notices default to no second email.
 
 ## Member account email flow
 

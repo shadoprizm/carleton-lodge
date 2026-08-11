@@ -261,6 +261,57 @@ const renderEmail = (
     });
   }
 
+  if (job.notification_type === "mailroom_draft_ready") {
+    const importId = payloadString(job.payload, "import_id");
+    const summary = payloadPlainText(job.payload, "summary").slice(0, 1000);
+    const sourceIssuer = payloadString(job.payload, "source_issuer");
+    const processingMode = payloadString(job.payload, "processing_mode") ||
+      "active";
+    const categories = payloadStringArray(job.payload, "classification_tags")
+      .map((value) => value.replaceAll("_", " "));
+    const reviewUrl = `${
+      siteUrl.replace(/\/$/, "")
+    }/admin/communications?mailroom=${encodeURIComponent(importId)}`;
+
+    return renderBrandedEmail({
+      subject: `${
+        processingMode === "shadow"
+          ? "Shadow Mailroom result"
+          : "Mailroom draft ready"
+      }${sourceIssuer ? `: ${sourceIssuer}` : ""}`,
+      preheader: summary ||
+        "An authenticated Lodge Mailroom message is ready for review.",
+      eyebrow: processingMode === "shadow"
+        ? "Mailroom shadow test"
+        : "Lodge Mailroom",
+      heading: processingMode === "shadow"
+        ? "A shadow-classification result is ready"
+        : "A Mailroom draft is ready for review",
+      paragraphs: [
+        processingMode === "shadow"
+          ? "Mailroom classified this authenticated message in shadow mode. Review the result for accuracy; shadow drafts cannot be published."
+          : "Mailroom prepared proposed website actions from an authenticated message. Nothing has been published. Review, edit, approve, or reject each proposed action on the website.",
+        ...(summary ? [summary] : []),
+      ],
+      details: [
+        ...(sourceIssuer
+          ? [{ label: "Issuing organization", value: sourceIssuer }]
+          : []),
+        ...(categories.length > 0
+          ? [{ label: "Proposed categories", value: categories.join(", ") }]
+          : []),
+        {
+          label: "Publication",
+          value: processingMode === "shadow"
+            ? "Locked for testing"
+            : "Awaiting human approval",
+        },
+      ],
+      cta: { label: "Review Mailroom draft", url: reviewUrl },
+      siteUrl,
+    });
+  }
+
   if (job.notification_type === "standard_template_preview") {
     return renderBrandedEmail({
       subject: "Carleton Lodge email template preview",

@@ -1,99 +1,114 @@
-# Lodge Mailroom architecture
+# Intelligent Lodge Mailroom
 
-## Decision
+## Intake address
 
-Use the existing Resend receiving domain and Supabase webhook. Do not add
-Hermes, OpenClaw, a locally hosted agent, or a mailbox-polling process. Resend
-already sends a signed `email.received` webhook when mail arrives, so a second
-inbox provider would add cost and another failure surface without adding a
-needed capability.
+The public intake address is `mailroom@carpmasons.ca`. MXroute must forward it
+to `mailroom@inbound.carpmasons.ca`, the existing Resend receiving subdomain.
+Resend sends signed `email.received` webhooks to `cl-email-webhook`; no mailbox
+polling process or second inbox provider is required.
 
-AgentMail remains a supported future adapter for two-way, agent-authored email
-threads. The webhook normalizer accepts AgentMail's current top-level
-`message.received` payload, but AgentMail is not the active provider.
+The Edge Function defaults are:
 
-## Names
+- `MAILROOM_PUBLIC_ADDRESS=mailroom@carpmasons.ca`
+- `MAILROOM_RECIPIENT=mailroom@inbound.carpmasons.ca`
+- `MAILROOM_AUTOMATION_MODE=manual|shadow|active`
 
-- **Lodge Mailroom**: the administrative email-import workflow.
-- **Lodge Guide**: the member-facing, read-only information assistant. The
-  existing internal `ask-carleton` function slug and feature flag remain for
-  backward compatibility, but the public label and route are Lodge Guide and
-  `/lodge-guide`.
+`manual` captures eligible messages without queueing them, `shadow` prepares
+classification-only drafts that cannot publish, and `active` prepares normal
+review drafts. Publication always requires an authorised human approval.
 
-## Workflow
+## Trust boundary
 
-1. The Secretary emails the configured receiving address with a summons PDF.
-2. The provider verifies its webhook signature and stores the normalized email
-   in `inbound_emails`.
-3. An administrator adds the Secretary's exact sending address to
-   `trusted_email_senders`. The list starts empty by design.
-4. The administrator selects **Prepare draft**. Lodge Mailroom verifies both:
-   - the From address is active in the trusted-sender list; and
-   - Authentication-Results reports DMARC pass, or both DKIM and SPF pass.
-5. The PDF is downloaded from the provider's temporary URL, checked for the
-   PDF file signature and 10 MB limit, hashed with SHA-256, and copied to the
-   private `summons-uploads` bucket under `mailroom/{import-id}/`.
-6. OpenAI's Responses API receives the email body and PDF as untrusted input,
-   with `store: false`, and returns a strict structured draft containing:
-   - summons title, month, and text;
-   - calendar events;
-   - announcements;
-   - confidence and warnings.
-7. A human reviews every field, changes or removes proposed items, and chooses
-   **Publish reviewed items** or **Reject draft**.
-8. One database transaction publishes the approved summons, document record,
-   calendar events, and announcements. Existing database triggers queue email
-   notifications for members who opted in.
-9. Existing knowledge-index triggers make the approved records available to
-   site search and, after its release evaluation, Lodge Guide.
+Automatic preparation requires all of the following:
 
-No webhook, model response, or PDF can publish directly.
+1. the signed provider webhook is valid and recent;
+2. the message reached the designated Mailroom recipient;
+3. the exact forwarding address is active in `trusted_email_senders`; and
+4. Authentication-Results reports DMARC pass, or both DKIM and SPF pass.
 
-## Institutional memory
+The forwarding secretary is a trusted conduit, not proof of authorship. The
+classifier records the original issuing lodge or organization separately.
+Email, attachment text, and model output are untrusted data and cannot call
+tools or publish records.
 
-The durable memory is the approved lodge record, not a chatbot transcript.
-Each import retains:
+## Preparation and routing
 
-- original inbound email and provider message ID;
-- trusted sender and email-authentication result;
-- source PDF storage path and SHA-256 hash;
-- model and prompt version;
-- extracted draft and final reviewed payload;
-- reviewer and review time;
-- IDs of the summons, events, and announcements created.
+Mailroom first classifies the subject, body, and attachment metadata. Supported
+attachments are opened only when required to classify or accurately extract a
+proposed action. Supported source files and an email-body provenance copy are
+stored privately under `summons-uploads/mailroom/{import-id}/`. Each source is
+hashed with SHA-256. OpenAI Responses requests use strict structured output and
+`store: false`.
 
-This supports provenance, correction, duplicate detection, and later quality
-evaluation without treating private conversations as lodge knowledge.
+One message may propose multiple independently removable actions:
 
-## Activation checklist
+- Carleton or visiting-lodge summons;
+- Carleton or District calendar events, including event-only notices;
+- memorial or general announcements;
+- Library items with source, summary, tags, rights review, and Lodge Guide
+  controls;
+- sensitive hold; or
+- no action.
 
-1. Confirm the Secretary's exact sending address.
-2. In **Admin → Communications → Lodge Mailroom**, add it as a trusted sender.
-3. Send a non-confidential test email with a representative summons PDF.
-4. Prepare the draft and confirm PDF text, dates, times, locations, visibility,
-   and announcements against the source.
-5. Publish the test only if it is legitimate content; otherwise reject it.
-6. Confirm the summons, calendar entries, document, and notification queue.
-7. Repeat with at least five historical summons before considering automatic
-   draft preparation. Publication should continue to require human approval.
+Visiting material must match the approved `district_lodges` directory. Only
+Ottawa Districts 1 and 2 are valid. Outside-scope material is held and the
+database approval function rejects District publication from such an import.
+District event records do not require a summons record.
 
-## Privacy and content boundaries
+## Review and publication
 
-- Do not email passwords, financial details, medical information, modes of
-  recognition, or private ritual material to the Mailroom.
-- Email and PDF content is sent to OpenAI only when an administrator explicitly
-  prepares a draft.
-- Lodge Guide remains read-only and permission-aware. It does not use Mailroom
-  drafts; it reads only approved, audience-filtered lodge sources.
-- Historical inbox messages are not processed automatically.
+Communications administrators receive a direct review link when a draft is
+ready. The reviewer can edit or remove every summons, event, notice, and Library
+item. A single transaction validates permissions, district scope, privacy,
+notification switches, rights controls, and equivalent records before creating
+the selected records.
 
-## Provider references
+Defaults are enforced after review:
+
+- Carleton summons/events: member notifications and Lodge Guide enabled.
+- District summons/events: no second email; members-only District records;
+  Lodge Guide enabled after approval unless the reviewer opts out.
+- Memorial notices/service events: members-only, no notification by default,
+  expiry required, never Lodge Guide.
+- Education: no notification; never Lodge Guide until sharing rights are
+  reviewed and the reviewer opts in.
+- Sensitive/no-action material: no publishable actions.
+
+Exact message duplicates and repeated summons attachments are held. Equivalent
+events and summons issues are reused instead of creating duplicate records.
+
+## Reliability and retention
+
+`carletonlodge-process-mailroom` runs every two minutes. Queue claims use
+`FOR UPDATE SKIP LOCKED`; temporary provider, storage, and extraction failures
+retry with exponential backoff. Permanent failures remain visible with manual
+retry and rejection controls.
+
+Approved source material is retained for provenance. Rejected, ignored, failed,
+duplicate, and unactioned content is retained for one year. The daily
+`carletonlodge-purge-mailroom` job then removes private source files and purges
+message subject, body, headers, raw provider payload, and attachment metadata,
+while retaining minimal audit fields and hashes. Memorials expire from normal
+member display but remain in the restricted approval record.
+
+## Rollout
+
+1. Configure the MXroute forwarder, but leave automation in `manual`.
+2. Add the Secretary's exact sending address as a trusted sender.
+3. Set `MAILROOM_AUTOMATION_MODE=shadow` and process at least 20 representative
+   historical messages: Carleton and District summons, event-only notices,
+   memorials, education, mixed newsletters, private mail, duplicates, and
+   unsupported jurisdictions.
+4. Verify classifications, dates, district matches, privacy, notification
+   defaults, Lodge Guide inclusion, duplicates, expiry, and partial approval.
+5. Reject the shadow drafts after recording results. Shadow drafts cannot be
+   published.
+6. Set `MAILROOM_AUTOMATION_MODE=active` only after the review threshold passes.
+
+## References
 
 - Resend receiving: <https://resend.com/docs/dashboard/receiving/introduction>
-- Resend received attachments: <https://resend.com/docs/dashboard/receiving/attachments>
-- AgentMail webhooks: <https://docs.agentmail.to/webhooks-overview>
-- AgentMail verification: <https://docs.agentmail.to/webhook-verification>
+- Resend attachments: <https://resend.com/docs/dashboard/receiving/attachments>
 - OpenAI file inputs: <https://developers.openai.com/api/docs/guides/file-inputs>
 - OpenAI structured outputs: <https://developers.openai.com/api/docs/guides/structured-outputs>
-- Supabase scheduled functions, if automatic draft preparation is added later:
-  <https://supabase.com/docs/guides/functions/schedule-functions>
+- Supabase scheduled functions: <https://supabase.com/docs/guides/functions/schedule-functions>

@@ -19,7 +19,15 @@ interface Event {
   location_address: string | null;
   event_status: 'scheduled' | 'cancelled' | 'postponed';
   status_note: string | null;
+  source: 'carleton' | 'district';
+  district_name: 'Ottawa District 1' | 'Ottawa District 2' | null;
+  lodge_name: string | null;
+  summons_id: string | null;
 }
+
+type DistrictEventRow = Omit<Event, 'source' | 'event_status' | 'status_note' | 'lodge_name'> & {
+  district_lodges: { name: string } | null;
+};
 
 const getMapsUrl = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -36,6 +44,8 @@ export const Calendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
+  const [showDistrict1, setShowDistrict1] = useState(false);
+  const [showDistrict2, setShowDistrict2] = useState(false);
   const { user } = useAuth();
 
   const fetchEvents = useCallback(async () => {
@@ -46,43 +56,85 @@ export const Calendar = () => {
       getDaysInMonth(currentDate)
     );
 
-    const { data, error } = await supabase
+    const carletonRequest = supabase
       .from('events')
       .select('id, title, event_date, event_time, event_end_time, description, location, location_address, event_status, status_note')
       .gte('event_date', startOfMonth)
       .lte('event_date', endOfMonth)
       .order('event_date', { ascending: true });
-
-    if (!error && data) {
-      setEvents(data);
+    const districts = [
+      ...(showDistrict1 ? ['Ottawa District 1'] : []),
+      ...(showDistrict2 ? ['Ottawa District 2'] : []),
+    ];
+    const districtRequest = user && districts.length > 0
+      ? supabase.from('district_events')
+        .select('id, title, event_date, event_time, event_end_time, description, location, location_address, district_name, summons_id, district_lodges(name)')
+        .in('district_name', districts)
+        .gte('event_date', startOfMonth)
+        .lte('event_date', endOfMonth)
+        .order('event_date', { ascending: true })
+      : Promise.resolve({ data: [], error: null });
+    const [carletonResult, districtResult] = await Promise.all([carletonRequest, districtRequest]);
+    if (!carletonResult.error && !districtResult.error) {
+      const carletonEvents = (carletonResult.data ?? []).map((event) => ({ ...event, source: 'carleton' as const, district_name: null, lodge_name: null, summons_id: null }));
+      const districtEvents = ((districtResult.data ?? []) as unknown as DistrictEventRow[]).map((event) => ({
+        ...event,
+        source: 'district' as const,
+        event_status: 'scheduled' as const,
+        status_note: null,
+        lodge_name: event.district_lodges?.name ?? null,
+      }));
+      setEvents([...carletonEvents, ...districtEvents].sort((left, right) => left.event_date.localeCompare(right.event_date)));
     }
-  }, [currentDate]);
+  }, [currentDate, showDistrict1, showDistrict2, user]);
 
   useEffect(() => {
     void fetchEvents();
   }, [fetchEvents]);
 
   useEffect(() => {
+    if (!selectedDate) return;
+    const selectedKey = dateKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    setSelectedDateEvents(events.filter((event) => event.event_date === selectedKey));
+  }, [events, selectedDate]);
+
+  useEffect(() => {
     const fetchUpcomingEvents = async () => {
       setListLoading(true);
-      const { data, error } = await supabase
+      const carletonRequest = supabase
         .from('events')
         .select('id, title, event_date, event_time, event_end_time, description, location, location_address, event_status, status_note')
         .gte('event_date', todayDateKey())
         .order('event_date', { ascending: true })
         .order('event_time', { ascending: true })
         .limit(50);
-
-      if (error) {
+      const districts = [
+        ...(showDistrict1 ? ['Ottawa District 1'] : []),
+        ...(showDistrict2 ? ['Ottawa District 2'] : []),
+      ];
+      const districtRequest = user && districts.length > 0
+        ? supabase.from('district_events')
+          .select('id, title, event_date, event_time, event_end_time, description, location, location_address, district_name, summons_id, district_lodges(name)')
+          .in('district_name', districts)
+          .gte('event_date', todayDateKey())
+          .order('event_date', { ascending: true })
+          .order('event_time', { ascending: true })
+          .limit(50)
+        : Promise.resolve({ data: [], error: null });
+      const [carletonResult, districtResult] = await Promise.all([carletonRequest, districtRequest]);
+      if (carletonResult.error || districtResult.error) {
         setListError('Upcoming events could not be loaded. Please try again shortly.');
       } else {
-        setUpcomingEvents(data ?? []);
+        setListError('');
+        const carletonEvents = (carletonResult.data ?? []).map((event) => ({ ...event, source: 'carleton' as const, district_name: null, lodge_name: null, summons_id: null }));
+        const districtEvents = ((districtResult.data ?? []) as unknown as DistrictEventRow[]).map((event) => ({ ...event, source: 'district' as const, event_status: 'scheduled' as const, status_note: null, lodge_name: event.district_lodges?.name ?? null }));
+        setUpcomingEvents([...carletonEvents, ...districtEvents].sort((left, right) => `${left.event_date}${left.event_time ?? ''}`.localeCompare(`${right.event_date}${right.event_time ?? ''}`)));
       }
       setListLoading(false);
     };
 
     void fetchUpcomingEvents();
-  }, []);
+  }, [showDistrict1, showDistrict2, user]);
 
   const getFirstDayOfMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
@@ -137,8 +189,16 @@ export const Calendar = () => {
             Lodge Calendar
           </h1>
           <p className="text-center text-amber-100/80 text-base mb-6">
-            Upcoming lodge events are listed first. Open the monthly calendar if you prefer the traditional grid.
+            Carleton events are shown by default. Members may add visiting events from Ottawa Districts 1 and 2.
           </p>
+          {user && (
+            <fieldset className="mx-auto mb-6 flex max-w-2xl flex-wrap justify-center gap-3 rounded-xl border border-amber-600/30 bg-slate-800/60 p-4">
+              <legend className="px-2 text-sm font-semibold uppercase tracking-wide text-amber-200">Calendar filters</legend>
+              <span className="rounded-full bg-amber-500 px-4 py-2 text-sm font-bold text-slate-950">Carleton Lodge</span>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-amber-500/40 px-4 py-2 text-sm font-semibold text-amber-100"><input type="checkbox" checked={showDistrict1} onChange={(event) => setShowDistrict1(event.target.checked)} /> Ottawa District 1</label>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-amber-500/40 px-4 py-2 text-sm font-semibold text-amber-100"><input type="checkbox" checked={showDistrict2} onChange={(event) => setShowDistrict2(event.target.checked)} /> Ottawa District 2</label>
+            </fieldset>
+          )}
           {user && (
             <div className="flex justify-center mb-10">
               <button
@@ -172,6 +232,7 @@ export const Calendar = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-2xl font-serif text-amber-100">{event.title}</h4>
+                          {event.source === 'district' && <span className="rounded-full border border-blue-300/40 bg-blue-950/70 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-blue-100">{event.district_name} · {event.lodge_name ?? 'District event'}</span>}
                           {event.event_status !== 'scheduled' && (
                             <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${event.event_status === 'cancelled' ? 'bg-red-200 text-red-950' : 'bg-amber-200 text-amber-950'}`}>
                               {event.event_status}
@@ -186,6 +247,7 @@ export const Calendar = () => {
                             <CalendarPlus size={19} /> Add to Calendar
                           </button>
                           {event.location_address && <a href={getMapsUrl(event.location_address)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-amber-500/50 px-5 py-3 font-semibold text-amber-100 hover:bg-slate-700"><MapPin size={18} /> Get Directions</a>}
+                          {event.source === 'district' && event.summons_id && <a href={`/district#summons-${event.summons_id}`} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-blue-300/50 px-5 py-3 font-semibold text-blue-100 hover:bg-slate-700">Source summons <ExternalLink size={17} /></a>}
                         </div>
                       </div>
                     </div>
@@ -308,6 +370,7 @@ export const Calendar = () => {
                         <h5 className="text-lg font-semibold text-amber-100 mb-2">
                           {event.title}
                         </h5>
+                        {event.source === 'district' && <p className="mb-3 text-xs font-bold uppercase tracking-wide text-blue-200">{event.district_name} · {event.lodge_name ?? 'District event'}</p>}
                         {event.event_status !== 'scheduled' && (
                           <span className={`mb-3 inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
                             event.event_status === 'cancelled'
@@ -374,6 +437,7 @@ export const Calendar = () => {
                             </div>
                           </a>
                         )}
+                        {event.source === 'district' && event.summons_id && <a href={`/district#summons-${event.summons_id}`} className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-blue-200 hover:text-blue-100">Read source summons <ExternalLink size={14} /></a>}
                       </div>
                     ))}
                   </div>
