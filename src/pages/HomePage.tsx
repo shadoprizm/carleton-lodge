@@ -1,29 +1,23 @@
-import { useRef } from 'react';
 import { Hero } from '../components/Hero';
+import { Announcements } from '../components/Announcements';
+import { WhatIsFreemasonry } from '../components/WhatIsFreemasonry';
+import { Pathways } from '../components/Pathways';
+import { AboutLodge } from '../components/AboutLodge';
 import { Events } from '../components/Events';
 import { History } from '../components/History';
-import { Contact } from '../components/Contact';
-import { Announcements } from '../components/Announcements';
+import { ContactCtaBand } from '../components/ContactCtaBand';
 
 export const HomePage = () => {
-  const eventsRef = useRef<HTMLDivElement>(null);
-
-  const scrollToEvents = () => {
-    const element = document.getElementById('events');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   return (
     <>
-      <Hero onScrollToEvents={scrollToEvents} />
+      <Hero />
       <Announcements />
-      <div ref={eventsRef}>
-        <Events />
-      </div>
+      <WhatIsFreemasonry />
+      <Pathways />
+      <AboutLodge />
+      <Events />
       <History />
-      <Contact />
+      <ContactCtaBand />
     </>
   );
 };

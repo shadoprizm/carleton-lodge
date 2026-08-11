@@ -1,4 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  asAddressString,
+  asObject,
+  asStringArray,
+  canonicalMessageMaterial,
+  extractEmailAddress,
+  messageAuthenticationPassed,
+  messageReachedMailroom,
+  sha256Hex,
+} from "../_shared/mailroom-security.ts";
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -69,26 +79,6 @@ const verifySvixWebhook = async (
       return version === "v1" && !!signature &&
         timingSafeEqual(signature, expected);
     });
-};
-
-const asAddressString = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") {
-    const address = value as Record<string, unknown>;
-    const email = typeof address.email === "string"
-      ? address.email
-      : typeof address.address === "string"
-      ? address.address
-      : "";
-    const name = typeof address.name === "string" ? address.name.trim() : "";
-    return name && email ? `${name} <${email}>` : email;
-  }
-  return "";
-};
-
-const asStringArray = (value: unknown): string[] => {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  return values.map(asAddressString).filter(Boolean);
 };
 
 Deno.serve(async (req: Request) => {
@@ -218,40 +208,152 @@ Deno.serve(async (req: Request) => {
       providerMessageId,
   );
 
-  const { error } = await supabase
+  const { data: existingEmail } = await supabase
     .from("inbound_emails")
-    .upsert({
+    .select("id")
+    .eq("provider", provider)
+    .eq("provider_message_id", providerMessageId)
+    .maybeSingle();
+  if (existingEmail) {
+    return jsonResponse({ received: true, stored: true, replay: true });
+  }
+
+  const toAddresses = asStringArray(message.to ?? webhookData.to);
+  const ccAddresses = asStringArray(message.cc ?? webhookData.cc);
+  const receivedForAddresses = asStringArray(
+    message.received_for ?? message.receivedFor ?? webhookData.received_for ??
+      webhookData.receivedFor,
+  );
+  const fromAddress = asAddressString(message.from ?? webhookData.from) || null;
+  const headers = message.headers && typeof message.headers === "object"
+    ? message.headers
+    : {};
+  const attachments = Array.isArray(message.attachments)
+    ? message.attachments.slice(0, 100)
+    : Array.isArray(webhookData.attachments)
+    ? webhookData.attachments.slice(0, 100)
+    : [];
+  const normalizedMessage = {
+    ...asObject(message),
+    from: fromAddress,
+    to: toAddresses,
+    cc: ccAddresses,
+    attachments,
+  };
+  const messageSha256 = await sha256Hex(
+    canonicalMessageMaterial(normalizedMessage),
+  );
+  const receivedAt = String(
+    message.created_at ?? webhookData.created_at ?? event.created_at ??
+      new Date().toISOString(),
+  );
+
+  const { data: storedEmail, error } = await supabase
+    .from("inbound_emails")
+    .insert({
       provider,
       provider_message_id: providerMessageId,
-      from_address: asAddressString(message.from ?? webhookData.from) || null,
-      to_addresses: asStringArray(message.to ?? webhookData.to),
-      cc_addresses: asStringArray(message.cc ?? webhookData.cc),
+      from_address: fromAddress,
+      to_addresses: toAddresses,
+      cc_addresses: ccAddresses,
+      received_for_addresses: receivedForAddresses,
       subject:
         String(message.subject ?? webhookData.subject ?? "").slice(0, 1000) ||
         null,
       text_body: String(message.text ?? "").slice(0, 1_000_000) || null,
       html_body: String(message.html ?? "").slice(0, 1_000_000) || null,
-      headers: message.headers && typeof message.headers === "object"
-        ? message.headers
-        : {},
-      attachments: Array.isArray(message.attachments)
-        ? message.attachments.slice(0, 100)
-        : Array.isArray(webhookData.attachments)
-        ? webhookData.attachments.slice(0, 100)
-        : [],
+      headers,
+      attachments,
       raw_payload: event,
-      received_at: String(
-        message.created_at ?? webhookData.created_at ?? event.created_at ??
-          new Date().toISOString(),
-      ),
-    }, {
-      onConflict: "provider,provider_message_id",
-      ignoreDuplicates: true,
-    });
+      message_sha256: messageSha256,
+      received_at: receivedAt,
+      retention_until: new Date(
+        new Date(receivedAt).getTime() + 365 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Could not store inbound email:", error);
     return jsonResponse({ error: "Could not store inbound email" }, 500);
   }
-  return jsonResponse({ received: true, stored: true });
+
+  const configuredRecipient = Deno.env.get("MAILROOM_RECIPIENT") ??
+    "mailroom@inbound.carpmasons.ca";
+  const publicAlias = Deno.env.get("MAILROOM_PUBLIC_ADDRESS") ??
+    "mailroom@carpmasons.ca";
+  const reachedMailroom = messageReachedMailroom(
+    [toAddresses, ccAddresses, receivedForAddresses],
+    configuredRecipient,
+    publicAlias,
+  );
+  if (!reachedMailroom || !messageAuthenticationPassed(headers)) {
+    return jsonResponse({ received: true, stored: true, queued: false });
+  }
+
+  const senderEmail = extractEmailAddress(fromAddress);
+  const { data: trustedSender } = await supabase
+    .from("trusted_email_senders")
+    .select("id")
+    .eq("email", senderEmail)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!trustedSender) {
+    return jsonResponse({ received: true, stored: true, queued: false });
+  }
+
+  const automationMode = (Deno.env.get("MAILROOM_AUTOMATION_MODE") ?? "manual")
+    .toLowerCase();
+  if (!(["shadow", "active"] as string[]).includes(automationMode)) {
+    return jsonResponse({ received: true, stored: true, queued: false });
+  }
+
+  const { data: duplicateEmail } = await supabase
+    .from("inbound_emails")
+    .select("id")
+    .eq("message_sha256", messageSha256)
+    .neq("id", storedEmail.id)
+    .order("received_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  let duplicateImportId: string | null = null;
+  if (duplicateEmail) {
+    const { data: duplicateImport } = await supabase
+      .from("mailroom_imports")
+      .select("id")
+      .eq("inbound_email_id", duplicateEmail.id)
+      .maybeSingle();
+    duplicateImportId = duplicateImport?.id ?? null;
+  }
+
+  const { error: queueError } = await supabase.from("mailroom_imports").insert({
+    inbound_email_id: storedEmail.id,
+    status: duplicateEmail ? "duplicate" : "queued",
+    processing_mode: automationMode,
+    sender_email: senderEmail,
+    sender_verified: true,
+    classification_tags: duplicateEmail ? ["no_action"] : [],
+    summary: duplicateEmail
+      ? "Exact duplicate message held without preparing another draft."
+      : null,
+    duplicate_of_import_id: duplicateImportId,
+  });
+  if (queueError) {
+    console.error("Could not queue Mailroom message:", queueError);
+    return jsonResponse({ error: "Could not queue Mailroom message" }, 500);
+  }
+
+  if (duplicateEmail) {
+    await supabase.from("inbound_emails").update({
+      processing_status: "ignored",
+      processed_at: new Date().toISOString(),
+    }).eq("id", storedEmail.id);
+  }
+  return jsonResponse({
+    received: true,
+    stored: true,
+    queued: !duplicateEmail,
+    duplicate: !!duplicateEmail,
+  });
 });
