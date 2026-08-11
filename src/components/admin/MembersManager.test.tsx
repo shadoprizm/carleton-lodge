@@ -1,10 +1,17 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LodgeMemberWithPosition } from '../../lib/supabase';
 import { MembersManager } from './MembersManager';
 
-const { fromMock, hasAdminPermissionMock, rpcMock, updateEqMock } = vi.hoisted(() => ({
+const {
+  fromMock,
+  functionInvokeMock,
+  hasAdminPermissionMock,
+  rpcMock,
+  updateEqMock,
+} = vi.hoisted(() => ({
   fromMock: vi.fn(),
+  functionInvokeMock: vi.fn(),
   hasAdminPermissionMock: vi.fn(),
   rpcMock: vi.fn(),
   updateEqMock: vi.fn(),
@@ -19,6 +26,7 @@ vi.mock('../../contexts/AuthContext', () => ({
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: fromMock,
+    functions: { invoke: functionInvokeMock },
     rpc: rpcMock,
   },
 }));
@@ -46,6 +54,17 @@ const managedMember: LodgeMemberWithPosition = {
   lodge_positions: null,
 };
 
+const deletionTestMember: LodgeMemberWithPosition = {
+  ...managedMember,
+  id: '28f31769-45d5-4dc3-b4bd-e1ce454a54ae',
+  full_name: 'Test',
+  email: 'ratelle@icloud.com',
+  grand_lodge_membership_number: null,
+  linked_profile_id: '0ff3906c-999f-467d-8b2e-1b557e096e8b',
+  lodge_email: 'test@carpmasons.ca',
+  mailbox_status: 'pending_activation',
+};
+
 function orderedResult(data: unknown[]) {
   return {
     select: vi.fn(() => ({
@@ -57,6 +76,7 @@ function orderedResult(data: unknown[]) {
 describe('MembersManager Grand Lodge membership number', () => {
   beforeEach(() => {
     fromMock.mockReset();
+    functionInvokeMock.mockReset();
     hasAdminPermissionMock.mockReset();
     rpcMock.mockReset();
     updateEqMock.mockReset();
@@ -108,5 +128,72 @@ describe('MembersManager Grand Lodge membership number', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('already assigned to another roster record');
     expect(screen.getByLabelText(/Grand Lodge Membership Number/)).toHaveValue('GL-DUPLICATE');
+  });
+});
+
+describe('MembersManager member deletion', () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    functionInvokeMock.mockReset();
+    hasAdminPermissionMock.mockReset();
+    rpcMock.mockReset();
+    updateEqMock.mockReset();
+
+    hasAdminPermissionMock.mockReturnValue(true);
+    rpcMock.mockResolvedValue({ data: [deletionTestMember], error: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'lodge_positions' || table === 'profiles') return orderedResult([]);
+      throw new Error(`Unexpected table: ${table}`);
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  const renderDeletionTestMember = async () => {
+    render(<MembersManager />);
+    fireEvent.click(await screen.findByRole('button', { name: /Regular Members/ }));
+  };
+
+  it('opens an in-page confirmation before invoking deletion', async () => {
+    const nativeConfirm = vi.spyOn(window, 'confirm');
+    functionInvokeMock.mockResolvedValue({ data: { deleted: true }, error: null });
+    await renderDeletionTestMember();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Test' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Permanently delete member?' });
+    expect(dialog).toHaveTextContent('test@carpmasons.ca Lodge mailbox');
+    expect(functionInvokeMock).not.toHaveBeenCalled();
+    expect(nativeConfirm).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    nativeConfirm.mockRestore();
+  });
+
+  it('keeps a deletion blocker beside the member action', async () => {
+    const blocker = 'This Lodge mailbox contains mail activity (0.012 MB stored) and cannot be hard-deleted.';
+    functionInvokeMock.mockResolvedValue({
+      data: null,
+      error: {
+        context: new Response(JSON.stringify({ error: blocker }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      },
+    });
+    await renderDeletionTestMember();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(blocker);
+    });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lodge Email' })).toHaveAttribute('href', '/admin/email-accounts');
+    expect(functionInvokeMock).toHaveBeenCalledWith('delete-member', {
+      body: { memberId: deletionTestMember.id, confirmed: true },
+    });
   });
 });

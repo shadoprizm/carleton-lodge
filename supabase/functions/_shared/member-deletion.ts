@@ -90,7 +90,15 @@ export function memberDeletionBlocker(
     ((preflight.providerMailbox.usageMb ?? 0) > 0 ||
       (preflight.providerMailbox.sentToday ?? 0) > 0)
   ) {
-    return "This Lodge mailbox contains mail activity and cannot be hard-deleted.";
+    const usageMb = preflight.providerMailbox.usageMb ?? 0;
+    const sentToday = preflight.providerMailbox.sentToday ?? 0;
+    const activity = [
+      usageMb > 0 ? `${Number(usageMb.toFixed(3))} MB stored` : null,
+      sentToday > 0
+        ? `${sentToday} message${sentToday === 1 ? "" : "s"} sent today`
+        : null,
+    ].filter(Boolean).join("; ");
+    return `This Lodge mailbox contains mail activity (${activity}) and cannot be hard-deleted.`;
   }
 
   return null;

@@ -48,7 +48,21 @@ Deno.test("mailboxes with activity cannot be hard-deleted", () => {
       ...removable,
       providerMailbox: { ...removable.providerMailbox, usageMb: 1 },
     }),
-    "This Lodge mailbox contains mail activity and cannot be hard-deleted.",
+    "This Lodge mailbox contains mail activity (1 MB stored) and cannot be hard-deleted.",
+  );
+});
+
+Deno.test("mailbox activity blockers report both stored and sent activity", () => {
+  assertEquals(
+    memberDeletionBlocker({
+      ...removable,
+      providerMailbox: {
+        ...removable.providerMailbox,
+        usageMb: 0.012345,
+        sentToday: 2,
+      },
+    }),
+    "This Lodge mailbox contains mail activity (0.012 MB stored; 2 messages sent today) and cannot be hard-deleted.",
   );
 });
 
