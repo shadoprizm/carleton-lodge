@@ -161,3 +161,24 @@ Deno.test("MXroute provider surfaces provider failure instead of reporting succe
   }
   assertEquals(message, "Provider unavailable");
 });
+
+Deno.test("MXroute provider removes a mailbox and treats an absent mailbox as removed", async () => {
+  const requests: Array<{ url: string; method: string }> = [];
+  const provider = createMxrouteProvider({
+    configuration,
+    fetch: (input, init) => {
+      const requestInit = init as globalThis.RequestInit | undefined;
+      requests.push({
+        url: String(input),
+        method: requestInit?.method ?? "GET",
+      });
+      return Promise.resolve(new Response(null, { status: 404 }));
+    },
+  });
+
+  await provider.deleteMailbox("test@carpmasons.ca");
+
+  assertEquals(requests.length, 1);
+  assertEquals(requests[0].method, "DELETE");
+  assertEquals(requests[0].url.endsWith("/email-accounts/test"), true);
+});
