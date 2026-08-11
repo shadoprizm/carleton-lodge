@@ -28,6 +28,9 @@ export type Event = {
   visibility: EventVisibility;
   event_status: EventStatus;
   status_note: string | null;
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
+  source_issuer: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -339,6 +342,9 @@ export type Summons = {
   pdf_url: string | null;
   published_at: string;
   created_by: string | null;
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
+  source_issuer: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -363,6 +369,10 @@ export type Announcement = {
   is_published: boolean;
   published_at: string | null;
   expires_at: string | null;
+  notice_type: 'general' | 'memorial';
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
+  source_issuer: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -434,12 +444,17 @@ export type InboundEmail = {
   from_address: string | null;
   to_addresses: string[];
   cc_addresses: string[];
+  received_for_addresses: string[];
   subject: string | null;
   text_body: string | null;
   html_body: string | null;
   headers: Record<string, unknown>;
   attachments: Array<Record<string, unknown>>;
   raw_payload: Record<string, unknown>;
+  message_sha256: string | null;
+  retention_until: string;
+  purge_claimed_at: string | null;
+  content_purged_at: string | null;
   processing_status: 'received' | 'processing' | 'processed' | 'ignored' | 'failed';
   received_at: string;
   processed_at: string | null;
@@ -459,13 +474,19 @@ export type TrustedEmailSender = {
 };
 
 export type MailroomSummonsDraft = {
+  destination: 'carleton' | 'district';
+  district_lodge_id: string | null;
   title: string;
   month: string;
   issue_date: string | null;
   content: string;
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
 };
 
 export type MailroomDistrictLodgeDraft = {
+  id: string;
+  district_name: 'Ottawa District 1' | 'Ottawa District 2';
   name: string;
   lodge_number: string;
   location: string;
@@ -478,6 +499,10 @@ export type MailroomDistrictLodgeDraft = {
 };
 
 export type MailroomEventDraft = {
+  destination: 'carleton' | 'district';
+  district_name: 'Ottawa District 1' | 'Ottawa District 2' | null;
+  district_lodge_id: string | null;
+  source_issuer: string;
   title: string;
   description: string;
   event_date: string | null;
@@ -489,7 +514,10 @@ export type MailroomEventDraft = {
   poc_contact: string;
   event_kind: 'meeting' | 'emergent' | 'installation' | 'social' | 'official_visit' | 'other';
   degree: 'unspecified' | 'none' | 'first' | 'second' | 'third' | 'installation' | 'other';
+  is_memorial_service: boolean;
   visibility: EventVisibility;
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
 };
 
 export type MailroomAnnouncementDraft = {
@@ -497,17 +525,52 @@ export type MailroomAnnouncementDraft = {
   body: string;
   priority: Announcement['priority'];
   visibility: Announcement['visibility'];
+  notice_type: Announcement['notice_type'];
+  expires_at: string | null;
+  notify_members: boolean;
+  include_in_lodge_guide: boolean;
+  source_issuer: string;
 };
 
+export type MailroomLibraryDraft = {
+  title: string;
+  summary: string;
+  source: string;
+  source_url: string;
+  source_file_name: string;
+  source_storage_path: string;
+  file_name: string;
+  tags: string[];
+  rights_reviewed: boolean;
+  include_in_lodge_guide: boolean;
+};
+
+export type MailroomClassification =
+  | 'carleton_summons'
+  | 'district_summons'
+  | 'carleton_event'
+  | 'district_event'
+  | 'memorial_notice'
+  | 'announcement'
+  | 'library_item'
+  | 'sensitive_hold'
+  | 'no_action';
+
 export type MailroomProposal = {
-  publication_target: 'carleton' | 'district';
+  publication_target: 'carleton' | 'district' | 'mixed' | 'hold';
   classification: 'summons' | 'event' | 'announcement' | 'mixed' | 'other';
+  classification_tags: MailroomClassification[];
+  source_scope: 'carleton' | 'district_1' | 'district_2' | 'outside_scope' | 'unknown';
+  source_issuer: string;
+  sensitivity: 'normal' | 'memorial' | 'sensitive';
+  needs_attachment_content: boolean;
   confidence: number;
   summary: string;
   summons: MailroomSummonsDraft | null;
   district_lodge: MailroomDistrictLodgeDraft | null;
   events: MailroomEventDraft[];
   announcements: MailroomAnnouncementDraft[];
+  library_items: MailroomLibraryDraft[];
   warnings: string[];
   source_file?: {
     storage_path: string;
@@ -516,20 +579,34 @@ export type MailroomProposal = {
     content_type: string;
     provider_attachment_id: string;
   } | null;
+  source_files: Array<{
+    kind: 'attachment' | 'email_body';
+    storage_path: string;
+    file_name: string;
+    file_size: number;
+    content_type: string;
+    provider_attachment_id: string;
+    sha256: string;
+  }>;
 };
 
 export type MailroomImport = {
   id: string;
   inbound_email_id: string;
-  status: 'drafting' | 'needs_review' | 'approved' | 'rejected' | 'failed';
+  status: 'queued' | 'drafting' | 'needs_review' | 'approved' | 'rejected' | 'failed' | 'duplicate';
+  processing_mode: 'manual' | 'shadow' | 'active';
   sender_email: string;
   sender_verified: boolean;
   classification: MailroomProposal['classification'] | null;
+  classification_tags: MailroomClassification[];
+  source_scope: MailroomProposal['source_scope'];
+  source_issuer: string | null;
   confidence: number | null;
   summary: string | null;
   extracted_payload: MailroomProposal;
   approved_payload: MailroomProposal | null;
   source_file_sha256: string | null;
+  source_attachment_sha256: string[];
   model: string | null;
   prompt_version: string | null;
   reviewed_by: string | null;
@@ -539,6 +616,12 @@ export type MailroomImport = {
   published_announcement_ids: string[];
   published_district_summons_id: string | null;
   published_district_event_ids: string[];
+  published_document_ids: string[];
+  attempt_count: number;
+  max_attempts: number;
+  available_at: string;
+  locked_at: string | null;
+  duplicate_of_import_id: string | null;
   last_error: string | null;
   created_at: string;
   updated_at: string;
@@ -570,6 +653,8 @@ export type DistrictSummons = {
   issue_date: string | null;
   content: string;
   pdf_url: string | null;
+  source_issuer: string | null;
+  include_in_lodge_guide: boolean;
   published_by: string | null;
   published_at: string;
   created_at: string;
@@ -595,6 +680,8 @@ export type DistrictEvent = {
   external_uid: string | null;
   source_url: string | null;
   source_checked_at: string | null;
+  source_issuer: string | null;
+  include_in_lodge_guide: boolean;
   title: string;
   description: string | null;
   event_date: string;
@@ -661,6 +748,11 @@ export type Document = {
   storage_bucket: string | null;
   tags: string[];
   uploaded_by: string | null;
+  source_issuer: string | null;
+  source_url: string | null;
+  rights_reviewed: boolean;
+  include_in_lodge_guide: boolean;
+  source_mailroom_import_id: string | null;
   created_at: string;
   updated_at: string;
 };

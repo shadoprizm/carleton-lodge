@@ -59,6 +59,9 @@ export const DistrictPage = () => {
   const [query, setQuery] = useState('');
   const [degree, setDegree] = useState<DistrictEventDegree | 'all'>('all');
   const [district, setDistrict] = useState<'all' | 'Ottawa District 1' | 'Ottawa District 2'>('all');
+  const [lodgeId, setLodgeId] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [expandedSummons, setExpandedSummons] = useState<string | null>(null);
   const [openingPdf, setOpeningPdf] = useState<string | null>(null);
   const blobUrl = useRef<string | null>(null);
@@ -108,6 +111,8 @@ export const DistrictPage = () => {
     const matchesDegree = degree === 'all' || event.degree === degree;
     const eventDistrict = event.district_lodges?.district_name ?? event.district_name;
     const matchesDistrict = district === 'all' || eventDistrict === district;
+    const matchesLodge = lodgeId === 'all' || event.lodge_id === lodgeId;
+    const matchesDate = (!dateFrom || event.event_date >= dateFrom) && (!dateTo || event.event_date <= dateTo);
     const haystack = [
       event.title,
       event.description,
@@ -115,29 +120,36 @@ export const DistrictPage = () => {
       event.district_lodges?.name,
       event.district_lodges?.lodge_number,
     ].filter(Boolean).join(' ').toLowerCase();
-    return matchesDegree && matchesDistrict && (!normalizedQuery || haystack.includes(normalizedQuery));
-  }), [degree, district, events, normalizedQuery]);
+    return matchesDegree && matchesDistrict && matchesLodge && matchesDate && (!normalizedQuery || haystack.includes(normalizedQuery));
+  }), [dateFrom, dateTo, degree, district, events, lodgeId, normalizedQuery]);
 
   const filteredSummons = useMemo(() => summons.filter((item) => {
     const matchesDistrict = district === 'all' || item.district_lodges?.district_name === district;
-    if (!matchesDistrict) return false;
+    const matchesLodge = lodgeId === 'all' || item.lodge_id === lodgeId;
+    if (!matchesDistrict || !matchesLodge) return false;
     if (!normalizedQuery) return true;
     return [item.title, item.issue_label, item.content, item.district_lodges?.name, item.district_lodges?.district_name]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
       .includes(normalizedQuery);
-  }), [district, normalizedQuery, summons]);
+  }), [district, lodgeId, normalizedQuery, summons]);
 
   const filteredLodges = useMemo(() => lodges.filter((lodge) => {
     if (district !== 'all' && lodge.district_name !== district) return false;
+    if (lodgeId !== 'all' && lodge.id !== lodgeId) return false;
     if (!normalizedQuery) return true;
     return [lodge.name, lodge.lodge_number, lodge.location, lodge.district_name, ...(lodge.aliases ?? [])]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
       .includes(normalizedQuery);
-  }), [district, lodges, normalizedQuery]);
+  }), [district, lodgeId, lodges, normalizedQuery]);
+
+  const lodgeOptions = useMemo(
+    () => lodges.filter((lodge) => district === 'all' || lodge.district_name === district),
+    [district, lodges],
+  );
 
   const openPdf = useCallback(async (path: string) => {
     setOpeningPdf(path);
@@ -183,7 +195,7 @@ export const DistrictPage = () => {
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <section aria-labelledby="district-search-title" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 id="district-search-title" className="font-serif text-2xl text-slate-950">Find a meeting or summons</h2>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_14rem_14rem]">
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <label className="text-sm font-semibold text-slate-700">
               Lodge, event, or location
               <span className="relative mt-1 block">
@@ -193,12 +205,13 @@ export const DistrictPage = () => {
             </label>
             <label className="text-sm font-semibold text-slate-700">
               District
-              <select value={district} onChange={(event) => setDistrict(event.target.value as typeof district)} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <select value={district} onChange={(event) => { setDistrict(event.target.value as typeof district); setLodgeId('all'); }} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="all">Both districts</option>
                 <option value="Ottawa District 1">Ottawa District 1</option>
                 <option value="Ottawa District 2">Ottawa District 2</option>
               </select>
             </label>
+            <label className="text-sm font-semibold text-slate-700">Lodge<select value={lodgeId} onChange={(event) => setLodgeId(event.target.value)} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500"><option value="all">All lodges</option>{lodgeOptions.map((lodge) => <option key={lodge.id} value={lodge.id}>{lodge.name}{lodge.lodge_number ? ` No. ${lodge.lodge_number}` : ''}</option>)}</select></label>
             <label className="text-sm font-semibold text-slate-700">
               Degree work
               <select value={degree} onChange={(event) => setDegree(event.target.value as DistrictEventDegree | 'all')} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500">
@@ -211,6 +224,8 @@ export const DistrictPage = () => {
                 <option value="unspecified">Degree not stated</option>
               </select>
             </label>
+            <label className="text-sm font-semibold text-slate-700">From<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500" /></label>
+            <label className="text-sm font-semibold text-slate-700">To<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-500" /></label>
           </div>
         </section>
 

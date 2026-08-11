@@ -43,7 +43,7 @@ export const PrivacyPolicyPage = () => {
                   <li><strong>Profile Information:</strong> Membership rank and identifiers, contact details, biography, and other information maintained in your member profile.</li>
                   <li><strong>Account Activity:</strong> The most recent successful login and the most recent authenticated visit to the website. We do not retain page-by-page browsing history, device details, or IP addresses for this feature.</li>
                   <li><strong>Communications:</strong> Records of correspondence if you contact us by email or through our website.</li>
-                  <li><strong>AI-Assisted Feature Content:</strong> Questions submitted to Lodge Guide and lodge emails or documents that an authorised administrator selects for Mailroom draft preparation.</li>
+                  <li><strong>AI-Assisted Feature Content:</strong> Questions submitted to Lodge Guide and authenticated messages sent to the designated Lodge Mailroom address, including their subject, body, attachment metadata, and supported attachments when needed for classification or extraction.</li>
                 </ul>
               </section>
 
@@ -76,7 +76,7 @@ export const PrivacyPolicyPage = () => {
                   <li><strong>Legal Requirements:</strong> We may disclose information when required by law or to protect the rights and safety of the Lodge and its members.</li>
                 </ul>
                 <p className="mt-3">
-                  OpenAI API inputs and outputs are not used to train OpenAI models by default unless the Lodge explicitly opts in. Our requests disable response storage, but provider abuse-monitoring logs may still be retained for a limited period under the provider&apos;s{' '}
+                  OpenAI API inputs and outputs are not used to train OpenAI models by default unless the Lodge explicitly opts in. Mailroom treats email content as untrusted input and our requests disable response storage, but provider abuse-monitoring logs may still be retained for a limited period under the provider&apos;s{' '}
                   <a href="https://platform.openai.com/docs/models/default-usage-policies-by-endpoint" className="text-blue-700 underline hover:text-blue-900">data controls</a>. AI-generated Mailroom drafts cannot publish without an authorised human review.
                 </p>
               </section>
@@ -100,7 +100,10 @@ export const PrivacyPolicyPage = () => {
                   record-keeping purposes.
                 </p>
                 <p className="mt-3">
-                  Lodge Guide answers are not automatically saved as Lodge records. Approved Mailroom imports retain the source email, file provenance, extracted draft, final reviewed content, and approval audit needed for Lodge record-keeping. Rejected and failed imports may also be retained for security, troubleshooting, and duplicate prevention.
+                  Lodge Guide answers are not automatically saved as Lodge records. Approved Mailroom imports retain the source email, file provenance, extracted draft, final reviewed content, and approval audit needed for Lodge record-keeping. Rejected, ignored, failed, duplicate, and unactioned Mailroom content is retained for one year; the message body, subject, headers, raw provider payload, and retained attachments are then purged while minimal audit metadata and cryptographic hashes remain for security and duplicate prevention.
+                </p>
+                <p className="mt-3">
+                  Memorial notices expire from normal member display but remain in the restricted approval audit. They are never made available to Lodge Guide. Administrative, financial, ritual, and private correspondence is held for administrators and is never proposed for member publication.
                 </p>
                 <p className="mt-3">
                   The member activity feature overwrites the previous website-visit timestamp and retains only the latest known authenticated visit. Supabase authentication maintains the account&apos;s latest successful sign-in timestamp.

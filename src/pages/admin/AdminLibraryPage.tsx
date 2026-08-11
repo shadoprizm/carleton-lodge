@@ -61,8 +61,10 @@ export const AdminLibraryPage = () => {
 
   const deleteDocument = async (doc: DocumentWithCategory) => {
     if (!confirm(`Delete "${doc.title}"?`)) return;
-    const bucket = doc.storage_bucket || DOCUMENTS_BUCKET;
-    await supabase.storage.from(bucket).remove([doc.file_url]);
+    if (!doc.source_mailroom_import_id) {
+      const bucket = doc.storage_bucket || DOCUMENTS_BUCKET;
+      await supabase.storage.from(bucket).remove([doc.file_url]);
+    }
     await supabase.from('documents').delete().eq('id', doc.id);
     fetchData();
   };
@@ -325,6 +327,10 @@ const DocumentForm = ({
     description: editingDoc?.description ?? '',
     category_id: editingDoc?.category_id ?? '',
     tags: editingDoc?.tags?.join(', ') ?? '',
+    source_issuer: editingDoc?.source_issuer ?? '',
+    source_url: editingDoc?.source_url ?? '',
+    rights_reviewed: editingDoc?.rights_reviewed ?? false,
+    include_in_lodge_guide: editingDoc?.include_in_lodge_guide ?? false,
   });
 
   const handleFileSelect = (file: File) => {
@@ -356,7 +362,7 @@ const DocumentForm = ({
           .upload(path, selectedFile);
         if (uploadError) throw uploadError;
 
-        if (editingDoc?.file_url) {
+        if (editingDoc?.file_url && !editingDoc.source_mailroom_import_id) {
           const oldBucket = editingDoc.storage_bucket || DOCUMENTS_BUCKET;
           await supabase.storage.from(oldBucket).remove([editingDoc.file_url]);
         }
@@ -382,6 +388,10 @@ const DocumentForm = ({
         file_type: fileType,
         storage_bucket: selectedFile ? DOCUMENTS_BUCKET : editingDoc?.storage_bucket ?? DOCUMENTS_BUCKET,
         tags,
+        source_issuer: formData.source_issuer || null,
+        source_url: formData.source_url || null,
+        rights_reviewed: formData.rights_reviewed,
+        include_in_lodge_guide: formData.rights_reviewed && formData.include_in_lodge_guide,
         uploaded_by: userId,
       };
 
@@ -509,6 +519,19 @@ const DocumentForm = ({
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Source or issuing organization</label>
+            <input type="text" value={formData.source_issuer} onChange={(e) => setFormData({ ...formData, source_issuer: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Source URL</label>
+            <input type="url" value={formData.source_url} onChange={(e) => setFormData({ ...formData, source_url: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={formData.rights_reviewed} onChange={(e) => setFormData({ ...formData, rights_reviewed: e.target.checked, include_in_lodge_guide: e.target.checked ? formData.include_in_lodge_guide : false })} /> Sharing rights reviewed</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={formData.include_in_lodge_guide} disabled={!formData.rights_reviewed} onChange={(e) => setFormData({ ...formData, include_in_lodge_guide: e.target.checked })} /> Include in Lodge Guide</label>
         </div>
 
         {error && (

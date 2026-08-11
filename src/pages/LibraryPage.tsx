@@ -321,6 +321,7 @@ const DocumentRow = ({
           {doc.description && (
             <p className="text-sm text-slate-500 mt-0.5 line-clamp-1">{doc.description}</p>
           )}
+          {doc.source_issuer && <p className="mt-1 text-xs font-medium text-slate-500">Source: {doc.source_url ? <a href={doc.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">{doc.source_issuer}</a> : doc.source_issuer}</p>}
           <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
             <span>{new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
             {doc.file_size && <span>{formatFileSize(doc.file_size)}</span>}

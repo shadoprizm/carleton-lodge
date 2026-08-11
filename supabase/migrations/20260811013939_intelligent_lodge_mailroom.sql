@@ -112,10 +112,15 @@ CREATE INDEX IF NOT EXISTS documents_source_mailroom_import_idx
 ALTER TABLE public.district_events
   ADD COLUMN IF NOT EXISTS source_mailroom_import_id uuid
     REFERENCES public.mailroom_imports(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS source_issuer text;
+  ADD COLUMN IF NOT EXISTS source_issuer text,
+  ADD COLUMN IF NOT EXISTS include_in_lodge_guide boolean NOT NULL DEFAULT true;
 CREATE INDEX IF NOT EXISTS district_events_source_mailroom_import_idx
   ON public.district_events(source_mailroom_import_id)
   WHERE source_mailroom_import_id IS NOT NULL;
+
+ALTER TABLE public.district_summons
+  ADD COLUMN IF NOT EXISTS source_issuer text,
+  ADD COLUMN IF NOT EXISTS include_in_lodge_guide boolean NOT NULL DEFAULT true;
 
 INSERT INTO public.document_categories (name, description, display_order)
 SELECT 'Masonic Education', 'Reviewed educational material with recorded source and sharing rights',
@@ -382,6 +387,88 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION carletonlodge_private.sync_district_summons_knowledge()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE lodge_name text; source_district text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.lodge_knowledge
+    WHERE source_type = 'district_summons' AND source_id = OLD.id;
+    RETURN OLD;
+  END IF;
+  IF NEW.include_in_lodge_guide IS NOT TRUE THEN
+    DELETE FROM public.lodge_knowledge
+    WHERE source_type = 'district_summons' AND source_id = NEW.id;
+    RETURN NEW;
+  END IF;
+  SELECT name, district_name INTO lodge_name, source_district
+  FROM public.district_lodges WHERE id = NEW.lodge_id;
+  INSERT INTO public.lodge_knowledge (
+    source_type, source_id, title, body, keywords, source_url, visibility,
+    source_updated_at
+  ) VALUES (
+    'district_summons', NEW.id, NEW.title,
+    carletonlodge_private.knowledge_plain_text(concat_ws(' ', lodge_name,
+      source_district, NEW.issue_label, NEW.issue_date::text, NEW.content,
+      NEW.source_issuer)),
+    concat_ws(' ', source_district, 'visiting lodge summons notice agenda',
+      lodge_name, NEW.source_issuer),
+    '/district#summons-' || NEW.id, 'members', NEW.updated_at
+  )
+  ON CONFLICT (source_type, source_id) DO UPDATE SET
+    title = EXCLUDED.title, body = EXCLUDED.body, keywords = EXCLUDED.keywords,
+    source_url = EXCLUDED.source_url, visibility = EXCLUDED.visibility,
+    source_updated_at = EXCLUDED.source_updated_at, updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION carletonlodge_private.sync_district_event_knowledge()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE lodge_name text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.lodge_knowledge
+    WHERE source_type = 'district_event' AND source_id = OLD.id;
+    RETURN OLD;
+  END IF;
+  IF NEW.include_in_lodge_guide IS NOT TRUE THEN
+    DELETE FROM public.lodge_knowledge
+    WHERE source_type = 'district_event' AND source_id = NEW.id;
+    RETURN NEW;
+  END IF;
+  IF NEW.lodge_id IS NOT NULL THEN
+    SELECT name INTO lodge_name FROM public.district_lodges WHERE id = NEW.lodge_id;
+  END IF;
+  INSERT INTO public.lodge_knowledge (
+    source_type, source_id, title, body, keywords, source_url, visibility,
+    valid_until, source_updated_at
+  ) VALUES (
+    'district_event', NEW.id, NEW.title,
+    carletonlodge_private.knowledge_plain_text(concat_ws(' ',
+      NEW.district_name, lodge_name, NEW.event_date::text, NEW.event_time::text,
+      NEW.event_end_time::text, NEW.location, NEW.location_address, NEW.event_kind,
+      NEW.degree, 'degree', NEW.contact_name, NEW.contact_details, NEW.description,
+      NEW.source_checked_at::text, NEW.source_issuer
+    )),
+    concat_ws(' ', NEW.district_name, 'visiting lodge event meeting degree',
+      lodge_name, NEW.degree, NEW.event_kind, NEW.source_issuer),
+    coalesce(NEW.source_url, '/district#event-' || NEW.id), 'members',
+    ((NEW.event_date + 1)::timestamp AT TIME ZONE 'America/Toronto'), NEW.updated_at
+  )
+  ON CONFLICT (source_type, source_id) DO UPDATE SET
+    title = EXCLUDED.title, body = EXCLUDED.body, keywords = EXCLUDED.keywords,
+    source_url = EXCLUDED.source_url, visibility = EXCLUDED.visibility,
+    valid_until = EXCLUDED.valid_until, source_updated_at = EXCLUDED.source_updated_at,
+    updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 -- A prepared draft notifies full and delegated Communications administrators.
 CREATE OR REPLACE FUNCTION carletonlodge_private.enqueue_mailroom_review_notification()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
@@ -437,6 +524,7 @@ DECLARE
   event_payload jsonb;
   announcement_payload jsonb;
   library_payload jsonb;
+  library_source_file jsonb;
   source_files jsonb := coalesce(reviewed_payload->'source_files', '[]'::jsonb);
   source_file jsonb;
   source_path text;
@@ -481,6 +569,23 @@ BEGIN
   IF import_row.sender_verified IS NOT TRUE THEN
     RAISE EXCEPTION 'The sender and message authentication must be verified';
   END IF;
+  IF 'sensitive_hold' = ANY(import_row.classification_tags)
+    AND NOT import_row.classification_tags && ARRAY[
+      'carleton_summons', 'district_summons', 'carleton_event',
+      'district_event', 'memorial_notice', 'announcement', 'library_item'
+    ]::text[] THEN
+    RAISE EXCEPTION 'Sensitive correspondence cannot be published';
+  END IF;
+  IF import_row.source_scope = 'outside_scope' AND (
+    coalesce(reviewed_payload->'summons'->>'destination', '') = 'district'
+    OR EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(coalesce(reviewed_payload->'events', '[]'::jsonb)) AS proposed_event
+      WHERE proposed_event->>'destination' = 'district'
+    )
+  ) THEN
+    RAISE EXCEPTION 'Material outside Ottawa Districts 1 and 2 must remain on hold';
+  END IF;
 
   source_file := CASE WHEN jsonb_array_length(source_files) > 0 THEN source_files->0
     ELSE import_row.extracted_payload->'source_file' END;
@@ -509,7 +614,9 @@ BEGIN
           left(btrim(summons_payload->>'title'), 240),
           left(btrim(summons_payload->>'month'), 120),
           left(btrim(summons_payload->>'content'), 1000000),
-          CASE WHEN source_path LIKE 'mailroom/' || import_row.id || '/%' THEN source_path END,
+          CASE WHEN source_path LIKE 'mailroom/' || import_row.id || '/%'
+            AND (source_file->>'content_type' = 'application/pdf'
+              OR lower(source_name) LIKE '%.pdf') THEN source_path END,
           current_user_id, import_row.id,
           coalesce((summons_payload->>'notify_members')::boolean, true),
           coalesce((summons_payload->>'include_in_lodge_guide')::boolean, true),
@@ -550,14 +657,19 @@ BEGIN
       IF new_district_summons_id IS NULL THEN
         INSERT INTO public.district_summons (
           lodge_id, title, issue_label, issue_date, content, pdf_url,
-          source_mailroom_import_id, published_by
+          source_mailroom_import_id, published_by, source_issuer,
+          include_in_lodge_guide
         ) VALUES (
           district_lodge_id, left(btrim(summons_payload->>'title'), 240),
           left(btrim(summons_payload->>'month'), 120),
           nullif(summons_payload->>'issue_date', '')::date,
           left(btrim(summons_payload->>'content'), 1000000),
-          CASE WHEN source_path LIKE 'mailroom/' || import_row.id || '/%' THEN source_path END,
-          import_row.id, current_user_id
+          CASE WHEN source_path LIKE 'mailroom/' || import_row.id || '/%'
+            AND (source_file->>'content_type' = 'application/pdf'
+              OR lower(source_name) LIKE '%.pdf') THEN source_path END,
+          import_row.id, current_user_id,
+          nullif(left(btrim(coalesce(reviewed_payload->>'source_issuer', import_row.source_issuer, '')), 240), ''),
+          coalesce((summons_payload->>'include_in_lodge_guide')::boolean, true)
         ) RETURNING id INTO new_district_summons_id;
       END IF;
     ELSE RAISE EXCEPTION 'Choose a valid summons destination';
@@ -581,7 +693,8 @@ BEGIN
     END IF;
     destination := coalesce(event_payload->>'destination', reviewed_payload->>'publication_target');
     IF destination = 'carleton' THEN
-      event_visibility := coalesce(event_payload->>'visibility', 'members');
+      event_visibility := CASE WHEN coalesce((event_payload->>'is_memorial_service')::boolean, false)
+        THEN 'members' ELSE coalesce(event_payload->>'visibility', 'members') END;
       IF event_visibility NOT IN ('public', 'members', 'admin') THEN RAISE EXCEPTION 'Invalid event visibility'; END IF;
       SELECT id INTO new_event_id FROM public.events
       WHERE event_date = (event_payload->>'event_date')::date
@@ -606,7 +719,8 @@ BEGIN
           nullif(left(btrim(coalesce(event_payload->>'poc_contact', '')), 320), ''),
           event_visibility, 'scheduled', current_user_id, import_row.id,
           coalesce((event_payload->>'notify_members')::boolean, true),
-          coalesce((event_payload->>'include_in_lodge_guide')::boolean, true),
+          CASE WHEN coalesce((event_payload->>'is_memorial_service')::boolean, false)
+            THEN false ELSE coalesce((event_payload->>'include_in_lodge_guide')::boolean, true) END,
           nullif(left(btrim(coalesce(event_payload->>'source_issuer', reviewed_payload->>'source_issuer', import_row.source_issuer, '')), 240), '')
         ) RETURNING id INTO new_event_id;
       END IF;
@@ -639,7 +753,8 @@ BEGIN
         INSERT INTO public.district_events (
           lodge_id, summons_id, district_name, title, description, event_date,
           event_time, event_end_time, location, location_address, event_kind,
-          degree, contact_name, contact_details, source_mailroom_import_id, source_issuer
+          degree, contact_name, contact_details, source_mailroom_import_id,
+          source_issuer, include_in_lodge_guide
         ) VALUES (
           district_lodge_id, new_district_summons_id, district_name_value,
           left(btrim(event_payload->>'title'), 240),
@@ -653,7 +768,9 @@ BEGIN
           nullif(left(btrim(coalesce(event_payload->>'poc_name', '')), 240), ''),
           nullif(left(btrim(coalesce(event_payload->>'poc_contact', '')), 320), ''),
           import_row.id,
-          nullif(left(btrim(coalesce(event_payload->>'source_issuer', reviewed_payload->>'source_issuer', import_row.source_issuer, '')), 240), '')
+          nullif(left(btrim(coalesce(event_payload->>'source_issuer', reviewed_payload->>'source_issuer', import_row.source_issuer, '')), 240), ''),
+          CASE WHEN coalesce((event_payload->>'is_memorial_service')::boolean, false)
+            THEN false ELSE coalesce((event_payload->>'include_in_lodge_guide')::boolean, true) END
         ) RETURNING id INTO new_event_id;
       END IF;
       district_event_ids := array_append(district_event_ids, new_event_id);
@@ -717,6 +834,13 @@ BEGIN
     IF source_path NOT LIKE 'mailroom/' || import_row.id || '/%' THEN
       RAISE EXCEPTION 'Every Library item must retain an approved Mailroom source file';
     END IF;
+    SELECT value INTO library_source_file
+    FROM jsonb_array_elements(source_files)
+    WHERE value->>'storage_path' = source_path
+    LIMIT 1;
+    IF library_source_file IS NULL THEN
+      library_source_file := source_file;
+    END IF;
     rights_value := coalesce((library_payload->>'rights_reviewed')::boolean, false);
     INSERT INTO public.documents (
       category_id, title, description, file_url, file_name, file_size, file_type,
@@ -725,9 +849,11 @@ BEGIN
     ) VALUES (
       education_category_id, left(btrim(library_payload->>'title'), 240),
       nullif(left(btrim(coalesce(library_payload->>'summary', '')), 10000), ''),
-      source_path, left(coalesce(nullif(library_payload->>'file_name', ''), source_name), 255),
-      CASE WHEN source_file->>'file_size' ~ '^[0-9]+$' THEN (source_file->>'file_size')::bigint END,
-      coalesce(nullif(source_file->>'content_type', ''), 'application/octet-stream'),
+      source_path, left(coalesce(nullif(library_payload->>'file_name', ''),
+        library_source_file->>'file_name', source_name), 255),
+      CASE WHEN library_source_file->>'file_size' ~ '^[0-9]+$'
+        THEN (library_source_file->>'file_size')::bigint END,
+      coalesce(nullif(library_source_file->>'content_type', ''), 'application/octet-stream'),
       ARRAY(SELECT left(value, 80) FROM jsonb_array_elements_text(coalesce(library_payload->'tags', '[]'::jsonb)) AS value LIMIT 20),
       'summons-uploads', current_user_id, import_row.id,
       nullif(left(btrim(coalesce(library_payload->>'source', reviewed_payload->>'source_issuer', import_row.source_issuer, '')), 240), ''),
