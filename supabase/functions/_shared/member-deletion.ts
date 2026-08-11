@@ -1,24 +1,8 @@
-import type { ProviderMailboxStatus } from "./lodge-email-provider.ts";
-
-const REMOVABLE_ACCOUNT_STATUSES = new Set([
-  "NOT_PROVISIONED",
-  "PROVISIONING",
-  "INVITATION_PENDING",
-  "TERMS_PENDING",
-  "PASSWORD_SETUP_PENDING",
-  "ERROR",
-]);
-
 export type MemberDeletionPreflight = {
   actorIsTarget: boolean;
   targetIsAdmin: boolean;
   linkedElsewhere: boolean;
-  agreementCount: number;
   assignmentCount: number;
-  protectedAuthHistoryCount: number;
-  mailboxStatus: string;
-  accountStatus: string | null;
-  providerMailbox?: ProviderMailboxStatus | null;
 };
 
 export type DeletionProfileResolution = {
@@ -48,6 +32,17 @@ export function isAuthUserMissingError(error: unknown): boolean {
   return candidate?.status === 404 || candidate?.code === "user_not_found";
 }
 
+export function mailboxDeletionConfirmationError(
+  mailboxAddress: string | null,
+  deleteMailboxContents: boolean,
+): string | null {
+  if (mailboxAddress && !deleteMailboxContents) {
+    return "Confirm that the Lodge mailbox and all email in it may be permanently deleted.";
+  }
+
+  return null;
+}
+
 export function memberDeletionBlocker(
   preflight: MemberDeletionPreflight,
 ): string | null {
@@ -60,45 +55,8 @@ export function memberDeletionBlocker(
   if (preflight.linkedElsewhere) {
     return "This website account is linked to another roster entry and cannot be deleted here.";
   }
-  if (preflight.agreementCount > 0) {
-    return "This member has accepted a Lodge email agreement and must be retained for the audit record.";
-  }
   if (preflight.assignmentCount > 0) {
-    return "This member has an officer-mailbox assignment and must be retained for the audit record.";
-  }
-  if (preflight.protectedAuthHistoryCount > 0) {
-    return "This account is part of a protected Lodge email audit record and cannot be hard-deleted.";
-  }
-  if (["active", "suspended"].includes(preflight.mailboxStatus)) {
-    return "Active or suspended Lodge mailboxes cannot be hard-deleted from the roster.";
-  }
-  if (
-    preflight.accountStatus &&
-    !REMOVABLE_ACCOUNT_STATUSES.has(preflight.accountStatus)
-  ) {
-    return "This governed Lodge mailbox must be archived before the member can be deleted.";
-  }
-  if (
-    preflight.providerMailbox &&
-    (preflight.providerMailbox.usageMb === null ||
-      preflight.providerMailbox.sentToday === null)
-  ) {
-    return "This Lodge mailbox's activity could not be verified, so it was not deleted.";
-  }
-  if (
-    preflight.providerMailbox &&
-    ((preflight.providerMailbox.usageMb ?? 0) > 0 ||
-      (preflight.providerMailbox.sentToday ?? 0) > 0)
-  ) {
-    const usageMb = preflight.providerMailbox.usageMb ?? 0;
-    const sentToday = preflight.providerMailbox.sentToday ?? 0;
-    const activity = [
-      usageMb > 0 ? `${Number(usageMb.toFixed(3))} MB stored` : null,
-      sentToday > 0
-        ? `${sentToday} message${sentToday === 1 ? "" : "s"} sent today`
-        : null,
-    ].filter(Boolean).join("; ");
-    return `This Lodge mailbox contains mail activity (${activity}) and cannot be hard-deleted.`;
+    return "Complete or cancel this member's active officer-mailbox assignment before deleting the member.";
   }
 
   return null;

@@ -78,6 +78,7 @@ export const MembersManager = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [mailboxDeletionConfirmed, setMailboxDeletionConfirmed] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [formSaving, setFormSaving] = useState(false);
@@ -191,6 +192,7 @@ export const MembersManager = () => {
   const openDeleteModal = (member: LodgeMemberWithPosition) => {
     if (deletingMemberId) return;
     setDeleteModal({ member });
+    setMailboxDeletionConfirmed(false);
     setDeleteError(null);
     setDeleteSuccess(null);
   };
@@ -198,6 +200,7 @@ export const MembersManager = () => {
   const closeDeleteModal = () => {
     if (deletingMemberId) return;
     setDeleteModal(null);
+    setMailboxDeletionConfirmed(false);
     setDeleteError(null);
   };
 
@@ -212,7 +215,11 @@ export const MembersManager = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('delete-member', {
-        body: { memberId: member.id, confirmed: true },
+        body: {
+          memberId: member.id,
+          confirmed: true,
+          deleteMailboxContents: member.lodge_email ? mailboxDeletionConfirmed : false,
+        },
       });
 
       if (error) {
@@ -679,21 +686,29 @@ export const MembersManager = () => {
                 </div>
               )}
 
+              {deleteModal.member.lodge_email ? (
+                <label className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                  <input
+                    type="checkbox"
+                    checked={mailboxDeletionConfirmed}
+                    onChange={(event) => setMailboxDeletionConfirmed(event.target.checked)}
+                    disabled={deletingMemberId !== null}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-red-300 text-red-700 focus:ring-red-700"
+                  />
+                  <span>
+                    I understand that <strong>{deleteModal.member.lodge_email}</strong> and all email stored in that mailbox will be permanently deleted.
+                  </span>
+                </label>
+              ) : null}
+
               <p className="text-sm font-medium text-red-700">
-                This cannot be undone. Mailboxes with activity or protected Lodge records will be refused without deleting anything.
+                This cannot be undone. Agreement and completed officer-history records are retained as audit snapshots.
               </p>
 
               {deleteError ? (
                 <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                   <p className="font-semibold">Nothing was deleted</p>
                   <p className="mt-1 leading-5">{deleteError}</p>
-                  {deleteError.includes('mail activity') ? (
-                    <p className="mt-2 leading-5">
-                      Review and preserve that mailbox under{' '}
-                      <a className="font-semibold underline" href="/admin/email-accounts">Lodge Email</a>
-                      {' '}instead of hard-deleting it.
-                    </p>
-                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -711,7 +726,7 @@ export const MembersManager = () => {
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={deletingMemberId !== null}
+                disabled={deletingMemberId !== null || Boolean(deleteModal.member.lodge_email && !mailboxDeletionConfirmed)}
                 className="inline-flex min-w-44 items-center justify-center gap-2 rounded-md bg-red-700 px-5 py-2 font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deletingMemberId === deleteModal.member.id ? <Loader2 size={16} className="animate-spin" /> : null}

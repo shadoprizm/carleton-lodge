@@ -163,6 +163,8 @@ describe('MembersManager member deletion', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Permanently delete member?' });
     expect(dialog).toHaveTextContent('test@carpmasons.ca Lodge mailbox');
+    expect(screen.getByRole('checkbox', { name: /all email stored in that mailbox/i })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Permanently Delete' })).toBeDisabled();
     expect(functionInvokeMock).not.toHaveBeenCalled();
     expect(nativeConfirm).not.toHaveBeenCalled();
 
@@ -171,8 +173,8 @@ describe('MembersManager member deletion', () => {
     nativeConfirm.mockRestore();
   });
 
-  it('keeps a deletion blocker beside the member action', async () => {
-    const blocker = 'This Lodge mailbox contains mail activity (0.012 MB stored) and cannot be hard-deleted.';
+  it('requires mailbox-content consent and keeps a deletion blocker beside the member action', async () => {
+    const blocker = "Complete or cancel this member's active officer-mailbox assignment before deleting the member.";
     functionInvokeMock.mockResolvedValue({
       data: null,
       error: {
@@ -185,15 +187,19 @@ describe('MembersManager member deletion', () => {
     await renderDeletionTestMember();
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Test' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /all email stored in that mailbox/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(blocker);
     });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Lodge Email' })).toHaveAttribute('href', '/admin/email-accounts');
     expect(functionInvokeMock).toHaveBeenCalledWith('delete-member', {
-      body: { memberId: deletionTestMember.id, confirmed: true },
+      body: {
+        memberId: deletionTestMember.id,
+        confirmed: true,
+        deleteMailboxContents: true,
+      },
     });
   });
 });
