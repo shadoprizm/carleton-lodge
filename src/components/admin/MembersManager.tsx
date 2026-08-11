@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
-import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Mail } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Loader2, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
 
@@ -31,6 +31,29 @@ const mailboxStatusLabel = (status: LodgeMemberWithPosition['mailbox_status']) =
   suspended: 'Suspended',
 }[status]);
 
+const functionErrorMessage = async (
+  error: unknown,
+  data: unknown,
+  fallback: string,
+) => {
+  const responseData = data as { error?: unknown } | null;
+  let message = typeof responseData?.error === 'string'
+    ? responseData.error
+    : error instanceof Error
+      ? error.message
+      : fallback;
+  const errorResponse = (error as { context?: unknown } | null)?.context;
+
+  if (errorResponse instanceof Response) {
+    const errorBody = await errorResponse.clone().json().catch(() => null) as { error?: unknown } | null;
+    if (typeof errorBody?.error === 'string') {
+      message = errorBody.error;
+    }
+  }
+
+  return message;
+};
+
 export const MembersManager = () => {
   const { hasAdminPermission } = useAuth();
   const canWrite = hasAdminPermission('members', 'write');
@@ -49,6 +72,9 @@ export const MembersManager = () => {
   const [loginSaving, setLoginSaving] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -138,13 +164,44 @@ export const MembersManager = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (memberId: string) => {
-    if (confirm('Are you sure you want to remove this member from the roster?')) {
-      await supabase
-        .from('lodge_members')
-        .delete()
-        .eq('id', memberId);
-      fetchData();
+  const handleDelete = async (member: LodgeMemberWithPosition) => {
+    if (deletingMemberId) return;
+
+    const linkedItems = [
+      member.linked_profile_id ? 'their website login' : '',
+      member.lodge_email ? `the ${member.lodge_email} Lodge mailbox` : '',
+    ].filter(Boolean);
+    const linkedWarning = linkedItems.length > 0
+      ? ` This will also permanently remove ${linkedItems.join(' and ')}.`
+      : '';
+    if (!confirm(`Permanently delete ${member.full_name} from the Lodge roster?${linkedWarning} This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingMemberId(member.id);
+    setDeleteError(null);
+    setDeleteSuccess(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-member', {
+        body: { memberId: member.id, confirmed: true },
+      });
+
+      if (error) {
+        setDeleteError(await functionErrorMessage(error, data, 'The member could not be deleted.'));
+        return;
+      }
+      if (data?.deleted !== true) {
+        setDeleteError('The member could not be deleted. No success was reported.');
+        return;
+      }
+
+      setDeleteSuccess(`${member.full_name} and the eligible linked account records were deleted.`);
+      await fetchData();
+    } catch (error) {
+      setDeleteError(await functionErrorMessage(error, null, 'The member could not be deleted.'));
+    } finally {
+      setDeletingMemberId(null);
     }
   };
 
@@ -211,17 +268,7 @@ export const MembersManager = () => {
     setLoginSaving(false);
 
     if (error) {
-      let message = typeof data?.error === 'string' ? data.error : error.message;
-      const errorResponse = (error as { context?: unknown }).context;
-
-      if (errorResponse instanceof Response) {
-        const errorBody = await errorResponse.clone().json().catch(() => null) as { error?: unknown } | null;
-        if (typeof errorBody?.error === 'string') {
-          message = errorBody.error;
-        }
-      }
-
-      setLoginError(message);
+      setLoginError(await functionErrorMessage(error, data, 'The account email could not be sent.'));
       return;
     }
 
@@ -277,6 +324,21 @@ export const MembersManager = () => {
           </span>
         )}
       </div>
+
+      {deleteError || deleteSuccess ? (
+        <div aria-live="polite" className="space-y-2">
+          {deleteError ? (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {deleteError}
+            </p>
+          ) : null}
+          {deleteSuccess ? (
+            <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {deleteSuccess}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {canWrite && showForm && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
@@ -646,11 +708,15 @@ export const MembersManager = () => {
                         <KeyRound size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(member.id)}
-                        className="text-red-500 hover:text-red-700"
+                        onClick={() => handleDelete(member)}
+                        disabled={deletingMemberId !== null}
+                        className="text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                         title="Delete"
+                        aria-label={`Delete ${member.full_name}`}
                       >
-                        <Trash2 size={16} />
+                        {deletingMemberId === member.id
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <Trash2 size={16} />}
                       </button>
                     </div>
                   </td>}

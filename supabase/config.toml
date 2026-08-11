@@ -13,3 +13,8 @@ entrypoint = "./functions/refresh-trusted-sources/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/member-activity/index.ts"
+
+[functions.delete-member]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/delete-member/index.ts"
