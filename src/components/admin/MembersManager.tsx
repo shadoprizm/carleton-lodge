@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
-import { X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Loader2, Mail } from 'lucide-react';
+import { ChevronDown, X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Loader2, Mail, Search, UserRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
 
@@ -35,6 +35,25 @@ const mailboxStatusLabel = (status: LodgeMemberWithPosition['mailbox_status']) =
   suspended: 'Suspended',
 }[status]);
 
+const mailboxStatusClass = (status: LodgeMemberWithPosition['mailbox_status']) =>
+  status === 'active'
+    ? 'bg-green-100 text-green-800'
+    : status === 'error' || status === 'suspended'
+      ? 'bg-red-100 text-red-800'
+      : 'bg-amber-100 text-amber-800';
+
+const displayValue = (value: string | null | undefined, fallback = 'Not recorded') =>
+  value || fallback;
+
+const formatMemberDate = (date: string | null) =>
+  date
+    ? new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Not recorded';
+
 const functionErrorMessage = async (
   error: unknown,
   data: unknown,
@@ -66,6 +85,8 @@ export const MembersManager = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'officers' | 'members'>('officers');
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState<LodgeMemberWithPosition | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
@@ -83,6 +104,7 @@ export const MembersManager = () => {
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -98,6 +120,12 @@ export const MembersManager = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (showForm) {
+      formRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }
+  }, [editingMember?.id, showForm]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -338,6 +366,18 @@ export const MembersManager = () => {
   const officers = members.filter(isOfficer);
   const regularMembers = members.filter(m => !isOfficer(m));
   const displayedMembers = activeTab === 'officers' ? officers : regularMembers;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredMembers = normalizedSearch
+    ? displayedMembers.filter((member) =>
+      [
+        member.full_name,
+        member.email,
+        member.lodge_email,
+        member.grand_lodge_membership_number,
+        member.lodge_positions?.name,
+      ].some((value) => value?.toLowerCase().includes(normalizedSearch))
+    )
+    : displayedMembers;
 
   return (
     <div className="space-y-6">
@@ -370,7 +410,7 @@ export const MembersManager = () => {
       ) : null}
 
       {canWrite && showForm && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <div ref={formRef} id="member-form" className="scroll-mt-24 bg-gray-50 border border-gray-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-lg font-serif text-gray-900">
               {editingMember ? 'Edit Member' : 'New Member'}
@@ -739,7 +779,10 @@ export const MembersManager = () => {
 
       <div className="flex border-b border-gray-200">
         <button
-          onClick={() => setActiveTab('officers')}
+          onClick={() => {
+            setActiveTab('officers');
+            setExpandedMemberId(null);
+          }}
           className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'officers'
               ? 'border-blue-900 text-blue-900'
@@ -752,7 +795,10 @@ export const MembersManager = () => {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab('members')}
+          onClick={() => {
+            setActiveTab('members');
+            setExpandedMemberId(null);
+          }}
           className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'members'
               ? 'border-blue-900 text-blue-900'
@@ -766,6 +812,29 @@ export const MembersManager = () => {
         </button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <label className="relative block">
+          <span className="sr-only">Search roster</span>
+          <Search
+            size={16}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search by name, email, position, or Grand Lodge number"
+            className="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-900 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+        {!loading ? (
+          <p className="text-xs text-gray-500" aria-live="polite">
+            Showing {filteredMembers.length} of {displayedMembers.length}
+          </p>
+        ) : null}
+      </div>
+
       {loading ? (
         <div className="text-center py-8 text-gray-600">Loading roster...</div>
       ) : displayedMembers.length === 0 ? (
@@ -774,113 +843,188 @@ export const MembersManager = () => {
             ? 'No officers found. Add a member with a position assigned.'
             : 'No regular members found. Add a member as a regular member to see them here.'}
         </div>
+      ) : filteredMembers.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500">
+          No roster entries match your search.
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Name</th>
-                {activeTab === 'officers' && (
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">Position</th>
-                )}
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Personal Email</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Grand Lodge No.</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Lodge Email</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Account</th>
-                  {canWrite && <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {displayedMembers.map(member => (
-                <tr key={member.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">{member.full_name}</td>
-                  {activeTab === 'officers' && (
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {member.lodge_positions?.name || <span className="text-gray-400 italic">None</span>}
-                    </td>
-                  )}
-                  <td className="py-3 px-4 text-sm text-gray-600">
-                    {member.email || <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="py-3 px-4 text-sm font-medium text-gray-700">
-                    {member.grand_lodge_membership_number || <span className="font-normal text-gray-400">Not recorded</span>}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600">
-                    <span className="block">{member.lodge_email || <span className="text-gray-400">Not created</span>}</span>
-                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      member.mailbox_status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : member.mailbox_status === 'error' || member.mailbox_status === 'suspended'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {mailboxStatusLabel(member.mailbox_status)}
+        <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+          {filteredMembers.map((member) => {
+            const expanded = expandedMemberId === member.id;
+            const buttonId = `roster-member-button-${member.id}`;
+            const panelId = `roster-member-panel-${member.id}`;
+            const roleLabel = isOfficer(member)
+              ? member.lodge_positions?.name || 'Officer'
+              : 'Regular member';
+
+            return (
+              <article key={member.id}>
+                <button
+                  id={buttonId}
+                  type="button"
+                  onClick={() => setExpandedMemberId((current) => current === member.id ? null : member.id)}
+                  aria-expanded={expanded}
+                  aria-controls={panelId}
+                  aria-label={`Manage roster entry for ${member.full_name}`}
+                  className="grid w-full gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-900 sm:grid-cols-[minmax(0,1.3fr)_auto_auto_auto] sm:items-center sm:gap-5"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-900">
+                      <UserRound size={17} aria-hidden="true" />
                     </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    {member.linked_profile_id ? (
-                      <div className="flex items-center space-x-1.5">
-                        <CheckCircle size={14} className="text-green-600 shrink-0" />
-                        <span className="text-xs text-green-700 truncate max-w-[140px]">
-                          {getProfileEmail(member.linked_profile_id)}
-                        </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-gray-900">{member.full_name}</span>
+                      <span className="mt-0.5 block truncate text-xs text-gray-500">
+                        {member.email || 'No personal email recorded'}
+                      </span>
+                    </span>
+                  </span>
+
+                  <span className="w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                    {roleLabel}
+                  </span>
+
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${mailboxStatusClass(member.mailbox_status)}`}>
+                      Mailbox: {mailboxStatusLabel(member.mailbox_status)}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${member.linked_profile_id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {member.linked_profile_id ? <CheckCircle size={12} aria-hidden="true" /> : null}
+                      {member.linked_profile_id ? 'Account linked' : 'No account'}
+                    </span>
+                  </span>
+
+                  <ChevronDown
+                    size={18}
+                    aria-hidden="true"
+                    className={`justify-self-end text-gray-400 transition-transform ${expanded ? 'rotate-180 text-gray-700' : ''}`}
+                  />
+                </button>
+
+                {expanded ? (
+                  <div
+                    id={panelId}
+                    role="region"
+                    aria-labelledby={buttonId}
+                    className="border-t border-gray-200 bg-gray-50 px-4 py-5 sm:px-6"
+                  >
+                    <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-lg border border-gray-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Personal contact</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-gray-700">
+                          <p><span className="font-medium text-gray-900">Email:</span> {displayValue(member.email)}</p>
+                          <p><span className="font-medium text-gray-900">Phone:</span> {displayValue(member.phone)}</p>
+                          <p className="whitespace-pre-line"><span className="font-medium text-gray-900">Address:</span> {displayValue(member.address)}</p>
+                        </dd>
                       </div>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Not linked</span>
-                    )}
-                  </td>
-                  {canWrite && <td className="py-3 px-4">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => handleEdit(member)}
-                        className="text-blue-900 hover:text-blue-700"
-                        title="Edit"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      {member.linked_profile_id ? (
+
+                      <div className="rounded-lg border border-gray-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Membership</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-gray-700">
+                          <p><span className="font-medium text-gray-900">Roster type:</span> {roleLabel}</p>
+                          <p><span className="font-medium text-gray-900">Grand Lodge No.:</span> {displayValue(member.grand_lodge_membership_number)}</p>
+                          <p><span className="font-medium text-gray-900">Joined:</span> {formatMemberDate(member.join_date)}</p>
+                          <p><span className="font-medium text-gray-900">Directory:</span> {member.visible_to_members ? 'Visible to members' : 'Hidden'}</p>
+                        </dd>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Website account</dt>
+                        <dd className="mt-3 text-sm text-gray-700">
+                          {member.linked_profile_id ? (
+                            <div className="flex items-start gap-2">
+                              <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" aria-hidden="true" />
+                              <span className="break-all">{getProfileEmail(member.linked_profile_id)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500">No website account linked</span>
+                          )}
+                        </dd>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Lodge mailbox</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-gray-700">
+                          <p className="break-all">{member.lodge_email || 'Not created'}</p>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${mailboxStatusClass(member.mailbox_status)}`}>
+                            {mailboxStatusLabel(member.mailbox_status)}
+                          </span>
+                        </dd>
+                      </div>
+
+                      {member.bio ? (
+                        <div className="rounded-lg border border-gray-200 bg-white p-4 sm:col-span-2 xl:col-span-4">
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Biography</dt>
+                          <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700">{member.bio}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+
+                    {canWrite ? (
+                      <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-200 pt-4">
                         <button
-                          onClick={() => handleUnlink(member.id)}
-                          className="text-amber-600 hover:text-amber-800"
-                          title="Unlink account"
+                          type="button"
+                          onClick={() => handleEdit(member)}
+                          className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-900 hover:bg-blue-50"
+                          title="Edit"
+                          aria-label={`Edit ${member.full_name}`}
                         >
-                          <Unlink size={16} />
+                          <Edit2 size={15} aria-hidden="true" />
+                          Edit member
                         </button>
-                      ) : (
+
+                        {member.linked_profile_id ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUnlink(member.id)}
+                            className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50"
+                            aria-label={`Unlink account for ${member.full_name}`}
+                          >
+                            <Unlink size={15} aria-hidden="true" />
+                            Unlink account
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openLinkModal(member)}
+                            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                            aria-label={`Link account for ${member.full_name}`}
+                          >
+                            <Link size={15} aria-hidden="true" />
+                            Link account
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => openLinkModal(member)}
-                          className="text-gray-500 hover:text-blue-900"
-                          title="Link to account"
+                          type="button"
+                          onClick={() => openLoginModal(member)}
+                          className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                          aria-label={`${member.linked_profile_id ? 'Send account access email to' : 'Set up account for'} ${member.full_name}`}
                         >
-                          <Link size={16} />
+                          <KeyRound size={15} aria-hidden="true" />
+                          {member.linked_profile_id ? 'Send account email' : 'Set up account'}
                         </button>
-                      )}
-                      <button
-                        onClick={() => openLoginModal(member)}
-                        className="text-slate-500 hover:text-blue-900"
-                        title={member.linked_profile_id ? 'Send account access email' : 'Create account and send welcome email'}
-                      >
-                        <KeyRound size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openDeleteModal(member)}
-                        disabled={deletingMemberId !== null}
-                        className="text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Delete"
-                        aria-label={`Delete ${member.full_name}`}
-                        aria-haspopup="dialog"
-                      >
-                        {deletingMemberId === member.id
-                          ? <Loader2 size={16} className="animate-spin" />
-                          : <Trash2 size={16} />}
-                      </button>
-                    </div>
-                  </td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+                        <button
+                          type="button"
+                          onClick={() => openDeleteModal(member)}
+                          disabled={deletingMemberId !== null}
+                          className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
+                          aria-label={`Delete ${member.full_name}`}
+                          aria-haspopup="dialog"
+                        >
+                          {deletingMemberId === member.id
+                            ? <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                            : <Trash2 size={15} aria-hidden="true" />}
+                          Delete member
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

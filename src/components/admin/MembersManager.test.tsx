@@ -65,6 +65,20 @@ const deletionTestMember: LodgeMemberWithPosition = {
   mailbox_status: 'pending_activation',
 };
 
+const secondManagedMember: LodgeMemberWithPosition = {
+  ...managedMember,
+  id: 'member-2',
+  full_name: 'Second Member',
+  email: 'second@example.com',
+  phone: null,
+  address: null,
+  grand_lodge_membership_number: 'GL-00466',
+  bio: 'Second biography',
+  linked_profile_id: null,
+  lodge_email: null,
+  mailbox_status: 'unprovisioned',
+};
+
 function orderedResult(data: unknown[]) {
   return {
     select: vi.fn(() => ({
@@ -102,6 +116,7 @@ describe('MembersManager Grand Lodge membership number', () => {
 
     render(<MembersManager />);
     fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage roster entry for Example Member' }));
 
     expect(await screen.findByText('GL-00465')).toBeInTheDocument();
     expect(screen.getByText('Read only')).toBeInTheDocument();
@@ -120,6 +135,7 @@ describe('MembersManager Grand Lodge membership number', () => {
 
     render(<MembersManager />);
     fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage roster entry for Example Member' }));
     fireEvent.click(await screen.findByTitle('Edit'));
 
     const numberInput = screen.getByLabelText(/Grand Lodge Membership Number/);
@@ -128,6 +144,36 @@ describe('MembersManager Grand Lodge membership number', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('already assigned to another roster record');
     expect(screen.getByLabelText(/Grand Lodge Membership Number/)).toHaveValue('GL-DUPLICATE');
+  });
+
+  it('keeps roster actions collapsed, opens one member at a time, and filters the list', async () => {
+    hasAdminPermissionMock.mockReturnValue(true);
+    rpcMock.mockResolvedValue({ data: [managedMember, secondManagedMember], error: null });
+
+    render(<MembersManager />);
+    fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
+
+    const firstMember = await screen.findByRole('button', { name: 'Manage roster entry for Example Member' });
+    const secondMember = screen.getByRole('button', { name: 'Manage roster entry for Second Member' });
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(firstMember).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Delete Example Member' })).not.toBeInTheDocument();
+
+    fireEvent.click(firstMember);
+    expect(firstMember).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Delete Example Member' })).toBeInTheDocument();
+
+    fireEvent.click(secondMember);
+    expect(firstMember).toHaveAttribute('aria-expanded', 'false');
+    expect(secondMember).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByText('Example biography')).not.toBeInTheDocument();
+    expect(screen.getByText('Second biography')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search roster'), { target: { value: 'GL-00465' } });
+    expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manage roster entry for Example Member' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage roster entry for Second Member' })).not.toBeInTheDocument();
   });
 });
 
@@ -152,6 +198,7 @@ describe('MembersManager member deletion', () => {
   const renderDeletionTestMember = async () => {
     render(<MembersManager />);
     fireEvent.click(await screen.findByRole('button', { name: /Regular Members/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage roster entry for Test' }));
   };
 
   it('opens an in-page confirmation before invoking deletion', async () => {
