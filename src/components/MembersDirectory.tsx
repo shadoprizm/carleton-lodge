@@ -22,6 +22,7 @@ const ORG_TIERS: Record<string, number> = {
   'Immed Past Master': 3,
   "Ass't Secretary": 3,
   'Piper': 3,
+  'Lodge Historian': 3,
 };
 
 function isRegularMemberPosition(positionName: string | null | undefined) {
