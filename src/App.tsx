@@ -9,6 +9,7 @@ import { ForcePasswordChangeModal } from './components/ForcePasswordChangeModal'
 import { MemberGate } from './components/MemberGate';
 import { LodgeGuidePilotGate } from './components/LodgeGuidePilotGate';
 import { PageMetadata } from './components/PageMetadata';
+import { ScrollToTop } from './components/ScrollToTop';
 import { MemberActivityHeartbeat } from './components/MemberActivityHeartbeat';
 import { LODGE_GUIDE_ENABLED } from './lib/lodgeGuide';
 
@@ -77,6 +78,7 @@ const AppShell = () => {
         onAuthClick={() => setIsAuthModalOpen(true)}
         onNotificationClick={() => setIsNotificationSettingsOpen(true)}
       />
+      <ScrollToTop />
       <PageMetadata />
       <MemberActivityHeartbeat />
       <main id="main-content" tabIndex={-1}>
