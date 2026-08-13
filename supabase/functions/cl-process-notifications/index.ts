@@ -378,7 +378,7 @@ const renderEmail = (
       paragraphs: [
         ...(isCorrectedInvitation
           ? [
-            "The account-setup link in the earlier message was incorrect. Please disregard that message and use the secure button below. We apologize for the error.",
+            "The account-setup link in the earlier message was incorrect. Please disregard that message and use the secure button below. I apologize for the error.",
           ]
           : []),
         "Your account for the Carleton Lodge members' website is ready, and a personal lodge email address has been reserved for you.",
@@ -406,6 +406,9 @@ const renderEmail = (
           : []),
       ],
       cta: { label: "Start my account setup", url: secureActionUrl },
+      closing: isCorrectedInvitation
+        ? "Fraternally,\nBro. Jeramy Ratelle\nWebmaster, Carleton Lodge No. 465"
+        : undefined,
       siteUrl,
     });
   }
