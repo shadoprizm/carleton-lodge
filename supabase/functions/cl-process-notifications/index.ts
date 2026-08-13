@@ -10,6 +10,10 @@ import {
   jsonResponse,
   rejectDisallowedOrigin,
 } from "../_shared/http-security.ts";
+import {
+  ACCOUNT_SETUP_REDIRECT_URL,
+  validateAccountSetupActionLink,
+} from "../_shared/auth-action-link.ts";
 
 type NotificationJob = {
   id: string;
@@ -28,6 +32,9 @@ const payloadStringArray = (payload: Record<string, unknown>, key: string) =>
   Array.isArray(payload[key])
     ? payload[key].filter((value): value is string => typeof value === "string")
     : [];
+
+const payloadBoolean = (payload: Record<string, unknown>, key: string) =>
+  payload[key] === true;
 
 const payloadPlainText = (payload: Record<string, unknown>, key: string) =>
   payloadString(payload, key)
@@ -342,6 +349,10 @@ const renderEmail = (
     const lodgeEmail = payloadString(job.payload, "lodge_email");
     const mailboxStatus = payloadString(job.payload, "mailbox_status");
     const mailboxAlreadyActive = mailboxStatus === "active";
+    const isCorrectedInvitation = payloadBoolean(
+      job.payload,
+      "incident_resend",
+    );
     const permissionSummary = payloadStringArray(job.payload, "permissions");
     const baseAccess = [
       "Lodge calendar and event submissions",
@@ -352,12 +363,24 @@ const renderEmail = (
     ].join("\n");
 
     return renderBrandedEmail({
-      subject: "Welcome to the Carleton Lodge members' website",
-      preheader:
-        "Your lodge website account and carpmasons.ca email are ready for setup.",
-      eyebrow: "Member welcome",
-      heading: `Welcome, ${memberName}`,
+      subject: isCorrectedInvitation
+        ? "Corrected Carleton Lodge account setup link"
+        : "Welcome to the Carleton Lodge members' website",
+      preheader: isCorrectedInvitation
+        ? "Please use this corrected, secure link to finish setting up your account."
+        : "Your lodge website account and carpmasons.ca email are ready for setup.",
+      eyebrow: isCorrectedInvitation
+        ? "Corrected setup link"
+        : "Member welcome",
+      heading: isCorrectedInvitation
+        ? `A corrected setup link for you, ${memberName}`
+        : `Welcome, ${memberName}`,
       paragraphs: [
+        ...(isCorrectedInvitation
+          ? [
+            "The account-setup link in the earlier message was incorrect. Please disregard that message and use the secure button below. We apologize for the error.",
+          ]
+          : []),
         "Your account for the Carleton Lodge members' website is ready, and a personal lodge email address has been reserved for you.",
         mailboxAlreadyActive
           ? "Use the secure button below to choose your website password. Your lodge mailbox is already active and will be available from your member profile after you sign in. For your protection, this link is temporary and can only be used once."
@@ -659,15 +682,16 @@ Deno.serve(async (req: Request) => {
             type: "recovery",
             email: job.recipient_email,
             options: {
-              redirectTo: `${siteUrl.replace(/\/$/, "")}/reset-password`,
+              redirectTo: ACCOUNT_SETUP_REDIRECT_URL,
             },
           });
 
         if (linkError) throw linkError;
-        secureActionUrl = linkData.properties?.action_link ?? "";
-        if (!secureActionUrl) {
+        const generatedActionLink = linkData.properties?.action_link ?? "";
+        if (!generatedActionLink) {
           throw new Error("Supabase Auth did not return an account setup link");
         }
+        secureActionUrl = validateAccountSetupActionLink(generatedActionLink);
       } else if (
         ["role_mailbox_invitation", "email_account_password_reset"].includes(
           job.notification_type,
