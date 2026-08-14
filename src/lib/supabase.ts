@@ -353,6 +353,9 @@ export type Summons = {
   month: string;
   content: string;
   pdf_url: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  file_type: string | null;
   published_at: string;
   created_by: string | null;
   notify_members: boolean;
@@ -752,6 +755,7 @@ export type DocumentCategory = {
 export type Document = {
   id: string;
   category_id: string | null;
+  summons_id: string | null;
   title: string;
   description: string | null;
   file_url: string;
