@@ -100,7 +100,7 @@ describe('MembersDirectory officer structure', () => {
 
   afterEach(() => cleanup());
 
-  it('separates elected, appointed, and other roles while reserving both Auditor seats', async () => {
+  it('separates ex-officio, elected, appointed, and other roles while reserving both Auditor seats', async () => {
     render(
       <MemoryRouter>
         <MembersDirectory />
@@ -109,10 +109,12 @@ describe('MembersDirectory officer structure', () => {
 
     const electedHeading = await screen.findByRole('heading', { name: 'Elected Officers' });
     const electedSection = electedHeading.closest('section');
+    const exOfficioSection = screen.getByRole('heading', { name: 'Ex Officio' }).closest('section');
     const appointedSection = screen.getByRole('heading', { name: 'Appointed Officers' }).closest('section');
     const otherRolesSection = screen.getByRole('heading', { name: 'Other Lodge Roles' }).closest('section');
 
     expect(electedSection).not.toBeNull();
+    expect(exOfficioSection).not.toBeNull();
     expect(appointedSection).not.toBeNull();
     expect(otherRolesSection).not.toBeNull();
 
@@ -124,12 +126,14 @@ describe('MembersDirectory officer structure', () => {
       'Treasurer',
       'Secretary',
       'Tyler',
-      'Immediate Past Master',
     ].forEach(positionName => {
       expect(within(electedSection!).getByText(positionName)).toBeInTheDocument();
     });
     expect(within(electedSection!).getAllByText('Lodge Auditor')).toHaveLength(2);
     expect(within(electedSection!).getByText('Vacant')).toBeInTheDocument();
+    expect(within(electedSection!).queryByText('Immediate Past Master')).not.toBeInTheDocument();
+    expect(within(exOfficioSection!).getByText('Immediate Past Master')).toBeInTheDocument();
+    expect(within(exOfficioSection!).getAllByText('Ex Officio')).toHaveLength(2);
     expect(screen.getByTestId('immediate-past-master-slot')).toHaveClass('md:mt-8');
 
     [

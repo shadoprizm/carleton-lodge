@@ -79,6 +79,19 @@ function getCardStyle(position: LodgePosition | null, roleGroup?: LodgeRoleGroup
       size: 'md',
     };
   }
+  if (roleGroup === 'EX_OFFICIO') {
+    return {
+      avatarBg: 'bg-stone-700',
+      avatarRing: 'ring-amber-500',
+      headerBg: 'from-stone-800 to-stone-700',
+      badge: 'bg-amber-100',
+      badgeText: 'text-amber-900',
+      label: 'Ex Officio',
+      Icon: Star,
+      cardBorder: 'border-amber-200',
+      size: 'md',
+    };
+  }
   if (roleGroup === 'ELECTED') {
     return {
       avatarBg: 'bg-blue-900',
@@ -536,8 +549,12 @@ export const MembersDirectory = () => {
   const appointedAssignments = roleAssignments.filter(
     assignment => lodgeRoleGroup(assignment.position.name) === 'APPOINTED',
   );
+  const exOfficioAssignments = roleAssignments.filter(
+    assignment => lodgeRoleGroup(assignment.position.name) === 'EX_OFFICIO',
+  );
   const electedPositions = lodgePositions.filter(position => lodgeRoleGroup(position.name) === 'ELECTED');
   const appointedPositions = lodgePositions.filter(position => lodgeRoleGroup(position.name) === 'APPOINTED');
+  const exOfficioPositions = lodgePositions.filter(position => lodgeRoleGroup(position.name) === 'EX_OFFICIO');
   const additionalRoleAssignments = roleAssignments
     .filter(assignment => lodgeRoleGroup(assignment.position.name) === 'OTHER')
     .sort((left, right) =>
@@ -545,8 +562,9 @@ export const MembersDirectory = () => {
       || left.position.name.localeCompare(right.position.name)
     );
   const electedSlots = roleSlots(electedAssignments, electedPositions, 'ELECTED', true);
+  const exOfficioSlots = roleSlots(exOfficioAssignments, exOfficioPositions, 'EX_OFFICIO', true);
   const wm = electedSlots.find(slot => slot.position.name === 'Worshipful Master');
-  const ipm = electedSlots.find(slot => slot.position.name === 'Immed Past Master');
+  const ipm = exOfficioSlots.find(slot => slot.position.name === 'Immed Past Master');
   const secretary = electedSlots.find(slot => slot.position.name === 'Secretary');
   const wardens = electedSlots.filter(slot =>
     slot.position.name === 'Senior Warden' || slot.position.name === 'Junior Warden'
@@ -554,7 +572,7 @@ export const MembersDirectory = () => {
   const sw = wardens.find(slot => slot.position.name === 'Senior Warden');
   const jw = wardens.find(slot => slot.position.name === 'Junior Warden');
   const remainingElectedSlots = electedSlots.filter(slot =>
-    !['Worshipful Master', 'Immed Past Master', 'Secretary', 'Senior Warden', 'Junior Warden']
+    !['Worshipful Master', 'Secretary', 'Senior Warden', 'Junior Warden']
       .includes(slot.position.name)
   );
   const appointedSlots = roleSlots(appointedAssignments, appointedPositions, 'APPOINTED', true);
@@ -629,11 +647,11 @@ export const MembersDirectory = () => {
           </div>
         ) : (
           <>
-            {electedSlots.length > 0 && (
-              <section aria-labelledby="elected-officers-heading">
+            {(ipm || electedSlots.length > 0) && (
+              <section aria-labelledby="lodge-leadership-heading">
                 <div className="mb-10 text-center">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Lodge leadership</p>
-                  <h2 id="elected-officers-heading" className="font-serif text-3xl text-blue-950">Elected Officers</h2>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Officers &amp; advisers</p>
+                  <h2 id="lodge-leadership-heading" className="font-serif text-3xl text-blue-950">Lodge Leadership</h2>
                 </div>
 
                 <div ref={containerRef} className="relative">
@@ -652,57 +670,80 @@ export const MembersDirectory = () => {
                     hasRemainingElected={remainingElectedSlots.length > 0}
                   />
 
-                  <div className="relative" style={{ zIndex: 1 }}>
-                    <div className="mb-12 grid grid-cols-1 justify-center gap-6 md:grid-cols-[11rem_13rem_11rem] md:items-start md:gap-8 lg:gap-12">
-                      {ipm ? (
-                        <div data-testid="immediate-past-master-slot" className="order-2 mx-auto w-44 md:order-1 md:mt-8">
-                          <OfficerCard member={ipm.member} position={ipm.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.08} cardRef={ipmRef} />
+                  <div
+                    className="relative grid grid-cols-1 justify-center gap-6 md:grid-cols-[11rem_13rem_11rem] md:items-start md:gap-x-8 md:gap-y-12 lg:gap-x-12"
+                    style={{ zIndex: 1 }}
+                  >
+                    {ipm && (
+                      <section className="contents" aria-labelledby="ex-officio-heading">
+                        <h3
+                          id="ex-officio-heading"
+                          className="order-6 text-center font-serif text-xl text-stone-700 md:order-none md:col-start-1 md:row-start-1"
+                        >
+                          Ex Officio
+                        </h3>
+                        <div
+                          data-testid="immediate-past-master-slot"
+                          className="order-7 mx-auto w-44 md:order-none md:col-start-1 md:row-start-2 md:mt-8"
+                        >
+                          <OfficerCard member={ipm.member} position={ipm.position} roleGroup="EX_OFFICIO" size="md" onClick={setSelectedMember} delay={0.08} cardRef={ipmRef} />
                         </div>
-                      ) : <div className="hidden md:block" />}
-
-                      {wm && (
-                        <div className="order-1 mx-auto w-52 md:order-2">
-                          <OfficerCard member={wm.member} position={wm.position} roleGroup="ELECTED" size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
-                        </div>
-                      )}
-
-                      {secretary ? (
-                        <div className="order-3 mx-auto w-44 md:mt-8">
-                          <OfficerCard member={secretary.member} position={secretary.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.12} cardRef={secRef} />
-                        </div>
-                      ) : <div className="hidden md:block" />}
-                    </div>
-
-                    {wardens.length > 0 && (
-                      <div className="mb-12 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-12">
-                        {sw && (
-                          <div className="w-44">
-                            <OfficerCard member={sw.member} position={sw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.16} cardRef={swRef} />
-                          </div>
-                        )}
-                        {jw && (
-                          <div className="w-44">
-                            <OfficerCard member={jw.member} position={jw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
-                          </div>
-                        )}
-                      </div>
+                      </section>
                     )}
 
-                    {remainingElectedSlots.length > 0 && (
-                      <div className="grid w-full grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
-                        {remainingElectedSlots.map((slot, index) => (
-                          <OfficerCard
-                            key={slot.key}
-                            member={slot.member}
-                            position={slot.position}
-                            roleGroup="ELECTED"
-                            size="sm"
-                            onClick={setSelectedMember}
-                            delay={0.24 + index * 0.04}
-                            cardRef={electedRefsMap.current.get(slot.key)!}
-                          />
-                        ))}
-                      </div>
+                    {electedSlots.length > 0 && (
+                      <section className="contents" aria-labelledby="elected-officers-heading">
+                        <h3
+                          id="elected-officers-heading"
+                          className="order-1 text-center font-serif text-2xl text-blue-950 md:order-none md:col-span-2 md:col-start-2 md:row-start-1"
+                        >
+                          Elected Officers
+                        </h3>
+
+                        {wm && (
+                          <div className="order-2 mx-auto w-52 md:order-none md:col-start-2 md:row-start-2">
+                            <OfficerCard member={wm.member} position={wm.position} roleGroup="ELECTED" size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
+                          </div>
+                        )}
+
+                        {secretary ? (
+                          <div className="order-3 mx-auto w-44 md:order-none md:col-start-3 md:row-start-2 md:mt-8">
+                            <OfficerCard member={secretary.member} position={secretary.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.12} cardRef={secRef} />
+                          </div>
+                        ) : <div className="hidden md:col-start-3 md:row-start-2 md:block" />}
+
+                        {wardens.length > 0 && (
+                          <div className="order-4 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-12 md:order-none md:col-span-3 md:row-start-3">
+                            {sw && (
+                              <div className="w-44">
+                                <OfficerCard member={sw.member} position={sw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.16} cardRef={swRef} />
+                              </div>
+                            )}
+                            {jw && (
+                              <div className="w-44">
+                                <OfficerCard member={jw.member} position={jw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {remainingElectedSlots.length > 0 && (
+                          <div className="order-5 grid w-full grid-cols-2 gap-4 sm:grid-cols-3 md:order-none md:col-span-3 md:row-start-4 md:grid-cols-5">
+                            {remainingElectedSlots.map((slot, index) => (
+                              <OfficerCard
+                                key={slot.key}
+                                member={slot.member}
+                                position={slot.position}
+                                roleGroup="ELECTED"
+                                size="sm"
+                                onClick={setSelectedMember}
+                                delay={0.24 + index * 0.04}
+                                cardRef={electedRefsMap.current.get(slot.key)!}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </section>
                     )}
                   </div>
                 </div>
