@@ -13,7 +13,7 @@ CREATE POLICY "Communications readers can view inbound emails"
   ON public.inbound_emails FOR SELECT
   TO authenticated
   USING (
-    public.has_admin_section_permission('communications', 'read')
+    (SELECT public.has_admin_section_permission('communications', 'read'))
     AND EXISTS (
       SELECT 1
       FROM unnest(
