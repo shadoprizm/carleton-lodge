@@ -17,6 +17,10 @@ describe('lodge officer presentation groups', () => {
     expect(lodgeRoleGroup("Ass't Secretary")).toBe('OTHER');
   });
 
+  it('treats the Immediate Past Master as ex officio, not elected', () => {
+    expect(lodgeRoleGroup('Immed Past Master')).toBe('EX_OFFICIO');
+  });
+
   it('uses full public-facing titles for abbreviated database names', () => {
     expect(displayLodgePositionName('Immed Past Master')).toBe('Immediate Past Master');
     expect(displayLodgePositionName('Dir. of Ceremonies')).toBe('Director of Ceremonies');
