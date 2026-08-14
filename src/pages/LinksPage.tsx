@@ -45,7 +45,7 @@ export const LinksPage = () => (
           </div>
         </section>
       ))}
-      <p className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm leading-relaxed text-blue-950"><strong>External website note:</strong> These organizations maintain their own content and privacy practices. The Lodge checks website availability before sending you onward and reports each broken link to the webmaster only once.</p>
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm leading-relaxed text-blue-950"><strong>External website note:</strong> These organizations maintain their own content and privacy practices. The Lodge checks website availability before sending you onward and reports broken links to the webmaster.</p>
     </div>
   </div>
 );

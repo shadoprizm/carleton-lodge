@@ -18,4 +18,11 @@ describe('LinksPage', () => {
     const libraryLink = screen.getByRole('link', { name: /Grand Lodge Library, Museum & Archives/i });
     expect(libraryLink).toHaveAttribute('href', 'mailto:library@grandlodge.on.ca?subject=Grand%20Lodge%20Library%20enquiry');
   });
+
+  it('does not expose internal email deduplication details', () => {
+    render(<LinksPage />);
+
+    expect(screen.getByText(/reports broken links to the webmaster/i)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/another email|later visits|only once/i);
+  });
 });

@@ -10,12 +10,12 @@ export const ExternalLinkUnavailablePage = () => {
   const resourceName = requestedResource?.name || fallbackResourceName;
   const notice = searchParams.get('notice');
   const notificationMessage = notice === 'queued'
-    ? 'One automatic notification has been queued for the Lodge webmaster. This broken link will not generate another email.'
+    ? 'An automatic notification has been queued for the Lodge webmaster so the link can be reviewed.'
     : notice === 'existing'
-      ? 'The Lodge webmaster has already been notified about this link. This visit did not generate another email.'
+      ? 'The Lodge webmaster has already been notified so the link can be reviewed.'
       : notice === 'unavailable'
         ? 'The automatic webmaster notification could not be queued. Please contact the Lodge if the problem continues.'
-        : 'When a broken link is first detected, the Lodge webmaster receives one automatic notification. Later visits do not generate more email.';
+        : 'The Lodge webmaster is notified when a broken link is detected so it can be reviewed.';
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 pt-20">
