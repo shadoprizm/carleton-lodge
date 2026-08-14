@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
+import { supabase, LodgeMemberPosition, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
 import { ChevronDown, X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Loader2, Mail, Search, UserRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
+import { memberPositions, positionNames, sortedPositions } from '../../lib/lodgePositions';
 
 type LinkModalState = {
   member: LodgeMemberWithPosition;
@@ -22,8 +23,8 @@ function isRegularMemberPosition(position: LodgePosition | null | undefined) {
   return position?.name.trim().toLowerCase() === REGULAR_MEMBER_POSITION_NAME;
 }
 
-function isOfficer(member: LodgeMemberWithPosition) {
-  return !!member.lodge_positions && !isRegularMemberPosition(member.lodge_positions);
+function hasLodgePosition(member: LodgeMemberWithPosition) {
+  return memberPositions(member).some(position => !isRegularMemberPosition(position));
 }
 
 const mailboxStatusLabel = (status: LodgeMemberWithPosition['mailbox_status']) => ({
@@ -84,7 +85,7 @@ export const MembersManager = () => {
   const [positions, setPositions] = useState<LodgePosition[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'officers' | 'members'>('officers');
+  const [activeTab, setActiveTab] = useState<'positions' | 'members'>('positions');
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -112,7 +113,7 @@ export const MembersManager = () => {
     address: '',
     grand_lodge_membership_number: '',
     join_date: '',
-    position_id: '',
+    position_ids: [] as string[],
     bio: '',
     visible_to_members: true,
   });
@@ -130,7 +131,7 @@ export const MembersManager = () => {
   const fetchData = async () => {
     setLoading(true);
 
-    const [membersRes, positionsRes, profilesRes] = await Promise.all([
+    const [membersRes, positionsRes, assignmentsRes, profilesRes] = await Promise.all([
       supabase
         .rpc('get_managed_lodge_members'),
       supabase
@@ -138,16 +139,32 @@ export const MembersManager = () => {
         .select('*')
         .order('display_order', { ascending: true }),
       supabase
+        .from('lodge_member_positions')
+        .select('*'),
+      supabase
         .from('profiles')
         .select('*')
         .order('email', { ascending: true }),
     ]);
 
-    if (positionsRes.data) setPositions(positionsRes.data);
+    const loadedPositions = (positionsRes.data as LodgePosition[] | null) ?? [];
+    const positionById = new Map(loadedPositions.map(position => [position.id, position]));
+    const assignmentMap = new Map<string, LodgePosition[]>();
+
+    for (const assignment of (assignmentsRes.data as LodgeMemberPosition[] | null) ?? []) {
+      const position = positionById.get(assignment.position_id);
+      if (!position) continue;
+      const assignedPositions = assignmentMap.get(assignment.member_id) ?? [];
+      assignedPositions.push(position);
+      assignmentMap.set(assignment.member_id, assignedPositions);
+    }
+
+    setPositions(loadedPositions);
     if (membersRes.data) {
-      setMembers((membersRes.data as Omit<LodgeMemberWithPosition, 'lodge_positions'>[]).map(member => ({
+      setMembers((membersRes.data as Omit<LodgeMemberWithPosition, 'lodge_positions' | 'positions'>[]).map(member => ({
         ...member,
-        lodge_positions: positionsRes.data?.find(position => position.id === member.position_id) ?? null,
+        lodge_positions: positionById.get(member.position_id ?? '') ?? null,
+        positions: sortedPositions(assignmentMap.get(member.id) ?? []),
       })));
     }
     if (profilesRes.data) setProfiles(profilesRes.data);
@@ -169,19 +186,27 @@ export const MembersManager = () => {
       address: formData.address.trim() || null,
       grand_lodge_membership_number: formData.grand_lodge_membership_number.trim() || null,
       join_date: formData.join_date || null,
-      position_id: formData.position_id || null,
       bio: formData.bio.trim() || null,
       visible_to_members: formData.visible_to_members,
     };
 
-    const result = editingMember
-      ? await supabase
+    let memberId = editingMember?.id ?? null;
+    let result;
+
+    if (editingMember) {
+      result = await supabase
         .from('lodge_members')
         .update(memberData)
-        .eq('id', editingMember.id)
-      : await supabase
+        .eq('id', editingMember.id);
+    } else {
+      const createResult = await supabase
         .from('lodge_members')
-        .insert(memberData);
+        .insert({ ...memberData, position_id: null })
+        .select('id')
+        .single();
+      result = createResult;
+      memberId = createResult.data?.id ?? null;
+    }
 
     if (result.error) {
       const duplicateNumber = result.error.code === '23505'
@@ -189,6 +214,23 @@ export const MembersManager = () => {
       setFormError(duplicateNumber
         ? 'That Grand Lodge membership number is already assigned to another roster record.'
         : result.error.message || 'The member record could not be saved.');
+      setFormSaving(false);
+      return;
+    }
+
+    if (!memberId) {
+      setFormError('The member record was saved, but its identifier could not be confirmed.');
+      setFormSaving(false);
+      return;
+    }
+
+    const assignmentResult = await supabase.rpc('set_lodge_member_positions', {
+      target_member_id: memberId,
+      target_position_ids: formData.position_ids,
+    });
+
+    if (assignmentResult.error) {
+      setFormError(assignmentResult.error.message || 'The Lodge positions could not be saved.');
       setFormSaving(false);
       return;
     }
@@ -209,7 +251,7 @@ export const MembersManager = () => {
       address: member.address || '',
       grand_lodge_membership_number: member.grand_lodge_membership_number || '',
       join_date: member.join_date || '',
-      position_id: isOfficer(member) ? member.position_id || '' : '',
+      position_ids: memberPositions(member).map(position => position.id),
       bio: member.bio || '',
       visible_to_members: member.visible_to_members,
     });
@@ -352,7 +394,7 @@ export const MembersManager = () => {
       address: '',
       grand_lodge_membership_number: '',
       join_date: '',
-      position_id: '',
+      position_ids: [],
       bio: '',
       visible_to_members: true,
     });
@@ -362,10 +404,12 @@ export const MembersManager = () => {
     return profiles.find(p => p.id === profileId)?.email ?? profileId;
   };
 
-  const officerPositions = positions.filter(position => !isRegularMemberPosition(position));
-  const officers = members.filter(isOfficer);
-  const regularMembers = members.filter(m => !isOfficer(m));
-  const displayedMembers = activeTab === 'officers' ? officers : regularMembers;
+  const assignablePositions = positions.filter(position => !isRegularMemberPosition(position));
+  const officerPositions = assignablePositions.filter(position => position.position_type === 'OFFICER');
+  const functionalPositions = assignablePositions.filter(position => position.position_type === 'FUNCTIONAL');
+  const positionHolders = members.filter(hasLodgePosition);
+  const regularMembers = members.filter(member => !hasLodgePosition(member));
+  const displayedMembers = activeTab === 'positions' ? positionHolders : regularMembers;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredMembers = normalizedSearch
     ? displayedMembers.filter((member) =>
@@ -374,7 +418,7 @@ export const MembersManager = () => {
         member.email,
         member.lodge_email,
         member.grand_lodge_membership_number,
-        member.lodge_positions?.name,
+        ...memberPositions(member).map(position => position.name),
       ].some((value) => value?.toLowerCase().includes(normalizedSearch))
     )
     : displayedMembers;
@@ -449,21 +493,41 @@ export const MembersManager = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Roster Type / Officer Position</label>
-              <select
-                value={formData.position_id}
-                onChange={(e) => setFormData({ ...formData, position_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
-              >
-                <option value="">Regular Member</option>
-                {officerPositions.map(position => (
-                  <option key={position.id} value={position.id}>
-                    {position.name}
-                  </option>
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700">Lodge Positions and Functional Roles</legend>
+              <p className="mt-1 text-xs leading-5 text-gray-500">Select every current responsibility. Leave all unchecked for a regular member.</p>
+              <div className="mt-3 grid gap-4 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-2">
+                {[
+                  { label: 'Lodge Officers', values: officerPositions },
+                  { label: 'Functional and Elected Roles', values: functionalPositions },
+                ].map(group => (
+                  <div key={group.label}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.label}</p>
+                    <div className="mt-2 space-y-2">
+                      {group.values.map(position => (
+                        <label key={position.id} className="flex min-h-10 items-center gap-2 rounded-md px-2 hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={formData.position_ids.includes(position.id)}
+                            onChange={(event) => setFormData(current => ({
+                              ...current,
+                              position_ids: event.target.checked
+                                ? [...current.position_ids, position.id]
+                                : current.position_ids.filter(positionId => positionId !== position.id),
+                            }))}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+                          />
+                          <span className="text-sm text-gray-800">{position.name}</span>
+                          {position.max_holders > 1 ? (
+                            <span className="ml-auto text-xs text-gray-400">up to {position.max_holders}</span>
+                          ) : null}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </div>
+              </div>
+            </fieldset>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -780,18 +844,18 @@ export const MembersManager = () => {
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => {
-            setActiveTab('officers');
+            setActiveTab('positions');
             setExpandedMemberId(null);
           }}
           className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === 'officers'
+            activeTab === 'positions'
               ? 'border-blue-900 text-blue-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          Lodge Officers
-          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'officers' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}`}>
-            {officers.length}
+          Position Holders
+          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'positions' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}`}>
+            {positionHolders.length}
           </span>
         </button>
         <button
@@ -839,8 +903,8 @@ export const MembersManager = () => {
         <div className="text-center py-8 text-gray-600">Loading roster...</div>
       ) : displayedMembers.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          {activeTab === 'officers'
-            ? 'No officers found. Add a member with a position assigned.'
+          {activeTab === 'positions'
+            ? 'No position holders found. Add a member with one or more positions assigned.'
             : 'No regular members found. Add a member as a regular member to see them here.'}
         </div>
       ) : filteredMembers.length === 0 ? (
@@ -853,9 +917,7 @@ export const MembersManager = () => {
             const expanded = expandedMemberId === member.id;
             const buttonId = `roster-member-button-${member.id}`;
             const panelId = `roster-member-panel-${member.id}`;
-            const roleLabel = isOfficer(member)
-              ? member.lodge_positions?.name || 'Officer'
-              : 'Regular member';
+            const roleLabel = positionNames(member, 'Regular member');
 
             return (
               <article key={member.id}>

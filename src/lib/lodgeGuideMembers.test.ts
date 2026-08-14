@@ -14,11 +14,26 @@ describe('Lodge Guide member directory enrichment', () => {
       bio: null,
       lodge_positions: { name: 'Secretary' },
     })).toContain([
-      'Position: Secretary',
+      'Positions: Secretary',
       'Lodge email: blake.farmer@carpmasons.ca',
       'Phone: 613-324-3272',
       'Member since: 2001-01-01',
     ].join('\n'));
+  });
+
+  it('lists every concurrent Lodge responsibility', () => {
+    expect(lodgeGuideMemberSourceBody({
+      full_name: 'R. W. Bro. Brian Adams',
+      phone: null,
+      lodge_email: null,
+      join_date: null,
+      bio: null,
+      lodge_positions: { name: 'Lodge Historian' },
+      lodge_member_positions: [
+        { lodge_positions: { name: 'Lodge Historian' } },
+        { lodge_positions: { name: 'Lodge Auditor' } },
+      ],
+    })).toContain('Positions: Lodge Historian, Lodge Auditor');
   });
 
   it('states when a lodge mailbox is not currently listed', () => {

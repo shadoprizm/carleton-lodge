@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Phone, X, Crown, Shield, Star, Users } from 'lucide-react';
 import { Link } from 'react-router';
-import { supabase, MemberDirectoryProfileWithPosition } from '../lib/supabase';
+import { supabase, LodgePosition, MemberDirectoryProfileWithPosition } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { memberPositions, positionNames, positionsOfType, primaryPosition, sortedPositions } from '../lib/lodgePositions';
 
 const ORG_TIERS: Record<string, number> = {
   'Worshipful Master': 0,
@@ -22,7 +23,6 @@ const ORG_TIERS: Record<string, number> = {
   'Immed Past Master': 3,
   "Ass't Secretary": 3,
   'Piper': 3,
-  'Lodge Historian': 3,
 };
 
 function isRegularMemberPosition(positionName: string | null | undefined) {
@@ -46,7 +46,8 @@ type CardStyle = {
   size: 'lg' | 'md' | 'sm';
 };
 
-function getCardStyle(positionName: string): CardStyle {
+function getCardStyle(position: LodgePosition | null): CardStyle {
+  const positionName = position?.name ?? 'Member';
   if (positionName === 'Worshipful Master') {
     return {
       avatarBg: 'bg-amber-700',
@@ -99,6 +100,19 @@ function getCardStyle(positionName: string): CardStyle {
       size: 'sm',
     };
   }
+  if (position?.position_type === 'FUNCTIONAL') {
+    return {
+      avatarBg: 'bg-amber-800',
+      avatarRing: 'ring-amber-500',
+      headerBg: 'from-amber-950 to-amber-800',
+      badge: 'bg-amber-100',
+      badgeText: 'text-amber-900',
+      label: 'Functional role',
+      Icon: Star,
+      cardBorder: 'border-amber-200',
+      size: 'sm',
+    };
+  }
   return {
     avatarBg: 'bg-stone-600',
     avatarRing: 'ring-stone-400',
@@ -114,15 +128,15 @@ function getCardStyle(positionName: string): CardStyle {
 
 type OfficerCardProps = {
   member: MemberDirectoryProfileWithPosition;
+  position: LodgePosition;
   size?: 'lg' | 'md' | 'sm';
   onClick: (m: MemberDirectoryProfileWithPosition) => void;
   delay?: number;
   cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
-function OfficerCard({ member, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
-  const positionName = member.lodge_positions?.name ?? 'Member';
-  const style = getCardStyle(positionName);
+function OfficerCard({ member, position, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
+  const style = getCardStyle(position);
   const cardSize = size ?? style.size;
   const initials = getInitials(member.full_name);
   const isVacant = member.full_name.toLowerCase().includes('vacant');
@@ -156,7 +170,7 @@ function OfficerCard({ member, size, onClick, delay = 0, cardRef }: OfficerCardP
       </div>
       <div className="px-4 pb-4 pt-2 text-center">
         <p className="font-semibold text-stone-900 text-sm leading-snug">{member.full_name}</p>
-        <p className="text-xs text-blue-900 font-medium mt-0.5">{positionName}</p>
+        <p className="text-xs text-blue-900 font-medium mt-0.5">{position.name}</p>
         {member.phone && (
           <div className="flex items-center justify-center mt-2 text-xs text-stone-400 gap-1">
             <Phone size={10} />
@@ -169,6 +183,11 @@ function OfficerCard({ member, size, onClick, delay = 0, cardRef }: OfficerCardP
 }
 
 type Rect = { top: number; left: number; width: number; height: number };
+
+type RoleAssignment = {
+  member: MemberDirectoryProfileWithPosition;
+  position: LodgePosition;
+};
 
 function getBottom(r: Rect) {
   return { x: r.left + r.width / 2, y: r.top + r.height };
@@ -369,37 +388,63 @@ export const MembersDirectory = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('lodge_members')
-      .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, created_at)')
+      .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, position_type, max_holders, created_at), lodge_member_positions(lodge_positions(id, name, display_order, position_type, max_holders, created_at))')
       .eq('visible_to_members', true);
-    if (!error && data) setMembers(data as unknown as MemberDirectoryProfileWithPosition[]);
+    if (!error && data) {
+      const loadedMembers = data as unknown as Array<
+        Omit<MemberDirectoryProfileWithPosition, 'positions'> & {
+          lodge_member_positions?: Array<{ lodge_positions: LodgePosition | null }>;
+        }
+      >;
+      setMembers(loadedMembers.map(member => ({
+        ...member,
+        positions: sortedPositions(
+          (member.lodge_member_positions ?? [])
+            .map(assignment => assignment.lodge_positions)
+            .filter((position): position is LodgePosition => position !== null),
+        ),
+      })));
+    }
     setLoading(false);
   };
 
   if (!user) return null;
 
   const sorted = [...members].sort((a, b) => {
-    const oA = a.lodge_positions?.display_order ?? 999;
-    const oB = b.lodge_positions?.display_order ?? 999;
+    const oA = primaryPosition(a)?.display_order ?? 999;
+    const oB = primaryPosition(b)?.display_order ?? 999;
     return oA - oB;
   });
 
-  const wm = sorted.find(m => m.lodge_positions?.name === 'Worshipful Master');
-  const secretary = sorted.find(m => m.lodge_positions?.name === 'Secretary');
-  const wardens = sorted.filter(m =>
-    m.lodge_positions?.name === 'Senior Warden' || m.lodge_positions?.name === 'Junior Warden'
+  const officerAssignments: RoleAssignment[] = sorted.flatMap(member =>
+    positionsOfType(member, 'OFFICER').map(position => ({ member, position }))
   );
-  const sw = wardens.find(m => m.lodge_positions?.name === 'Senior Warden');
-  const jw = wardens.find(m => m.lodge_positions?.name === 'Junior Warden');
-  const tier3Officers = sorted.filter(m => ORG_TIERS[m.lodge_positions?.name ?? ''] === 3);
-  const otherMembers = sorted.filter(m => !m.lodge_positions || isRegularMemberPosition(m.lodge_positions.name));
+  const functionalAssignments: RoleAssignment[] = sorted.flatMap(member =>
+    positionsOfType(member, 'FUNCTIONAL').map(position => ({ member, position }))
+  );
+  const wm = officerAssignments.find(assignment => assignment.position.name === 'Worshipful Master');
+  const secretary = officerAssignments.find(assignment => assignment.position.name === 'Secretary');
+  const wardens = officerAssignments.filter(assignment =>
+    assignment.position.name === 'Senior Warden' || assignment.position.name === 'Junior Warden'
+  );
+  const sw = wardens.find(assignment => assignment.position.name === 'Senior Warden');
+  const jw = wardens.find(assignment => assignment.position.name === 'Junior Warden');
+  const tier3Officers = officerAssignments.filter(assignment => ORG_TIERS[assignment.position.name] === 3);
+  const otherMembers = sorted.filter(member =>
+    memberPositions(member).length === 0
+    || memberPositions(member).every(position => isRegularMemberPosition(position.name))
+  );
 
   // Ensure refs exist for all tier3 officers
-  tier3Officers.forEach(m => {
-    if (!tier3RefsMap.current.has(m.id)) {
-      tier3RefsMap.current.set(m.id, React.createRef<HTMLDivElement>());
+  tier3Officers.forEach(assignment => {
+    const assignmentKey = `${assignment.member.id}:${assignment.position.id}`;
+    if (!tier3RefsMap.current.has(assignmentKey)) {
+      tier3RefsMap.current.set(assignmentKey, React.createRef<HTMLDivElement>());
     }
   });
-  const newTier3Refs = tier3Officers.map(m => tier3RefsMap.current.get(m.id)!);
+  const newTier3Refs = tier3Officers.map(assignment =>
+    tier3RefsMap.current.get(`${assignment.member.id}:${assignment.position.id}`)!
+  );
   if (
     newTier3Refs.length !== tier3RefsArray.current.length ||
     newTier3Refs.some((r, i) => r !== tier3RefsArray.current[i])
@@ -466,7 +511,7 @@ export const MembersDirectory = () => {
                 {wm && (
                   <div className="flex justify-center mb-10">
                     <div className="w-52">
-                      <OfficerCard member={wm} size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
+                      <OfficerCard member={wm.member} position={wm.position} size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
                     </div>
                   </div>
                 )}
@@ -480,7 +525,7 @@ export const MembersDirectory = () => {
                       <div className="w-px" style={{ flex: '0 0 2px' }} />
                       <div style={{ flex: 0, width: 80 }} />
                       <div className="w-44 shrink-0">
-                        <OfficerCard member={secretary} size="md" onClick={setSelectedMember} delay={0.1} cardRef={secRef} />
+                        <OfficerCard member={secretary.member} position={secretary.position} size="md" onClick={setSelectedMember} delay={0.1} cardRef={secRef} />
                       </div>
                     </div>
                   </div>
@@ -491,12 +536,12 @@ export const MembersDirectory = () => {
                   <div className="flex justify-center gap-12 mb-10">
                     {sw && (
                       <div className="w-44">
-                        <OfficerCard member={sw} size="md" onClick={setSelectedMember} delay={0.15} cardRef={swRef} />
+                        <OfficerCard member={sw.member} position={sw.position} size="md" onClick={setSelectedMember} delay={0.15} cardRef={swRef} />
                       </div>
                     )}
                     {jw && (
                       <div className="w-44">
-                        <OfficerCard member={jw} size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
+                        <OfficerCard member={jw.member} position={jw.position} size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
                       </div>
                     )}
                   </div>
@@ -507,12 +552,14 @@ export const MembersDirectory = () => {
                   <div className="flex flex-col items-center mb-4">
                     <p className="text-center text-xs font-bold tracking-widest uppercase text-stone-600 mb-4 -mt-6">Lodge Officers</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 w-full">
-                      {tier3Officers.map((m, i) => {
-                        const ref = tier3RefsMap.current.get(m.id)!;
+                      {tier3Officers.map((assignment, i) => {
+                        const assignmentKey = `${assignment.member.id}:${assignment.position.id}`;
+                        const ref = tier3RefsMap.current.get(assignmentKey)!;
                         return (
                           <OfficerCard
-                            key={m.id}
-                            member={m}
+                            key={assignmentKey}
+                            member={assignment.member}
+                            position={assignment.position}
                             size="sm"
                             onClick={setSelectedMember}
                             delay={0.25 + i * 0.04}
@@ -525,6 +572,28 @@ export const MembersDirectory = () => {
                 )}
               </div>
             </div>
+
+            {functionalAssignments.length > 0 && (
+              <div className="mt-14 border-t border-amber-200 pt-10">
+                <div className="mb-7 flex items-center gap-3">
+                  <Star size={18} className="text-amber-700" />
+                  <h2 className="text-lg font-serif text-stone-700">Functional & Elected Roles</h2>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">{functionalAssignments.length}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {functionalAssignments.map((assignment, index) => (
+                    <OfficerCard
+                      key={`${assignment.member.id}:${assignment.position.id}`}
+                      member={assignment.member}
+                      position={assignment.position}
+                      size="sm"
+                      onClick={setSelectedMember}
+                      delay={0.05 + index * 0.04}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Regular members without a position */}
             {otherMembers.length > 0 && (
@@ -588,8 +657,8 @@ export const MembersDirectory = () => {
               onClick={e => e.stopPropagation()}
             >
               {(() => {
-                const positionName = selectedMember.lodge_positions?.name ?? 'Member';
-                const style = getCardStyle(positionName);
+                const selectedPrimaryPosition = primaryPosition(selectedMember);
+                const style = getCardStyle(selectedPrimaryPosition);
                 const initials = getInitials(selectedMember.full_name);
                 const Icon = style.Icon;
                 return (
@@ -605,7 +674,7 @@ export const MembersDirectory = () => {
                         {initials}
                       </div>
                       <h3 className="text-xl font-serif text-white leading-tight">{selectedMember.full_name}</h3>
-                      <p className="text-amber-300 text-sm mt-1">{positionName}</p>
+                      <p className="text-amber-300 text-sm mt-1">{positionNames(selectedMember, 'Lodge Member')}</p>
                     </div>
                     <div className="relative -mt-6 mx-6">
                       <div className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${style.badge} ${style.badgeText}`}>

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { supportMailto } from '../lib/contact';
-import { type MyMemberProfile, supabase } from '../lib/supabase';
+import { type LodgePosition, type MyMemberProfile, supabase } from '../lib/supabase';
 
 type EditableProfile = {
   phone: string;
@@ -57,6 +57,7 @@ function formatJoinDate(value: string | null) {
 
 export const MyProfilePage = () => {
   const [profile, setProfile] = useState<MyMemberProfile | null>(null);
+  const [positions, setPositions] = useState<LodgePosition[]>([]);
   const [form, setForm] = useState<EditableProfile>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -68,17 +69,21 @@ export const MyProfilePage = () => {
     let active = true;
 
     const loadProfile = async () => {
-      const { data, error } = await supabase.rpc('get_my_member_profile');
+      const [profileResult, positionsResult] = await Promise.all([
+        supabase.rpc('get_my_member_profile'),
+        supabase.rpc('get_my_lodge_positions'),
+      ]);
       if (!active) return;
 
-      if (error) {
+      if (profileResult.error || positionsResult.error) {
         setLoadError('Your member profile could not be loaded. Please refresh the page or contact the Lodge Secretary.');
         setLoading(false);
         return;
       }
 
-      const loadedProfile = firstProfile(data);
+      const loadedProfile = firstProfile(profileResult.data);
       setProfile(loadedProfile);
+      setPositions((positionsResult.data as LodgePosition[] | null) ?? []);
       setForm(loadedProfile ? profileForm(loadedProfile) : emptyForm);
       setLoading(false);
     };
@@ -191,7 +196,11 @@ export const MyProfilePage = () => {
                 </span>
                 <div>
                   <h2 className="text-2xl font-serif text-slate-900">{profile.full_name}</h2>
-                  <p className="mt-1 font-medium text-slate-600">{profile.position_name ?? 'Lodge Member'}</p>
+                  <p className="mt-1 font-medium text-slate-600">
+                    {positions.length > 0
+                      ? positions.map(position => position.name).join(' · ')
+                      : profile.position_name ?? 'Lodge Member'}
+                  </p>
                 </div>
               </div>
 

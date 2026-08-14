@@ -98,7 +98,18 @@ export type LodgePosition = {
   id: string;
   name: string;
   display_order: number;
+  position_type: LodgePositionType;
+  max_holders: number;
   created_at: string;
+};
+
+export type LodgePositionType = 'OFFICER' | 'FUNCTIONAL';
+
+export type LodgeMemberPosition = {
+  member_id: string;
+  position_id: string;
+  is_primary: boolean;
+  assigned_at: string;
 };
 
 export type MemberProfile = {
@@ -306,6 +317,7 @@ export type LodgeEmailAuditEvent = {
 
 export type LodgeMemberWithPosition = LodgeMember & {
   lodge_positions: LodgePosition | null;
+  positions: LodgePosition[];
 };
 
 export type MemberDirectoryProfile = Omit<
@@ -315,6 +327,7 @@ export type MemberDirectoryProfile = Omit<
 
 export type MemberDirectoryProfileWithPosition = MemberDirectoryProfile & {
   lodge_positions: LodgePosition | null;
+  positions: LodgePosition[];
 };
 
 export type MyMemberProfile = {

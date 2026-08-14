@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
-import type { MyMemberProfile } from '../lib/supabase';
+import type { LodgePosition, MyMemberProfile } from '../lib/supabase';
 import { MyProfilePage } from './MyProfilePage';
 
 const { rpcMock } = vi.hoisted(() => ({
@@ -31,6 +31,24 @@ const memberProfile: MyMemberProfile = {
   updated_at: '2026-08-10T12:00:00Z',
 };
 
+const historianPosition: LodgePosition = {
+  id: 'historian',
+  name: 'Lodge Historian',
+  display_order: 18,
+  position_type: 'FUNCTIONAL',
+  max_holders: 1,
+  created_at: '2026-08-13T00:00:00Z',
+};
+
+const auditorPosition: LodgePosition = {
+  id: 'auditor',
+  name: 'Lodge Auditor',
+  display_order: 19,
+  position_type: 'FUNCTIONAL',
+  max_holders: 2,
+  created_at: '2026-08-14T00:00:00Z',
+};
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -47,7 +65,11 @@ describe('MyProfilePage', () => {
   afterEach(() => cleanup());
 
   it('loads the linked member profile including private self-only details', async () => {
-    rpcMock.mockResolvedValueOnce({ data: [memberProfile], error: null });
+    rpcMock.mockImplementation((functionName: string) => Promise.resolve(
+      functionName === 'get_my_lodge_positions'
+        ? { data: [historianPosition, auditorPosition], error: null }
+        : { data: [memberProfile], error: null },
+    ));
 
     renderPage();
 
@@ -55,7 +77,9 @@ describe('MyProfilePage', () => {
     expect(screen.getByText('GL-00465')).toBeInTheDocument();
     expect(screen.getByDisplayValue(/1 Lodge Lane/)).toBeInTheDocument();
     expect(screen.getByText('Hidden from the member directory')).toBeInTheDocument();
+    expect(screen.getByText('Lodge Historian · Lodge Auditor')).toBeInTheDocument();
     expect(rpcMock).toHaveBeenCalledWith('get_my_member_profile');
+    expect(rpcMock).toHaveBeenCalledWith('get_my_lodge_positions');
   });
 
   it('saves only phone, address, and biography and refreshes the form', async () => {
@@ -65,9 +89,15 @@ describe('MyProfilePage', () => {
       address: null,
       bio: 'Updated biography.',
     };
-    rpcMock
-      .mockResolvedValueOnce({ data: [memberProfile], error: null })
-      .mockResolvedValueOnce({ data: [updatedProfile], error: null });
+    rpcMock.mockImplementation((functionName: string) => {
+      if (functionName === 'get_my_lodge_positions') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      if (functionName === 'update_my_member_profile') {
+        return Promise.resolve({ data: [updatedProfile], error: null });
+      }
+      return Promise.resolve({ data: [memberProfile], error: null });
+    });
 
     renderPage();
     await screen.findByRole('heading', { name: 'Bro. Example Member' });
@@ -77,7 +107,7 @@ describe('MyProfilePage', () => {
     fireEvent.change(screen.getByLabelText('Biography'), { target: { value: 'Updated biography.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
-    await waitFor(() => expect(rpcMock).toHaveBeenNthCalledWith(2, 'update_my_member_profile', {
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith('update_my_member_profile', {
       new_phone: '613-555-0199',
       new_address: '',
       new_bio: 'Updated biography.',
@@ -88,9 +118,15 @@ describe('MyProfilePage', () => {
   });
 
   it('keeps the form open and presents server validation errors', async () => {
-    rpcMock
-      .mockResolvedValueOnce({ data: [memberProfile], error: null })
-      .mockResolvedValueOnce({ data: null, error: { message: 'Biography must be 2000 characters or fewer' } });
+    rpcMock.mockImplementation((functionName: string) => {
+      if (functionName === 'get_my_lodge_positions') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      if (functionName === 'update_my_member_profile') {
+        return Promise.resolve({ data: null, error: { message: 'Biography must be 2000 characters or fewer' } });
+      }
+      return Promise.resolve({ data: [memberProfile], error: null });
+    });
 
     renderPage();
     await screen.findByRole('heading', { name: 'Bro. Example Member' });
@@ -101,7 +137,11 @@ describe('MyProfilePage', () => {
   });
 
   it('shows a support path when the login has no linked roster record', async () => {
-    rpcMock.mockResolvedValueOnce({ data: [], error: null });
+    rpcMock.mockImplementation((functionName: string) => Promise.resolve(
+      functionName === 'get_my_lodge_positions'
+        ? { data: [], error: null }
+        : { data: [], error: null },
+    ));
 
     renderPage();
 

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, ExternalLink, Mail, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { MemberDirectoryProfileWithPosition, supabase } from '../lib/supabase';
+import { LodgePosition, MemberDirectoryProfileWithPosition, supabase } from '../lib/supabase';
+import { positionNames, sortedPositions } from '../lib/lodgePositions';
 
 function initials(name: string) {
   return name
@@ -36,7 +37,7 @@ export const MemberProfilePage = () => {
     const loadMember = async () => {
       const { data, error } = await supabase
         .from('lodge_members')
-        .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, created_at)')
+        .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, position_type, max_holders, created_at), lodge_member_positions(lodge_positions(id, name, display_order, position_type, max_holders, created_at))')
         .eq('id', memberId)
         .maybeSingle();
 
@@ -46,7 +47,17 @@ export const MemberProfilePage = () => {
         setNotFound(true);
         return;
       }
-      setMember(data as unknown as MemberDirectoryProfileWithPosition);
+      const loadedMember = data as unknown as Omit<MemberDirectoryProfileWithPosition, 'positions'> & {
+        lodge_member_positions?: Array<{ lodge_positions: LodgePosition | null }>;
+      };
+      setMember({
+        ...loadedMember,
+        positions: sortedPositions(
+          (loadedMember.lodge_member_positions ?? [])
+            .map(assignment => assignment.lodge_positions)
+            .filter((position): position is LodgePosition => position !== null),
+        ),
+      });
     };
 
     loadMember();
@@ -68,7 +79,6 @@ export const MemberProfilePage = () => {
     );
   }
 
-  const position = member.lodge_positions?.name ?? 'Lodge Member';
   const isOwnProfile = member.linked_profile_id === user?.id;
 
   return (
@@ -81,7 +91,7 @@ export const MemberProfilePage = () => {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-300">Member profile</p>
             <h1 className="mt-2 text-4xl font-serif sm:text-5xl">{member.full_name}</h1>
-            <p className="mt-2 text-xl text-slate-200">{position}</p>
+            <p className="mt-2 text-xl text-slate-200">{positionNames(member)}</p>
           </div>
         </div>
       </section>
