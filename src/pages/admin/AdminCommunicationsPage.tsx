@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowUpRight, RefreshCw, Send } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, RefreshCw, Send } from 'lucide-react';
 import { NotificationOutboxItem, supabase } from '../../lib/supabase';
 import { AnnouncementsManager } from '../../components/admin/AnnouncementsManager';
 import { LodgeMailroom } from '../../components/admin/LodgeMailroom';
@@ -21,6 +21,7 @@ export const AdminCommunicationsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState('');
+  const [outboundExpanded, setOutboundExpanded] = useState(false);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
@@ -107,40 +108,55 @@ export const AdminCommunicationsPage = () => {
       <LodgeMailroom />
 
       <div>
-        <section className="max-w-4xl">
-          <div className="flex items-center gap-2 mb-3">
-            <ArrowUpRight size={17} className="text-slate-500" />
-            <h3 className="font-semibold text-slate-900">Outbound Notifications</h3>
-          </div>
-          <div className="space-y-2">
-            {outbound.map((item) => (
-              <div key={item.id} className="border border-slate-200 rounded-lg p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {item.notification_type.split('_').join(' ')}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{item.recipient_email}</p>
+        <section className="max-w-4xl overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setOutboundExpanded((expanded) => !expanded)}
+            aria-expanded={outboundExpanded}
+            aria-controls="outbound-notification-history"
+            aria-label={`${outboundExpanded ? 'Collapse' : 'Expand'} outbound notifications`}
+            className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-slate-50"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <ArrowUpRight size={17} className="shrink-0 text-slate-500" />
+              <span>
+                <span className="block font-semibold text-slate-900">Outbound Notifications</span>
+                <span className="block text-xs text-slate-500">{outbound.length} recent notification{outbound.length === 1 ? '' : 's'}</span>
+              </span>
+            </span>
+            <ChevronDown size={18} className={`shrink-0 text-slate-500 transition-transform ${outboundExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+          {outboundExpanded && (
+            <div id="outbound-notification-history" className="space-y-2 border-t border-slate-200 p-4">
+              {outbound.map((item) => (
+                <div key={item.id} className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">
+                        {item.notification_type.split('_').join(' ')}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{item.recipient_email}</p>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass[item.status]}`}>
+                      {item.status}
+                    </span>
                   </div>
-                  <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${statusClass[item.status]}`}>
-                    {item.status}
-                  </span>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>{new Date(item.created_at).toLocaleString('en-CA')}</span>
+                    <span>Attempt {item.attempt_count}/{item.max_attempts}</span>
+                  </div>
+                  {item.last_error && (
+                    <p className="mt-2 line-clamp-2 text-xs text-red-600">{item.last_error}</p>
+                  )}
                 </div>
-                <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
-                  <span>{new Date(item.created_at).toLocaleString('en-CA')}</span>
-                  <span>Attempt {item.attempt_count}/{item.max_attempts}</span>
+              ))}
+              {!loading && outbound.length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500">
+                  No outbound notifications yet.
                 </div>
-                {item.last_error && (
-                  <p className="text-xs text-red-600 mt-2 line-clamp-2">{item.last_error}</p>
-                )}
-              </div>
-            ))}
-            {!loading && outbound.length === 0 && (
-              <div className="border border-dashed border-slate-200 rounded-lg py-10 text-center text-sm text-slate-500">
-                No outbound notifications yet.
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </div>

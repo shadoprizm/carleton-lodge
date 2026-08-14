@@ -3,12 +3,15 @@ import { useSearchParams } from 'react-router';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   FileSearch,
   Inbox,
   Loader2,
   MailCheck,
+  Pencil,
   Plus,
   RefreshCw,
+  Save,
   ShieldCheck,
   Trash2,
   X,
@@ -181,6 +184,11 @@ export const LodgeMailroom = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [senderEmail, setSenderEmail] = useState('');
   const [senderLabel, setSenderLabel] = useState('Lodge Secretary');
+  const [editingSenderId, setEditingSenderId] = useState<string | null>(null);
+  const [editingSenderEmail, setEditingSenderEmail] = useState('');
+  const [editingSenderLabel, setEditingSenderLabel] = useState('');
+  const [senderBusyId, setSenderBusyId] = useState<string | null>(null);
+  const [inboundExpanded, setInboundExpanded] = useState(false);
   const [reviewing, setReviewing] = useState<MailroomImport | null>(null);
   const [proposal, setProposal] = useState<MailroomProposal | null>(null);
 
@@ -249,12 +257,75 @@ export const LodgeMailroom = () => {
 
   const toggleSender = async (sender: TrustedEmailSender) => {
     if (!canWrite) return;
+    setSenderBusyId(sender.id);
     setError(null);
+    setNotice(null);
     const { error: updateError } = await supabase
       .from('trusted_email_senders')
       .update({ is_active: !sender.is_active })
       .eq('id', sender.id);
-    if (updateError) setError(updateError.message);
+    setSenderBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setNotice(`${sender.email} is now ${sender.is_active ? 'inactive' : 'active'}.`);
+    await loadMailroom();
+  };
+
+  const startEditingSender = (sender: TrustedEmailSender) => {
+    setEditingSenderId(sender.id);
+    setEditingSenderLabel(sender.label);
+    setEditingSenderEmail(sender.email);
+    setError(null);
+    setNotice(null);
+  };
+
+  const cancelEditingSender = () => {
+    setEditingSenderId(null);
+    setEditingSenderLabel('');
+    setEditingSenderEmail('');
+  };
+
+  const saveTrustedSender = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canWrite || !editingSenderId) return;
+    const email = editingSenderEmail.trim().toLowerCase();
+    const label = editingSenderLabel.trim();
+    if (!email || !label) return;
+    setSenderBusyId(editingSenderId);
+    setError(null);
+    setNotice(null);
+    const { error: updateError } = await supabase
+      .from('trusted_email_senders')
+      .update({ email, label })
+      .eq('id', editingSenderId);
+    setSenderBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    cancelEditingSender();
+    setNotice(`${email} was updated.`);
+    await loadMailroom();
+  };
+
+  const removeTrustedSender = async (sender: TrustedEmailSender) => {
+    if (!canWrite || !window.confirm(`Remove “${sender.label}” (${sender.email}) from trusted senders? Existing Mailroom records will not be deleted.`)) return;
+    setSenderBusyId(sender.id);
+    setError(null);
+    setNotice(null);
+    const { error: deleteError } = await supabase
+      .from('trusted_email_senders')
+      .delete()
+      .eq('id', sender.id);
+    setSenderBusyId(null);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    if (editingSenderId === sender.id) cancelEditingSender();
+    setNotice(`${sender.email} was removed from trusted senders.`);
     await loadMailroom();
   };
 
@@ -440,7 +511,7 @@ export const LodgeMailroom = () => {
       <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.7fr)]">
         <div>
           <h4 className="font-semibold text-slate-900">Trusted senders</h4>
-          <p className="mt-1 text-sm text-slate-600">Use the Secretary’s exact sending address. A display name is not enough.</p>
+          <p className="mt-1 text-sm text-slate-600">Only active senders can trigger Mailroom processing. Inactive entries are retained for reference and can be reactivated or removed.</p>
           {canWrite && (
             <form onSubmit={addTrustedSender} className="mt-4 space-y-3">
               <label className="block text-sm font-medium text-slate-700">Role or label
@@ -453,16 +524,38 @@ export const LodgeMailroom = () => {
             </form>
           )}
           <div className="mt-4 space-y-2">
-            {senders.map((sender) => (
-              <div key={sender.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">{sender.label}</p>
-                  <p className="truncate text-xs text-slate-500">{sender.email}</p>
+            {senders.map((sender) => editingSenderId === sender.id ? (
+              <form key={sender.id} onSubmit={saveTrustedSender} className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                <label className="block text-sm font-medium text-slate-700">Role or label
+                  <input value={editingSenderLabel} onChange={(event) => setEditingSenderLabel(event.target.value)} maxLength={120} className={`${inputClass} mt-1 bg-white`} required />
+                </label>
+                <label className="block text-sm font-medium text-slate-700">Email address
+                  <input type="email" value={editingSenderEmail} onChange={(event) => setEditingSenderEmail(event.target.value)} maxLength={320} className={`${inputClass} mt-1 bg-white`} required />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="submit" disabled={senderBusyId === sender.id} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-amber-300 disabled:opacity-50"><Save size={15} /> Save changes</button>
+                  <button type="button" onClick={cancelEditingSender} disabled={senderBusyId === sender.id} className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-50">Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <div key={sender.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{sender.label}</p>
+                    <p className="truncate text-xs text-slate-500">{sender.email}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sender.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                    {sender.is_active ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
                 {canWrite && (
-                  <button type="button" onClick={() => toggleSender(sender)} className={`min-h-9 rounded-md px-3 text-xs font-semibold ${sender.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                    {sender.is_active ? 'Active' : 'Inactive'}
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => toggleSender(sender)} disabled={senderBusyId === sender.id} className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50" aria-label={`${sender.is_active ? 'Deactivate' : 'Activate'} trusted sender ${sender.label}`}>
+                      {sender.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button type="button" onClick={() => startEditingSender(sender)} disabled={senderBusyId === sender.id} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50" aria-label={`Edit trusted sender ${sender.label}`}><Pencil size={14} /> Edit</button>
+                    <button type="button" onClick={() => removeTrustedSender(sender)} disabled={senderBusyId === sender.id} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-700 disabled:opacity-50" aria-label={`Remove trusted sender ${sender.label}`}><Trash2 size={14} /> Remove</button>
+                  </div>
                 )}
               </div>
             ))}
@@ -470,54 +563,69 @@ export const LodgeMailroom = () => {
           </div>
         </div>
 
-        <div>
-          <h4 className="font-semibold text-slate-900">Recent inbox</h4>
-          <p className="mt-1 text-sm text-slate-600">Eligible messages are prepared automatically when automation is enabled. Manual preparation remains available for captured messages.</p>
-          <div className="mt-4 space-y-3">
-            {messages.map((message) => {
-              const item = importByMessage.get(message.id);
-              const trusted = activeSenderEmails.has(senderAddress(message.from_address));
-              return (
-                <article key={message.id} className="rounded-lg border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">{message.subject || '(no subject)'}</p>
-                      <p className="mt-1 break-all text-sm text-slate-600">From {message.from_address || 'unknown sender'}</p>
-                      <p className="mt-1 text-xs text-slate-400">{new Date(message.received_at).toLocaleString('en-CA')} · {message.attachments.length} attachment{message.attachments.length === 1 ? '' : 's'}</p>
+        <div className="self-start overflow-hidden rounded-lg border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setInboundExpanded((expanded) => !expanded)}
+            aria-expanded={inboundExpanded}
+            aria-controls="inbound-notification-history"
+            aria-label={`${inboundExpanded ? 'Collapse' : 'Expand'} inbound notifications`}
+            className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-slate-50"
+          >
+            <span>
+              <span className="block font-semibold text-slate-900">Inbound Notifications</span>
+              <span className="block text-xs text-slate-500">{messages.length} recent message{messages.length === 1 ? '' : 's'}</span>
+            </span>
+            <ChevronDown size={18} className={`shrink-0 text-slate-500 transition-transform ${inboundExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+          {inboundExpanded && (
+            <div id="inbound-notification-history" className="space-y-3 border-t border-slate-200 p-4">
+              <p className="text-sm text-slate-600">Eligible messages are prepared automatically when automation is enabled. Manual preparation remains available for captured messages.</p>
+              {messages.map((message) => {
+                const item = importByMessage.get(message.id);
+                const trusted = activeSenderEmails.has(senderAddress(message.from_address));
+                return (
+                  <article key={message.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900">{message.subject || '(no subject)'}</p>
+                        <p className="mt-1 break-all text-sm text-slate-600">From {message.from_address || 'unknown sender'}</p>
+                        <p className="mt-1 text-xs text-slate-400">{new Date(message.received_at).toLocaleString('en-CA')} · {message.attachments.length} attachment{message.attachments.length === 1 ? '' : 's'}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${trusted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                          {trusted ? 'Trusted sender' : 'Not trusted'}
+                        </span>
+                        {item && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle[item.status]}`}>{item.status.split('_').join(' ')}</span>}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${trusted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                        {trusted ? 'Trusted sender' : 'Not trusted'}
-                      </span>
-                      {item && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle[item.status]}`}>{item.status.split('_').join(' ')}</span>}
+                    {item?.summary && <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">{item.summary}</p>}
+                    {item?.last_error && <p className="mt-3 text-sm text-red-700">{item.last_error}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {canWrite && trusted && !item && (
+                        <button type="button" onClick={() => prepareDraft(message)} disabled={busyId === message.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-amber-300 disabled:opacity-50">
+                          {busyId === message.id ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />} Prepare draft
+                        </button>
+                      )}
+                      {canWrite && item?.status === 'failed' && (
+                        <button type="button" onClick={() => retryDraft(item)} disabled={busyId === item.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-amber-300 disabled:opacity-50">
+                          {busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Retry extraction
+                        </button>
+                      )}
+                      {item?.status === 'needs_review' && (
+                        <button type="button" onClick={() => openReview(item)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950"><CheckCircle2 size={16} /> Review draft</button>
+                      )}
+                      <details className="w-full text-sm text-slate-600">
+                        <summary className="cursor-pointer py-2 font-medium">View original email text</summary>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-sans text-sm leading-6">{message.text_body || 'No plain-text body was captured.'}</pre>
+                      </details>
                     </div>
-                  </div>
-                  {item?.summary && <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">{item.summary}</p>}
-                  {item?.last_error && <p className="mt-3 text-sm text-red-700">{item.last_error}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {canWrite && trusted && !item && (
-                      <button type="button" onClick={() => prepareDraft(message)} disabled={busyId === message.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-amber-300 disabled:opacity-50">
-                        {busyId === message.id ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />} Prepare draft
-                      </button>
-                    )}
-                    {canWrite && item?.status === 'failed' && (
-                      <button type="button" onClick={() => retryDraft(item)} disabled={busyId === item.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-amber-300 disabled:opacity-50">
-                        {busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Retry extraction
-                      </button>
-                    )}
-                    {item?.status === 'needs_review' && (
-                      <button type="button" onClick={() => openReview(item)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950"><CheckCircle2 size={16} /> Review draft</button>
-                    )}
-                    <details className="w-full text-sm text-slate-600">
-                      <summary className="cursor-pointer py-2 font-medium">View original email text</summary>
-                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-sans text-sm leading-6">{message.text_body || 'No plain-text body was captured.'}</pre>
-                    </details>
-                  </div>
-                </article>
-              );
-            })}
-            {!loading && messages.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No inbound messages yet.</p>}
-          </div>
+                  </article>
+                );
+              })}
+              {!loading && messages.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No inbound messages yet.</p>}
+            </div>
+          )}
         </div>
       </div>
 

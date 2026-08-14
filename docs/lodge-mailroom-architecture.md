@@ -31,6 +31,11 @@ classifier records the original issuing lodge or organization separately.
 Email, attachment text, and model output are untrusted data and cannot call
 tools or publish records.
 
+Provider events addressed to any other mailbox are acknowledged without being
+stored. The inbound-email RLS policy repeats the recipient check so a provider
+or webhook regression cannot expose another domain's mail to Communications
+readers.
+
 ## Preparation and routing
 
 Mailroom first classifies the subject, body, and attachment metadata. Supported
