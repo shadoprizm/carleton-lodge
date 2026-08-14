@@ -64,6 +64,9 @@ type MemberDirectoryRow = {
   bio: string | null;
   updated_at: string;
   lodge_positions: { name: string } | null;
+  lodge_member_positions: Array<{
+    lodge_positions: { name: string } | null;
+  }>;
 };
 
 type DistrictEventRow = {
@@ -509,7 +512,7 @@ Deno.serve(async (req: Request) => {
         ? userClient
           .from("lodge_members")
           .select(
-            "id, full_name, phone, lodge_email, join_date, bio, updated_at, lodge_positions(name)",
+            "id, full_name, phone, lodge_email, join_date, bio, updated_at, lodge_positions(name), lodge_member_positions(lodge_positions(name))",
           )
           .in("id", memberSourceIds)
         : Promise.resolve({ data: [], error: null }),

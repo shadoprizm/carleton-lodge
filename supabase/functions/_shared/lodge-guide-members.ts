@@ -7,6 +7,9 @@ export type LodgeGuideMemberDirectoryRow = {
   join_date: string | null;
   bio: string | null;
   lodge_positions: { name: string } | null;
+  lodge_member_positions?: Array<{
+    lodge_positions: { name: string } | null;
+  }>;
 };
 
 const CONTACT_QUESTION_PATTERN =
@@ -17,11 +20,19 @@ export const lodgeGuideQuestionNeedsSupportContact = (question: string) =>
 
 export const lodgeGuideMemberSourceBody = (
   member: LodgeGuideMemberDirectoryRow,
-) =>
-  [
-    `Position: ${member.lodge_positions?.name ?? "Lodge Member"}`,
+) => {
+  const assignedPositionNames = (member.lodge_member_positions ?? [])
+    .map(assignment => assignment.lodge_positions?.name)
+    .filter((name): name is string => Boolean(name));
+  const positionLabel = assignedPositionNames.length > 0
+    ? assignedPositionNames.join(', ')
+    : member.lodge_positions?.name ?? "Lodge Member";
+
+  return [
+    `Positions: ${positionLabel}`,
     `Lodge email: ${member.lodge_email ?? "Not currently listed or activated"}`,
     `Phone: ${member.phone ?? "Not currently listed"}`,
     `Member since: ${member.join_date ?? "Not currently listed"}`,
     member.bio ? `Biography: ${member.bio}` : null,
   ].filter((value): value is string => value !== null).join("\n");
+};

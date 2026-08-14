@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LodgeMemberWithPosition } from '../../lib/supabase';
+import type { LodgeMemberWithPosition, LodgePosition } from '../../lib/supabase';
 import { MembersManager } from './MembersManager';
 
 const {
@@ -52,6 +52,7 @@ const managedMember: LodgeMemberWithPosition = {
   created_at: '2020-01-04T12:00:00Z',
   updated_at: '2026-08-10T12:00:00Z',
   lodge_positions: null,
+  positions: [],
 };
 
 const deletionTestMember: LodgeMemberWithPosition = {
@@ -79,11 +80,35 @@ const secondManagedMember: LodgeMemberWithPosition = {
   mailbox_status: 'unprovisioned',
 };
 
+const historianPosition: LodgePosition = {
+  id: 'historian-position',
+  name: 'Lodge Historian',
+  display_order: 18,
+  position_type: 'FUNCTIONAL',
+  max_holders: 1,
+  created_at: '2026-08-13T00:00:00Z',
+};
+
+const auditorPosition: LodgePosition = {
+  id: 'auditor-position',
+  name: 'Lodge Auditor',
+  display_order: 19,
+  position_type: 'FUNCTIONAL',
+  max_holders: 2,
+  created_at: '2026-08-14T00:00:00Z',
+};
+
 function orderedResult(data: unknown[]) {
   return {
     select: vi.fn(() => ({
       order: vi.fn().mockResolvedValue({ data, error: null }),
     })),
+  };
+}
+
+function selectedResult(data: unknown[]) {
+  return {
+    select: vi.fn().mockResolvedValue({ data, error: null }),
   };
 }
 
@@ -98,6 +123,7 @@ describe('MembersManager Grand Lodge membership number', () => {
     rpcMock.mockResolvedValue({ data: [managedMember], error: null });
     fromMock.mockImplementation((table: string) => {
       if (table === 'lodge_positions') return orderedResult([]);
+      if (table === 'lodge_member_positions') return selectedResult([]);
       if (table === 'profiles') return orderedResult([{ id: 'profile-1', email: 'member@example.com' }]);
       if (table === 'lodge_members') {
         return {
@@ -175,6 +201,49 @@ describe('MembersManager Grand Lodge membership number', () => {
     expect(screen.getByRole('button', { name: 'Manage roster entry for Example Member' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage roster entry for Second Member' })).not.toBeInTheDocument();
   });
+
+  it('edits and saves more than one concurrent Lodge position', async () => {
+    hasAdminPermissionMock.mockReturnValue(true);
+    updateEqMock.mockResolvedValue({ data: null, error: null });
+    const dualRoleMember = {
+      ...managedMember,
+      position_id: historianPosition.id,
+      lodge_positions: historianPosition,
+      positions: [historianPosition, auditorPosition],
+    };
+
+    rpcMock.mockImplementation((functionName: string) => Promise.resolve(
+      functionName === 'get_managed_lodge_members'
+        ? { data: [dualRoleMember], error: null }
+        : { data: null, error: null },
+    ));
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'lodge_positions') return orderedResult([historianPosition, auditorPosition]);
+      if (table === 'lodge_member_positions') return selectedResult([
+        { member_id: managedMember.id, position_id: historianPosition.id, is_primary: true },
+        { member_id: managedMember.id, position_id: auditorPosition.id, is_primary: false },
+      ]);
+      if (table === 'profiles') return orderedResult([]);
+      if (table === 'lodge_members') {
+        return { update: vi.fn(() => ({ eq: updateEqMock })) };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    render(<MembersManager />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage roster entry for Example Member' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Example Member' }));
+
+    expect(screen.getByRole('checkbox', { name: 'Lodge Historian' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Lodge Auditor/ })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith('set_lodge_member_positions', {
+      target_member_id: managedMember.id,
+      target_position_ids: [historianPosition.id, auditorPosition.id],
+    }));
+  });
 });
 
 describe('MembersManager member deletion', () => {
@@ -189,6 +258,7 @@ describe('MembersManager member deletion', () => {
     rpcMock.mockResolvedValue({ data: [deletionTestMember], error: null });
     fromMock.mockImplementation((table: string) => {
       if (table === 'lodge_positions' || table === 'profiles') return orderedResult([]);
+      if (table === 'lodge_member_positions') return selectedResult([]);
       throw new Error(`Unexpected table: ${table}`);
     });
   });

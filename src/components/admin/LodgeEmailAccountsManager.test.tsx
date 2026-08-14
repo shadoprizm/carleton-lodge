@@ -25,6 +25,8 @@ const position: LodgePosition = {
   id: 'position-1',
   name: 'Secretary',
   display_order: 1,
+  position_type: 'OFFICER',
+  max_holders: 1,
   created_at: '2020-01-01T00:00:00Z',
 };
 
