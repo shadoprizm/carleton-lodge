@@ -65,7 +65,7 @@ export const LibraryPage = () => {
       supabase
         .from('documents')
         .select('*, document_categories(*)')
-        .order('created_at', { ascending: false }),
+        .order('display_order', { ascending: true }),
     ]);
     if (catRes.data) {
       setCategories(catRes.data);

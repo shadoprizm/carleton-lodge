@@ -756,6 +756,7 @@ export type Document = {
   id: string;
   category_id: string | null;
   summons_id: string | null;
+  display_order: number;
   title: string;
   description: string | null;
   file_url: string;

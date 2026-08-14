@@ -1,7 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { AdminLibraryPage } from './AdminLibraryPage';
+
+const { rpcMock } = vi.hoisted(() => ({
+  rpcMock: vi.fn().mockResolvedValue({ data: null, error: null }),
+}));
 
 const category = {
   id: 'category-1',
@@ -16,6 +20,7 @@ const storedDocument = {
   id: 'document-1',
   category_id: category.id,
   summons_id: null,
+  display_order: 0,
   title: 'Stored Agenda',
   description: null,
   file_url: 'stored-agenda.pdf',
@@ -35,6 +40,15 @@ const storedDocument = {
   document_categories: category,
 };
 
+const olderDocument = {
+  ...storedDocument,
+  id: 'document-2',
+  title: 'Older Agenda',
+  file_url: 'older-agenda.pdf',
+  file_name: 'older-agenda.pdf',
+  display_order: 1,
+};
+
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'admin-1' },
@@ -47,11 +61,12 @@ vi.mock('../../lib/supabase', () => ({
     from: (table: string) => ({
       select: () => ({
         order: () => Promise.resolve({
-          data: table === 'document_categories' ? [category] : [storedDocument],
+          data: table === 'document_categories' ? [category] : [storedDocument, olderDocument],
           error: null,
         }),
       }),
     }),
+    rpc: rpcMock,
     storage: {
       from: () => ({ createSignedUrl: vi.fn() }),
     },
@@ -75,7 +90,10 @@ vi.mock('../../components/DocumentPreviewModal', () => ({
 }));
 
 describe('AdminLibraryPage previews', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    rpcMock.mockClear();
+  });
 
   const renderPage = () => render(
     <MemoryRouter>
@@ -115,5 +133,24 @@ describe('AdminLibraryPage previews', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Preview Bulk notice.pdf' }));
     expect(screen.getByRole('dialog', { name: 'Document preview' })).toHaveTextContent('Bulk notice.pdf');
+  });
+
+  it('persists a manual document order for the whole category', async () => {
+    renderPage();
+    await screen.findByText('Stored Agenda');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Stored Agenda down' }));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith(
+      'reorder_library_documents',
+      {
+        target_category_id: category.id,
+        ordered_document_ids: ['document-2', 'document-1'],
+      },
+    ));
+
+    expect(screen.getAllByRole('button', { name: /^Preview / }).map((button) => (
+      button.getAttribute('aria-label')
+    ))).toEqual(['Preview Older Agenda', 'Preview Stored Agenda']);
   });
 });
