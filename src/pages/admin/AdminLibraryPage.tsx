@@ -3,10 +3,11 @@ import { Link } from 'react-router';
 import {
   Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
   Tag, ChevronDown, ChevronRight, Folder, FolderOpen, AlertCircle,
-  Files, CheckCircle2
+  Files, CheckCircle2, Eye
 } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
 
 const DOCUMENTS_BUCKET = 'lodge-documents';
 const BULK_INTAKE_CATEGORY_NAME = 'Needs Sorting';
@@ -31,6 +32,7 @@ export const AdminLibraryPage = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [showCatForm, setShowCatForm] = useState(false);
   const [editingCat, setEditingCat] = useState<DocumentCategory | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<DocumentWithCategory | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -78,6 +80,31 @@ export const AdminLibraryPage = () => {
     if (!confirm(`Delete category "${cat.name}"? Documents in it will become uncategorised.`)) return;
     await supabase.from('document_categories').delete().eq('id', cat.id);
     fetchData();
+  };
+
+  const downloadDocument = async (doc: DocumentWithCategory) => {
+    const bucket = doc.storage_bucket || DOCUMENTS_BUCKET;
+    const { data } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(doc.file_url, 60);
+    if (!data?.signedUrl) return;
+
+    try {
+      const response = await fetch(data.signedUrl);
+      if (!response.ok) throw new Error('Failed to fetch file');
+
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = doc.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (downloadError) {
+      console.error('Error downloading file:', downloadError);
+      window.open(data.signedUrl, '_blank');
+    }
   };
 
   const docsByCategory = categories.reduce<Record<string, DocumentWithCategory[]>>((acc, cat) => {
@@ -201,6 +228,7 @@ export const AdminLibraryPage = () => {
                           doc={doc}
                           canWrite={canWrite}
                           canManageSummons={canManageSummons}
+                          onPreview={() => setPreviewDoc(doc)}
                           onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                           onDelete={() => deleteDocument(doc)}
                         />
@@ -225,6 +253,7 @@ export const AdminLibraryPage = () => {
                     doc={doc}
                     canWrite={canWrite}
                     canManageSummons={canManageSummons}
+                    onPreview={() => setPreviewDoc(doc)}
                     onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                     onDelete={() => deleteDocument(doc)}
                   />
@@ -276,6 +305,12 @@ export const AdminLibraryPage = () => {
           )}
         </div>
       )}
+
+      <DocumentPreviewModal
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownload={downloadDocument}
+      />
     </div>
   );
 };
@@ -284,12 +319,14 @@ const AdminDocRow = ({
   doc,
   canWrite,
   canManageSummons,
+  onPreview,
   onEdit,
   onDelete,
 }: {
   doc: DocumentWithCategory;
   canWrite: boolean;
   canManageSummons: boolean;
+  onPreview: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) => (
@@ -301,33 +338,46 @@ const AdminDocRow = ({
         <span className="text-xs text-slate-400">{doc.file_name}</span>
       </div>
     </div>
-    {doc.summons_id ? (
-      canManageSummons ? (
-        <Link
-          to="/admin/summons"
-          className="ml-4 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
-        >
-          Manage in Summons
-        </Link>
-      ) : (
-        <span className="ml-4 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-          Linked summons
-        </span>
-      )
-    ) : canWrite && <div className="flex items-center space-x-1 ml-4">
+    <div className="flex items-center space-x-1 ml-4">
+      <button
+        type="button"
+        onClick={onPreview}
+        aria-label={`Preview ${doc.title}`}
+        className="flex items-center space-x-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-900 hover:bg-slate-900 hover:text-amber-300"
+      >
+        <Eye size={13} />
+        <span>Preview</span>
+      </button>
+      {doc.summons_id ? (
+        canManageSummons ? (
+          <Link
+            to="/admin/summons"
+            className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
+          >
+            Manage in Summons
+          </Link>
+        ) : (
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+            Linked summons
+          </span>
+        )
+      ) : canWrite ? <>
       <button
         onClick={onEdit}
+        aria-label={`Edit ${doc.title}`}
         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
       >
         <Edit2 size={14} />
       </button>
       <button
         onClick={onDelete}
+        aria-label={`Delete ${doc.title}`}
         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
       >
         <Trash2 size={14} />
       </button>
-    </div>}
+      </> : null}
+    </div>
   </div>
 );
 
@@ -349,6 +399,7 @@ const DocumentForm = ({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     title: editingDoc?.title ?? '',
     description: editingDoc?.description ?? '',
@@ -362,6 +413,7 @@ const DocumentForm = ({
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
+    setPreviewFile(null);
     if (!formData.title) {
       setFormData((prev) => ({
         ...prev,
@@ -438,6 +490,7 @@ const DocumentForm = ({
   };
 
   return (
+    <>
     <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
       <div className="flex justify-between items-center mb-5">
         <h3 className="font-semibold text-slate-900">{editingDoc ? 'Edit Document' : 'Upload Document'}</h3>
@@ -498,6 +551,23 @@ const DocumentForm = ({
             </div>
           </div>
         )}
+
+        {selectedFile ? (
+          <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-blue-900">Ready to preview: {selectedFile.name}</p>
+              <p className="text-xs text-blue-700">Review the selected file before uploading it.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewFile(selectedFile)}
+              className="ml-3 flex flex-shrink-0 items-center space-x-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-100"
+            >
+              <Eye size={13} />
+              <span>Preview selected file</span>
+            </button>
+          </div>
+        ) : null}
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
@@ -582,6 +652,12 @@ const DocumentForm = ({
         </div>
       </form>
     </div>
+    <DocumentPreviewModal
+      doc={null}
+      localFile={previewFile}
+      onClose={() => setPreviewFile(null)}
+    />
+    </>
   );
 };
 
@@ -606,6 +682,7 @@ const BulkUploadForm = ({
   const [uploadedCount, setUploadedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const addFiles = (fileList: FileList | null) => {
     if (!fileList?.length) return;
@@ -614,6 +691,8 @@ const BulkUploadForm = ({
   };
 
   const removeFile = (index: number) => {
+    const removedFile = files[index];
+    if (previewFile === removedFile) setPreviewFile(null);
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -680,6 +759,7 @@ const BulkUploadForm = ({
   };
 
   return (
+    <>
     <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
       <div className="flex justify-between items-start mb-5">
         <div>
@@ -727,14 +807,26 @@ const BulkUploadForm = ({
                     <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  disabled={uploading}
-                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <X size={14} />
-                </button>
+                <div className="ml-3 flex flex-shrink-0 items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFile(file)}
+                    aria-label={`Preview ${file.name}`}
+                    className="flex items-center space-x-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-900 hover:bg-slate-900 hover:text-amber-300"
+                  >
+                    <Eye size={13} />
+                    <span>Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    disabled={uploading}
+                    aria-label={`Remove ${file.name}`}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -803,6 +895,12 @@ const BulkUploadForm = ({
         </div>
       </form>
     </div>
+    <DocumentPreviewModal
+      doc={null}
+      localFile={previewFile}
+      onClose={() => setPreviewFile(null)}
+    />
+    </>
   );
 };
 
