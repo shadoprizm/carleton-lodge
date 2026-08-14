@@ -1,6 +1,7 @@
 # Memory
 
 ## Architecture
+- [2026-08-14] Summons publication notifications are explicit opt-in; summons PDFs are the source of truth and appear in the protected Library Summons category through one-to-one linked document records.
 - [2026-08-08] Build “Ask Carleton” only after the member knowledge/search foundation: authenticated-first, read-only, permission-aware, grounded in approved lodge sources, citation-required, explicit uncertainty, and human escalation; it cannot take administrative actions or expose private/admin content.
 - [2026-07-25] All new calendar entries use `event_submissions`; only an authorized approval atomically creates a published `events` row.
 - [2026-07-25] Events approval is a delegated `can_approve` capability independent of Events read/write access; full admins retain implicit approval.

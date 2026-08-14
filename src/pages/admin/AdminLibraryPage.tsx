@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router';
 import {
   Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
   Tag, ChevronDown, ChevronRight, Folder, FolderOpen, AlertCircle,
@@ -9,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const DOCUMENTS_BUCKET = 'lodge-documents';
 const BULK_INTAKE_CATEGORY_NAME = 'Needs Sorting';
+const SUMMONS_CATEGORY_NAME = 'Summons';
 
 function documentTitleFromFilename(filename: string): string {
   return filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
@@ -17,6 +19,7 @@ function documentTitleFromFilename(filename: string): string {
 export const AdminLibraryPage = () => {
   const { user, hasAdminPermission } = useAuth();
   const canWrite = hasAdminPermission('library', 'write');
+  const canManageSummons = hasAdminPermission('summons', 'write');
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [documents, setDocuments] = useState<DocumentWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,7 @@ export const AdminLibraryPage = () => {
   };
 
   const deleteDocument = async (doc: DocumentWithCategory) => {
+    if (doc.summons_id) return;
     if (!confirm(`Delete "${doc.title}"?`)) return;
     if (!doc.source_mailroom_import_id) {
       const bucket = doc.storage_bucket || DOCUMENTS_BUCKET;
@@ -70,6 +74,7 @@ export const AdminLibraryPage = () => {
   };
 
   const deleteCategory = async (cat: DocumentCategory) => {
+    if (cat.name === SUMMONS_CATEGORY_NAME) return;
     if (!confirm(`Delete category "${cat.name}"? Documents in it will become uncategorised.`)) return;
     await supabase.from('document_categories').delete().eq('id', cat.id);
     fetchData();
@@ -80,6 +85,7 @@ export const AdminLibraryPage = () => {
     return acc;
   }, {});
   const uncategorised = documents.filter((d) => !d.category_id);
+  const editableCategories = categories.filter((cat) => cat.name !== SUMMONS_CATEGORY_NAME);
 
   return (
     <div>
@@ -138,7 +144,7 @@ export const AdminLibraryPage = () => {
 
       {canWrite && showDocForm && (
         <DocumentForm
-          categories={categories}
+          categories={editableCategories}
           editingDoc={editingDoc}
           userId={user?.id ?? null}
           onDone={() => { setShowDocForm(false); setEditingDoc(null); fetchData(); }}
@@ -148,7 +154,7 @@ export const AdminLibraryPage = () => {
 
       {canWrite && showBulkUpload && (
         <BulkUploadForm
-          categories={categories}
+          categories={editableCategories}
           defaultCategoryId={categories.find((cat) => cat.name === BULK_INTAKE_CATEGORY_NAME)?.id ?? ''}
           userId={user?.id ?? null}
           onDone={() => { setShowBulkUpload(false); fetchData(); }}
@@ -194,6 +200,7 @@ export const AdminLibraryPage = () => {
                           key={doc.id}
                           doc={doc}
                           canWrite={canWrite}
+                          canManageSummons={canManageSummons}
                           onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                           onDelete={() => deleteDocument(doc)}
                         />
@@ -217,6 +224,7 @@ export const AdminLibraryPage = () => {
                     key={doc.id}
                     doc={doc}
                     canWrite={canWrite}
+                    canManageSummons={canManageSummons}
                     onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                     onDelete={() => deleteDocument(doc)}
                   />
@@ -243,7 +251,11 @@ export const AdminLibraryPage = () => {
                 </div>
                 {cat.description && <p className="text-sm text-slate-500 mt-1 ml-6">{cat.description}</p>}
               </div>
-              {canWrite && <div className="flex items-center space-x-1">
+              {cat.name === SUMMONS_CATEGORY_NAME ? (
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
+                  Managed from Summons
+                </span>
+              ) : canWrite && <div className="flex items-center space-x-1">
                 <button
                   onClick={() => { setEditingCat(cat); setShowCatForm(true); }}
                   className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -271,11 +283,13 @@ export const AdminLibraryPage = () => {
 const AdminDocRow = ({
   doc,
   canWrite,
+  canManageSummons,
   onEdit,
   onDelete,
 }: {
   doc: DocumentWithCategory;
   canWrite: boolean;
+  canManageSummons: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) => (
@@ -287,7 +301,20 @@ const AdminDocRow = ({
         <span className="text-xs text-slate-400">{doc.file_name}</span>
       </div>
     </div>
-    {canWrite && <div className="flex items-center space-x-1 ml-4">
+    {doc.summons_id ? (
+      canManageSummons ? (
+        <Link
+          to="/admin/summons"
+          className="ml-4 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
+        >
+          Manage in Summons
+        </Link>
+      ) : (
+        <span className="ml-4 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+          Linked summons
+        </span>
+      )
+    ) : canWrite && <div className="flex items-center space-x-1 ml-4">
       <button
         onClick={onEdit}
         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"

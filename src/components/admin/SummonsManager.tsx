@@ -5,7 +5,6 @@ import { X, Plus, Edit2, Send, Upload, FileText, Loader2, AlertCircle, ExternalL
 
 const BUCKET = 'summons-uploads';
 const SUPABASE_STORAGE_PREFIX = '/storage/v1/object/public/summons-uploads/';
-const NOTICES_CATEGORY_ID = 'ddb0c537-2166-4587-8302-ec2346842615';
 const MAXIMUM_PDF_BYTES = 10 * 1024 * 1024;
 
 function extractStoragePath(pdfUrl: string): string {
@@ -22,11 +21,13 @@ export const SummonsManager = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingSummons, setEditingSummons] = useState<Summons | null>(null);
-  const [sending, setSending] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [notifyMembers, setNotifyMembers] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -141,55 +142,44 @@ export const SummonsManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    setPublishing(true);
 
-    const summonsData = {
-      title: formData.title,
-      month: formData.month,
-      content: formData.content,
-      pdf_url: formData.pdf_url || null,
-      created_by: user?.id,
-    };
-
-    if (editingSummons) {
-      await supabase.from('summons').update(summonsData).eq('id', editingSummons.id);
-    } else {
-      const { data } = await supabase.from('summons').insert(summonsData).select().single();
-      if (data) {
-        await sendNotifications(data.id);
-        if (summonsData.pdf_url && uploadedFile) {
-          await supabase.from('documents').insert({
-            title: formData.title,
-            description: formData.month || null,
-            category_id: NOTICES_CATEGORY_ID,
-            file_url: summonsData.pdf_url,
-            file_name: uploadedFile.name,
-            file_size: uploadedFile.size,
-            file_type: 'application/pdf',
-            storage_bucket: BUCKET,
-            tags: ['summons', formData.month.toLowerCase()].filter(Boolean),
-            uploaded_by: user?.id,
-          });
-        }
-      }
-    }
-
-    setShowForm(false);
-    setEditingSummons(null);
-    resetForm();
-    fetchSummons();
-  };
-
-  const sendNotifications = async (summonsId: string) => {
-    setSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-summons-notification', {
-        body: { summonsId },
-      });
-      if (error) throw error;
+      const summonsData = {
+        title: formData.title,
+        month: formData.month,
+        content: formData.content,
+        pdf_url: formData.pdf_url || null,
+      };
+
+      if (editingSummons) {
+        const { error } = await supabase
+          .from('summons')
+          .update(summonsData)
+          .eq('id', editingSummons.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('summons').insert({
+          ...summonsData,
+          created_by: user?.id,
+          notify_members: notifyMembers,
+          file_name: uploadedFile?.name ?? null,
+          file_size: uploadedFile?.size ?? null,
+          file_type: uploadedFile?.type || 'application/pdf',
+        });
+        if (error) throw error;
+      }
+
+      setShowForm(false);
+      setEditingSummons(null);
+      resetForm();
+      await fetchSummons();
     } catch (error) {
-      console.error('Error sending notifications:', error);
+      setFormError(error instanceof Error ? error.message : 'The summons could not be published. Please try again.');
+    } finally {
+      setPublishing(false);
     }
-    setSending(false);
   };
 
   const handleEdit = (summons: Summons) => {
@@ -214,6 +204,8 @@ export const SummonsManager = () => {
     setFormData({ title: '', month: '', content: '', pdf_url: '' });
     setUploadedFile(null);
     setUploadError(null);
+    setFormError(null);
+    setNotifyMembers(false);
   };
 
   const openNewForm = () => {
@@ -421,6 +413,23 @@ export const SummonsManager = () => {
                 />
               </div>
 
+              {!editingSummons && (
+                <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4">
+                  <input
+                    type="checkbox"
+                    checked={notifyMembers}
+                    onChange={(e) => setNotifyMembers(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">Email members when this is published</span>
+                    <span className="mt-1 block text-sm text-gray-500">
+                      Leave this off for historical summons. The PDF will still appear in Summons and in the Library.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {editingSummons && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -428,10 +437,10 @@ export const SummonsManager = () => {
                   </label>
                   <div className="flex items-center space-x-2">
                     <input
-                      type="url"
+                      type="text"
                       value={formData.pdf_url}
                       onChange={(e) => setFormData({ ...formData, pdf_url: e.target.value })}
-                      placeholder="https://..."
+                      placeholder="summons/file.pdf"
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
                     />
                     {formData.pdf_url && (
@@ -453,6 +462,13 @@ export const SummonsManager = () => {
                 </div>
               )}
 
+              {formError && (
+                <div className="flex items-start space-x-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-700">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <p className="text-sm">{formError}</p>
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -463,20 +479,20 @@ export const SummonsManager = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={sending || !isReady}
+                  disabled={publishing || !isReady}
                   className="flex items-center space-x-2 px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors disabled:opacity-60"
                 >
-                  {sending ? (
+                  {publishing ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      <span>Notifying members...</span>
+                      <span>Publishing...</span>
                     </>
                   ) : editingSummons ? (
                     <span>Update Summons</span>
                   ) : (
                     <>
                       <Send size={18} />
-                      <span>Publish & Notify</span>
+                      <span>{notifyMembers ? 'Publish & Notify Members' : 'Publish'}</span>
                     </>
                   )}
                 </button>

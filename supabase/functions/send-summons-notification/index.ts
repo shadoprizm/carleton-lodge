@@ -110,12 +110,18 @@ Deno.serve(async (req: Request) => {
 
     const { data: summons, error: summonsError } = await supabaseAdmin
       .from("summons")
-      .select("id, title, month, content")
+      .select("id, title, month, content, notify_members")
       .eq("id", summonsId)
       .maybeSingle();
     if (summonsError) throw summonsError;
     if (!summons) {
       return jsonResponse(req, { error: "Summons not found" }, 404);
+    }
+    if (summons.notify_members !== true) {
+      return jsonResponse(req, {
+        message: "Notifications skipped",
+        queued: 0,
+      });
     }
 
     const { data: preferences, error: preferencesError } = await supabaseAdmin
