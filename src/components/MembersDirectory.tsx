@@ -675,16 +675,10 @@ export const MembersDirectory = () => {
                     style={{ zIndex: 1 }}
                   >
                     {ipm && (
-                      <section className="contents" aria-labelledby="ex-officio-heading">
-                        <h3
-                          id="ex-officio-heading"
-                          className="order-6 text-center font-serif text-xl text-stone-700 md:order-none md:col-start-1 md:row-start-1"
-                        >
-                          Ex Officio
-                        </h3>
+                      <section className="contents" aria-label="Ex-officio Lodge role">
                         <div
                           data-testid="immediate-past-master-slot"
-                          className="order-7 mx-auto w-44 md:order-none md:col-start-1 md:row-start-2 md:mt-8"
+                          className="order-6 mx-auto w-44 md:order-none md:col-start-1 md:row-start-2 md:mt-8"
                         >
                           <OfficerCard member={ipm.member} position={ipm.position} roleGroup="EX_OFFICIO" size="md" onClick={setSelectedMember} delay={0.08} cardRef={ipmRef} />
                         </div>
@@ -695,7 +689,7 @@ export const MembersDirectory = () => {
                       <section className="contents" aria-labelledby="elected-officers-heading">
                         <h3
                           id="elected-officers-heading"
-                          className="order-1 text-center font-serif text-2xl text-blue-950 md:order-none md:col-span-2 md:col-start-2 md:row-start-1"
+                          className="order-1 text-center font-serif text-2xl text-blue-950 md:order-none md:col-span-3 md:col-start-1 md:row-start-1"
                         >
                           Elected Officers
                         </h3>

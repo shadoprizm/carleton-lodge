@@ -109,7 +109,7 @@ describe('MembersDirectory officer structure', () => {
 
     const electedHeading = await screen.findByRole('heading', { name: 'Elected Officers' });
     const electedSection = electedHeading.closest('section');
-    const exOfficioSection = screen.getByRole('heading', { name: 'Ex Officio' }).closest('section');
+    const exOfficioSection = screen.getByRole('region', { name: 'Ex-officio Lodge role' });
     const appointedSection = screen.getByRole('heading', { name: 'Appointed Officers' }).closest('section');
     const otherRolesSection = screen.getByRole('heading', { name: 'Other Lodge Roles' }).closest('section');
 
@@ -133,7 +133,9 @@ describe('MembersDirectory officer structure', () => {
     expect(within(electedSection!).getByText('Vacant')).toBeInTheDocument();
     expect(within(electedSection!).queryByText('Immediate Past Master')).not.toBeInTheDocument();
     expect(within(exOfficioSection!).getByText('Immediate Past Master')).toBeInTheDocument();
-    expect(within(exOfficioSection!).getAllByText('Ex Officio')).toHaveLength(2);
+    expect(within(exOfficioSection!).getByText('Ex Officio')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ex Officio' })).not.toBeInTheDocument();
+    expect(electedHeading).toHaveClass('md:col-span-3', 'md:col-start-1');
     expect(screen.getByTestId('immediate-past-master-slot')).toHaveClass('md:mt-8');
 
     [
