@@ -64,7 +64,7 @@ CREATE INDEX lodge_member_positions_position_idx
 
 ALTER TABLE public.lodge_member_positions ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public.lodge_member_positions FROM PUBLIC, anon;
+REVOKE ALL ON public.lodge_member_positions FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.lodge_member_positions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.lodge_member_positions TO service_role;
 
