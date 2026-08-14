@@ -4,26 +4,18 @@ import { Mail, Phone, X, Crown, Shield, Star, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase, LodgePosition, MemberDirectoryProfileWithPosition } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { memberPositions, positionNames, positionsOfType, primaryPosition, sortedPositions } from '../lib/lodgePositions';
-
-const ORG_TIERS: Record<string, number> = {
-  'Worshipful Master': 0,
-  'Secretary': 1,
-  'Senior Warden': 2,
-  'Junior Warden': 2,
-  'Treasurer': 3,
-  'Senior Deacon': 3,
-  'Junior Deacon': 3,
-  'Inner Guard': 3,
-  'Senior Steward': 3,
-  'Junior Steward': 3,
-  'Chaplain': 3,
-  'Dir. of Ceremonies': 3,
-  'Tyler': 3,
-  'Immed Past Master': 3,
-  "Ass't Secretary": 3,
-  'Piper': 3,
-};
+import {
+  LODGE_MEMBER_POSITION_RELATION_SELECT,
+  memberPositions,
+  primaryPosition,
+  sortedPositions,
+} from '../lib/lodgePositions';
+import {
+  displayLodgePositionName,
+  LodgeRoleGroup,
+  lodgeRoleGroup,
+  lodgeRoleOrder,
+} from '../lib/lodgeOfficerGroups';
 
 function isRegularMemberPosition(positionName: string | null | undefined) {
   return positionName?.trim().toLowerCase() === 'member';
@@ -46,7 +38,7 @@ type CardStyle = {
   size: 'lg' | 'md' | 'sm';
 };
 
-function getCardStyle(position: LodgePosition | null): CardStyle {
+function getCardStyle(position: LodgePosition | null, roleGroup?: LodgeRoleGroup): CardStyle {
   const positionName = position?.name ?? 'Member';
   if (positionName === 'Worshipful Master') {
     return {
@@ -68,7 +60,7 @@ function getCardStyle(position: LodgePosition | null): CardStyle {
       headerBg: 'from-teal-900 to-teal-700',
       badge: 'bg-teal-100',
       badgeText: 'text-teal-800',
-      label: 'Lodge Officer',
+      label: 'Principal Officer',
       Icon: Shield,
       cardBorder: 'border-teal-300',
       size: 'md',
@@ -87,14 +79,27 @@ function getCardStyle(position: LodgePosition | null): CardStyle {
       size: 'md',
     };
   }
-  if (ORG_TIERS[positionName] === 3) {
+  if (roleGroup === 'ELECTED') {
+    return {
+      avatarBg: 'bg-blue-900',
+      avatarRing: 'ring-blue-600',
+      headerBg: 'from-blue-950 to-blue-800',
+      badge: 'bg-blue-100',
+      badgeText: 'text-blue-900',
+      label: 'Elected Officer',
+      Icon: Shield,
+      cardBorder: 'border-blue-200',
+      size: 'sm',
+    };
+  }
+  if (roleGroup === 'APPOINTED') {
     return {
       avatarBg: 'bg-slate-700',
       avatarRing: 'ring-slate-500',
       headerBg: 'from-slate-800 to-slate-700',
       badge: 'bg-slate-100',
       badgeText: 'text-slate-700',
-      label: 'Lodge Officer',
+      label: 'Appointed Officer',
       Icon: Shield,
       cardBorder: 'border-slate-200',
       size: 'sm',
@@ -107,9 +112,22 @@ function getCardStyle(position: LodgePosition | null): CardStyle {
       headerBg: 'from-amber-950 to-amber-800',
       badge: 'bg-amber-100',
       badgeText: 'text-amber-900',
-      label: 'Functional role',
+      label: 'Functional Role',
       Icon: Star,
       cardBorder: 'border-amber-200',
+      size: 'sm',
+    };
+  }
+  if (position) {
+    return {
+      avatarBg: 'bg-stone-700',
+      avatarRing: 'ring-stone-500',
+      headerBg: 'from-stone-800 to-stone-700',
+      badge: 'bg-stone-100',
+      badgeText: 'text-stone-700',
+      label: 'Lodge Role',
+      Icon: Shield,
+      cardBorder: 'border-stone-200',
       size: 'sm',
     };
   }
@@ -127,20 +145,25 @@ function getCardStyle(position: LodgePosition | null): CardStyle {
 }
 
 type OfficerCardProps = {
-  member: MemberDirectoryProfileWithPosition;
+  member: MemberDirectoryProfileWithPosition | null;
   position: LodgePosition;
+  roleGroup?: LodgeRoleGroup;
   size?: 'lg' | 'md' | 'sm';
   onClick: (m: MemberDirectoryProfileWithPosition) => void;
   delay?: number;
   cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
-function OfficerCard({ member, position, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
-  const style = getCardStyle(position);
+function OfficerCard({ member, position, roleGroup, size, onClick, delay = 0, cardRef }: OfficerCardProps) {
+  const style = getCardStyle(position, roleGroup);
   const cardSize = size ?? style.size;
-  const initials = getInitials(member.full_name);
-  const isVacant = member.full_name.toLowerCase().includes('vacant');
+  const initials = member ? getInitials(member.full_name) : '';
+  const isVacant = !member || member.full_name.toLowerCase().includes('vacant');
   const Icon = style.Icon;
+  const positionName = displayLodgePositionName(position.name);
+  const selectMember = () => {
+    if (member && !isVacant) onClick(member);
+  };
 
   const avatarSize =
     cardSize === 'lg' ? 'w-16 h-16 text-xl' :
@@ -154,7 +177,16 @@ function OfficerCard({ member, position, size, onClick, delay = 0, cardRef }: Of
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay }}
       whileHover={!isVacant ? { y: -4, transition: { duration: 0.2 } } : {}}
-      onClick={() => !isVacant && onClick(member)}
+      onClick={selectMember}
+      onKeyDown={event => {
+        if (!isVacant && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          selectMember();
+        }
+      }}
+      role={!isVacant ? 'button' : undefined}
+      tabIndex={!isVacant ? 0 : undefined}
+      aria-label={!isVacant && member ? `View ${member.full_name}, ${positionName}` : undefined}
       className={`group bg-white rounded-xl border ${style.cardBorder} shadow-sm overflow-hidden transition-shadow hover:shadow-md ${isVacant ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
     >
       <div className={`bg-gradient-to-br ${style.headerBg} px-4 pt-4 pb-6`}>
@@ -169,9 +201,9 @@ function OfficerCard({ member, position, size, onClick, delay = 0, cardRef }: Of
         </div>
       </div>
       <div className="px-4 pb-4 pt-2 text-center">
-        <p className="font-semibold text-stone-900 text-sm leading-snug">{member.full_name}</p>
-        <p className="text-xs text-blue-900 font-medium mt-0.5">{position.name}</p>
-        {member.phone && (
+        <p className="font-semibold text-stone-900 text-sm leading-snug">{member?.full_name ?? 'Vacant'}</p>
+        <p className="text-xs text-blue-900 font-medium mt-0.5">{positionName}</p>
+        {member?.phone && (
           <div className="flex items-center justify-center mt-2 text-xs text-stone-400 gap-1">
             <Phone size={10} />
             <span>{member.phone}</span>
@@ -189,6 +221,56 @@ type RoleAssignment = {
   position: LodgePosition;
 };
 
+type RoleSlot = {
+  key: string;
+  member: MemberDirectoryProfileWithPosition | null;
+  position: LodgePosition;
+};
+
+function roleSlots(
+  assignments: RoleAssignment[],
+  positions: LodgePosition[],
+  group: LodgeRoleGroup,
+  includeOpenSlots = false,
+): RoleSlot[] {
+  const assignmentsByPosition = new Map<string, RoleAssignment[]>();
+
+  assignments.forEach(assignment => {
+    const positionAssignments = assignmentsByPosition.get(assignment.position.id) ?? [];
+    positionAssignments.push(assignment);
+    assignmentsByPosition.set(assignment.position.id, positionAssignments);
+  });
+
+  const positionsById = new Map<string, LodgePosition>();
+  positions.forEach(position => positionsById.set(position.id, position));
+  assignments.forEach(assignment => positionsById.set(assignment.position.id, assignment.position));
+
+  return [...positionsById.values()]
+    .sort((left, right) =>
+      lodgeRoleOrder(left.name, group) - lodgeRoleOrder(right.name, group)
+      || left.display_order - right.display_order
+      || left.name.localeCompare(right.name)
+    )
+    .flatMap(position => {
+      const positionAssignments = assignmentsByPosition.get(position.id) ?? [];
+      const assignedSlots = positionAssignments.map(assignment => ({
+        key: `${assignment.member.id}:${position.id}`,
+        member: assignment.member,
+        position,
+      }));
+      const openSlotCount = includeOpenSlots
+        ? Math.max(0, position.max_holders - assignedSlots.length)
+        : 0;
+      const openSlots = Array.from({ length: openSlotCount }, (_, index) => ({
+        key: `${position.id}:vacant:${index}`,
+        member: null,
+        position,
+      }));
+
+      return [...assignedSlots, ...openSlots];
+    });
+}
+
 function getBottom(r: Rect) {
   return { x: r.left + r.width / 2, y: r.top + r.height };
 }
@@ -201,20 +283,39 @@ function getLeft(r: Rect) {
   return { x: r.left, y: r.top + r.height / 2 };
 }
 
+function getRight(r: Rect) {
+  return { x: r.left + r.width, y: r.top + r.height / 2 };
+}
+
 type ConnectorSvgProps = {
   containerRef: React.RefObject<HTMLDivElement | null>;
   wmRef: React.RefObject<HTMLDivElement | null>;
+  ipmRef: React.RefObject<HTMLDivElement | null>;
   secRef: React.RefObject<HTMLDivElement | null>;
   swRef: React.RefObject<HTMLDivElement | null>;
   jwRef: React.RefObject<HTMLDivElement | null>;
-  tier3Refs: React.RefObject<HTMLDivElement | null>[];
+  electedRefs: React.RefObject<HTMLDivElement | null>[];
   hasWm: boolean;
+  hasIpm: boolean;
   hasSec: boolean;
   hasWardens: boolean;
-  hasTier3: boolean;
+  hasRemainingElected: boolean;
 };
 
-function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, hasWm, hasSec, hasWardens, hasTier3 }: ConnectorSvgProps) {
+function ConnectorSvg({
+  containerRef,
+  wmRef,
+  ipmRef,
+  secRef,
+  swRef,
+  jwRef,
+  electedRefs,
+  hasWm,
+  hasIpm,
+  hasSec,
+  hasWardens,
+  hasRemainingElected,
+}: ConnectorSvgProps) {
   const [paths, setPaths] = useState<string[]>([]);
   const [svgSize, setSvgSize] = useState({ w: 0, h: 0 });
 
@@ -235,95 +336,74 @@ function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, ha
 
     const newPaths: string[] = [];
     const wm = hasWm ? rel(wmRef.current) : null;
+    const ipm = hasIpm ? rel(ipmRef.current) : null;
     const sec = hasSec ? rel(secRef.current) : null;
     const sw = hasWardens ? rel(swRef.current) : null;
     const jw = hasWardens ? rel(jwRef.current) : null;
 
-    const midY_wmToSec = wm && sec ? (getBottom(wm).y + getTop(sec).y) / 2 : 0;
-
-    // WM -> down to midpoint then branch to Secretary and continue to Wardens
     if (wm) {
-      const wmBottom = getBottom(wm);
+      if (ipm) {
+        const wmLeft = getLeft(wm);
+        const ipmRight = getRight(ipm);
+        const elbowX = (wmLeft.x + ipmRight.x) / 2;
+        newPaths.push(`M ${wmLeft.x} ${wmLeft.y} L ${elbowX} ${wmLeft.y} L ${elbowX} ${ipmRight.y} L ${ipmRight.x} ${ipmRight.y}`);
+      }
 
-      if (sec && !sw && !jw) {
-        // WM to Secretary only (no wardens)
+      if (sec) {
+        const wmRight = getRight(wm);
         const secLeft = getLeft(sec);
-        newPaths.push(`M ${wmBottom.x} ${wmBottom.y} L ${wmBottom.x} ${midY_wmToSec} L ${secLeft.x} ${secLeft.y}`);
-      } else if (sec && (sw || jw)) {
-        // WM down to junction, then perpendicular L-shaped branch to Secretary
-        const secLeft = getLeft(sec);
-        const secMidY = sec.top + sec.height / 2;
-        const junction = { x: wmBottom.x, y: secMidY };
-        // vertical from WM down to Secretary's mid-height
-        newPaths.push(`M ${wmBottom.x} ${wmBottom.y} L ${junction.x} ${junction.y}`);
-        // horizontal branch right to Secretary
-        newPaths.push(`M ${junction.x} ${junction.y} L ${secLeft.x} ${secLeft.y}`);
-        // continue vertical down from junction toward wardens
-        if (sw || jw) {
-          const wardensTopY = Math.min(sw ? getTop(sw).y : Infinity, jw ? getTop(jw).y : Infinity);
-          newPaths.push(`M ${junction.x} ${junction.y} L ${junction.x} ${wardensTopY}`);
-        }
-      } else if (!sec && (sw || jw)) {
-        // WM to wardens directly
-        const wardensTopY = Math.min(sw ? getTop(sw).y : Infinity, jw ? getTop(jw).y : Infinity);
-        newPaths.push(`M ${wmBottom.x} ${wmBottom.y} L ${wmBottom.x} ${wardensTopY}`);
+        const elbowX = (wmRight.x + secLeft.x) / 2;
+        newPaths.push(`M ${wmRight.x} ${wmRight.y} L ${elbowX} ${wmRight.y} L ${elbowX} ${secLeft.y} L ${secLeft.x} ${secLeft.y}`);
       }
     }
 
-    // Wardens horizontal bar + drops
-    if (sw && jw) {
-      const swTop = getTop(sw);
-      const jwTop = getTop(jw);
-      const barY = Math.min(swTop.y, jwTop.y);
-      // horizontal bar
-      newPaths.push(`M ${swTop.x} ${barY} L ${jwTop.x} ${barY}`);
-      // drops to each card
-      newPaths.push(`M ${swTop.x} ${barY} L ${swTop.x} ${swTop.y}`);
-      newPaths.push(`M ${jwTop.x} ${barY} L ${jwTop.x} ${jwTop.y}`);
-    } else if (sw) {
-      // just one warden
-    } else if (jw) {
-      // just one warden
+    const wardens = [sw, jw].filter(Boolean) as Rect[];
+    if (wm && wardens.length > 0) {
+      const wmBottom = getBottom(wm);
+      const wardenTops = wardens.map(getTop);
+      const barY = Math.min(...wardenTops.map(point => point.y));
+      const leftMostX = Math.min(...wardenTops.map(point => point.x));
+      const rightMostX = Math.max(...wardenTops.map(point => point.x));
+
+      newPaths.push(`M ${wmBottom.x} ${wmBottom.y} L ${wmBottom.x} ${barY}`);
+      if (wardenTops.length > 1) {
+        newPaths.push(`M ${leftMostX} ${barY} L ${rightMostX} ${barY}`);
+      }
+      wardenTops.forEach(point => {
+        newPaths.push(`M ${point.x} ${barY} L ${point.x} ${point.y}`);
+      });
     }
 
-    // Wardens -> Tier3: line from midpoint between wardens down to a horizontal bar over tier3 cards
-    if (hasTier3 && tier3Refs.length > 0) {
+    if (hasRemainingElected && electedRefs.length > 0) {
       const wardensSource = sw || jw;
-      if (wardensSource) {
+      const electedRects = electedRefs.map(ref => rel(ref.current)).filter(Boolean) as Rect[];
+
+      if (electedRects.length > 0 && wardensSource) {
         const sourceX = sw && jw
           ? (getBottom(sw).x + getBottom(jw).x) / 2
-          : getBottom(wardensSource!).x;
+          : getBottom(wardensSource).x;
         const sourceY = Math.max(sw ? getBottom(sw).y : 0, jw ? getBottom(jw).y : 0);
+        const electedTops = electedRects.map(getTop);
+        const barY = Math.min(...electedTops.map(point => point.y));
+        const leftMostX = Math.min(...electedTops.map(point => point.x));
+        const rightMostX = Math.max(...electedTops.map(point => point.x));
 
-        const tier3Rects = tier3Refs.map(r => rel(r.current)).filter(Boolean) as Rect[];
-        if (tier3Rects.length > 0) {
-          const barY = tier3Rects[0].top;
-          const leftMostX = Math.min(...tier3Rects.map(r => getTop(r).x));
-          const rightMostX = Math.max(...tier3Rects.map(r => getTop(r).x));
-
-          // vertical from wardens midpoint down to bar
-          newPaths.push(`M ${sourceX} ${sourceY} L ${sourceX} ${barY}`);
-          // horizontal bar across all tier3 cards
-          newPaths.push(`M ${leftMostX} ${barY} L ${rightMostX} ${barY}`);
-          // drop to each tier3 card
-          tier3Rects.forEach(r => {
-            const t = getTop(r);
-            newPaths.push(`M ${t.x} ${barY} L ${t.x} ${t.y}`);
-          });
-        }
+        newPaths.push(`M ${sourceX} ${sourceY} L ${sourceX} ${barY}`);
+        newPaths.push(`M ${leftMostX} ${barY} L ${rightMostX} ${barY}`);
+        electedTops.forEach(point => {
+          newPaths.push(`M ${point.x} ${barY} L ${point.x} ${point.y}`);
+        });
       } else if (wm) {
-        // No wardens, connect WM to tier3 directly
         const wmBottom = getBottom(wm);
-        const tier3Rects = tier3Refs.map(r => rel(r.current)).filter(Boolean) as Rect[];
-        if (tier3Rects.length > 0) {
-          const barY = tier3Rects[0].top;
-          const leftMostX = Math.min(...tier3Rects.map(r => getTop(r).x));
-          const rightMostX = Math.max(...tier3Rects.map(r => getTop(r).x));
+        const electedTops = electedRects.map(getTop);
+        if (electedTops.length > 0) {
+          const barY = Math.min(...electedTops.map(point => point.y));
+          const leftMostX = Math.min(...electedTops.map(point => point.x));
+          const rightMostX = Math.max(...electedTops.map(point => point.x));
           newPaths.push(`M ${wmBottom.x} ${wmBottom.y} L ${wmBottom.x} ${barY}`);
           newPaths.push(`M ${leftMostX} ${barY} L ${rightMostX} ${barY}`);
-          tier3Rects.forEach(r => {
-            const t = getTop(r);
-            newPaths.push(`M ${t.x} ${barY} L ${t.x} ${t.y}`);
+          electedTops.forEach(point => {
+            newPaths.push(`M ${point.x} ${barY} L ${point.x} ${point.y}`);
           });
         }
       }
@@ -331,7 +411,7 @@ function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, ha
 
     setPaths(newPaths);
     setSvgSize({ w: cRect.width, h: cRect.height });
-  }, [containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, hasWm, hasSec, hasWardens, hasTier3]);
+  }, [containerRef, wmRef, ipmRef, secRef, swRef, jwRef, electedRefs, hasWm, hasIpm, hasSec, hasWardens, hasRemainingElected]);
 
   useLayoutEffect(() => {
     recalculate();
@@ -346,7 +426,7 @@ function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, ha
 
   return (
     <svg
-      className="absolute inset-0 pointer-events-none"
+      className="absolute inset-0 hidden pointer-events-none md:block"
       width={svgSize.w}
       height={svgSize.h}
       style={{ zIndex: 0 }}
@@ -369,16 +449,19 @@ function ConnectorSvg({ containerRef, wmRef, secRef, swRef, jwRef, tier3Refs, ha
 export const MembersDirectory = () => {
   const { user } = useAuth();
   const [members, setMembers] = useState<MemberDirectoryProfileWithPosition[]>([]);
+  const [lodgePositions, setLodgePositions] = useState<LodgePosition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<MemberDirectoryProfileWithPosition | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const wmRef = useRef<HTMLDivElement>(null);
+  const ipmRef = useRef<HTMLDivElement>(null);
   const secRef = useRef<HTMLDivElement>(null);
   const swRef = useRef<HTMLDivElement>(null);
   const jwRef = useRef<HTMLDivElement>(null);
-  const tier3RefsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map());
-  const tier3RefsArray = useRef<React.RefObject<HTMLDivElement | null>[]>([]);
+  const electedRefsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map());
+  const electedRefsArray = useRef<React.RefObject<HTMLDivElement | null>[]>([]);
 
   useEffect(() => {
     if (user) fetchMembers();
@@ -386,12 +469,27 @@ export const MembersDirectory = () => {
 
   const fetchMembers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('lodge_members')
-      .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, position_type, max_holders, created_at), lodge_member_positions(lodge_positions(id, name, display_order, position_type, max_holders, created_at))')
-      .eq('visible_to_members', true);
-    if (!error && data) {
-      const loadedMembers = data as unknown as Array<
+    setLoadError(null);
+    try {
+      const [membersResult, positionsResult] = await Promise.all([
+        supabase
+          .from('lodge_members')
+          .select(`id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, ${LODGE_MEMBER_POSITION_RELATION_SELECT}`)
+          .eq('visible_to_members', true),
+        supabase
+          .from('lodge_positions')
+          .select('id, name, display_order, position_type, max_holders, created_at')
+          .order('display_order'),
+      ]);
+
+      if (membersResult.error) {
+        console.error('Could not load the member directory:', membersResult.error);
+        setMembers([]);
+        setLoadError('The member directory could not be loaded. Please try again.');
+        return;
+      }
+
+      const loadedMembers = (membersResult.data ?? []) as unknown as Array<
         Omit<MemberDirectoryProfileWithPosition, 'positions'> & {
           lodge_member_positions?: Array<{ lodge_positions: LodgePosition | null }>;
         }
@@ -404,8 +502,19 @@ export const MembersDirectory = () => {
             .filter((position): position is LodgePosition => position !== null),
         ),
       })));
+
+      if (positionsResult.error) {
+        console.warn('Could not load vacant Lodge positions:', positionsResult.error);
+      } else {
+        setLodgePositions((positionsResult.data ?? []) as LodgePosition[]);
+      }
+    } catch (error) {
+      console.error('Could not load the member directory:', error);
+      setMembers([]);
+      setLoadError('The member directory could not be loaded. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (!user) return null;
@@ -416,42 +525,59 @@ export const MembersDirectory = () => {
     return oA - oB;
   });
 
-  const officerAssignments: RoleAssignment[] = sorted.flatMap(member =>
-    positionsOfType(member, 'OFFICER').map(position => ({ member, position }))
+  const roleAssignments: RoleAssignment[] = sorted.flatMap(member =>
+    memberPositions(member)
+      .filter(position => !isRegularMemberPosition(position.name))
+      .map(position => ({ member, position }))
   );
-  const functionalAssignments: RoleAssignment[] = sorted.flatMap(member =>
-    positionsOfType(member, 'FUNCTIONAL').map(position => ({ member, position }))
+  const electedAssignments = roleAssignments.filter(
+    assignment => lodgeRoleGroup(assignment.position.name) === 'ELECTED',
   );
-  const wm = officerAssignments.find(assignment => assignment.position.name === 'Worshipful Master');
-  const secretary = officerAssignments.find(assignment => assignment.position.name === 'Secretary');
-  const wardens = officerAssignments.filter(assignment =>
-    assignment.position.name === 'Senior Warden' || assignment.position.name === 'Junior Warden'
+  const appointedAssignments = roleAssignments.filter(
+    assignment => lodgeRoleGroup(assignment.position.name) === 'APPOINTED',
   );
-  const sw = wardens.find(assignment => assignment.position.name === 'Senior Warden');
-  const jw = wardens.find(assignment => assignment.position.name === 'Junior Warden');
-  const tier3Officers = officerAssignments.filter(assignment => ORG_TIERS[assignment.position.name] === 3);
+  const electedPositions = lodgePositions.filter(position => lodgeRoleGroup(position.name) === 'ELECTED');
+  const appointedPositions = lodgePositions.filter(position => lodgeRoleGroup(position.name) === 'APPOINTED');
+  const additionalRoleAssignments = roleAssignments
+    .filter(assignment => lodgeRoleGroup(assignment.position.name) === 'OTHER')
+    .sort((left, right) =>
+      left.position.display_order - right.position.display_order
+      || left.position.name.localeCompare(right.position.name)
+    );
+  const electedSlots = roleSlots(electedAssignments, electedPositions, 'ELECTED', true);
+  const wm = electedSlots.find(slot => slot.position.name === 'Worshipful Master');
+  const ipm = electedSlots.find(slot => slot.position.name === 'Immed Past Master');
+  const secretary = electedSlots.find(slot => slot.position.name === 'Secretary');
+  const wardens = electedSlots.filter(slot =>
+    slot.position.name === 'Senior Warden' || slot.position.name === 'Junior Warden'
+  );
+  const sw = wardens.find(slot => slot.position.name === 'Senior Warden');
+  const jw = wardens.find(slot => slot.position.name === 'Junior Warden');
+  const remainingElectedSlots = electedSlots.filter(slot =>
+    !['Worshipful Master', 'Immed Past Master', 'Secretary', 'Senior Warden', 'Junior Warden']
+      .includes(slot.position.name)
+  );
+  const appointedSlots = roleSlots(appointedAssignments, appointedPositions, 'APPOINTED', true);
   const otherMembers = sorted.filter(member =>
     memberPositions(member).length === 0
     || memberPositions(member).every(position => isRegularMemberPosition(position.name))
   );
 
-  // Ensure refs exist for all tier3 officers
-  tier3Officers.forEach(assignment => {
-    const assignmentKey = `${assignment.member.id}:${assignment.position.id}`;
-    if (!tier3RefsMap.current.has(assignmentKey)) {
-      tier3RefsMap.current.set(assignmentKey, React.createRef<HTMLDivElement>());
+  remainingElectedSlots.forEach(slot => {
+    if (!electedRefsMap.current.has(slot.key)) {
+      electedRefsMap.current.set(slot.key, React.createRef<HTMLDivElement>());
     }
   });
-  const newTier3Refs = tier3Officers.map(assignment =>
-    tier3RefsMap.current.get(`${assignment.member.id}:${assignment.position.id}`)!
+  const newElectedRefs = remainingElectedSlots.map(slot =>
+    electedRefsMap.current.get(slot.key)!
   );
   if (
-    newTier3Refs.length !== tier3RefsArray.current.length ||
-    newTier3Refs.some((r, i) => r !== tier3RefsArray.current[i])
+    newElectedRefs.length !== electedRefsArray.current.length ||
+    newElectedRefs.some((ref, index) => ref !== electedRefsArray.current[index])
   ) {
-    tier3RefsArray.current = newTier3Refs;
+    electedRefsArray.current = newElectedRefs;
   }
-  const tier3Refs = tier3RefsArray.current;
+  const electedRefs = electedRefsArray.current;
 
   return (
     <section className="min-h-screen bg-stone-50">
@@ -489,110 +615,144 @@ export const MembersDirectory = () => {
               ))}
             </div>
           </div>
+        ) : loadError ? (
+          <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm" role="alert">
+            <h2 className="font-serif text-2xl text-slate-900">Member directory unavailable</h2>
+            <p className="mt-3 text-base text-slate-600">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchMembers}
+              className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-900 px-6 font-semibold text-amber-300 transition-colors hover:bg-slate-800"
+            >
+              Try Again
+            </button>
+          </div>
         ) : (
           <>
-            {/* Org chart with SVG connectors */}
-            <div ref={containerRef} className="relative">
-              <ConnectorSvg
-                containerRef={containerRef}
-                wmRef={wmRef}
-                secRef={secRef}
-                swRef={swRef}
-                jwRef={jwRef}
-                tier3Refs={tier3Refs}
-                hasWm={!!wm}
-                hasSec={!!secretary}
-                hasWardens={wardens.length > 0}
-                hasTier3={tier3Officers.length > 0}
-              />
+            {electedSlots.length > 0 && (
+              <section aria-labelledby="elected-officers-heading">
+                <div className="mb-10 text-center">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Lodge leadership</p>
+                  <h2 id="elected-officers-heading" className="font-serif text-3xl text-blue-950">Elected Officers</h2>
+                </div>
 
-              <div className="relative" style={{ zIndex: 1 }}>
-                {/* Tier 0: Worshipful Master */}
-                {wm && (
-                  <div className="flex justify-center mb-10">
-                    <div className="w-52">
-                      <OfficerCard member={wm.member} position={wm.position} size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
+                <div ref={containerRef} className="relative">
+                  <ConnectorSvg
+                    containerRef={containerRef}
+                    wmRef={wmRef}
+                    ipmRef={ipmRef}
+                    secRef={secRef}
+                    swRef={swRef}
+                    jwRef={jwRef}
+                    electedRefs={electedRefs}
+                    hasWm={!!wm}
+                    hasIpm={!!ipm}
+                    hasSec={!!secretary}
+                    hasWardens={wardens.length > 0}
+                    hasRemainingElected={remainingElectedSlots.length > 0}
+                  />
+
+                  <div className="relative" style={{ zIndex: 1 }}>
+                    <div className="mb-12 grid grid-cols-1 justify-center gap-6 md:grid-cols-[11rem_13rem_11rem] md:items-start md:gap-8 lg:gap-12">
+                      {ipm ? (
+                        <div data-testid="immediate-past-master-slot" className="order-2 mx-auto w-44 md:order-1 md:mt-8">
+                          <OfficerCard member={ipm.member} position={ipm.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.08} cardRef={ipmRef} />
+                        </div>
+                      ) : <div className="hidden md:block" />}
+
+                      {wm && (
+                        <div className="order-1 mx-auto w-52 md:order-2">
+                          <OfficerCard member={wm.member} position={wm.position} roleGroup="ELECTED" size="lg" onClick={setSelectedMember} delay={0} cardRef={wmRef} />
+                        </div>
+                      )}
+
+                      {secretary ? (
+                        <div className="order-3 mx-auto w-44 md:mt-8">
+                          <OfficerCard member={secretary.member} position={secretary.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.12} cardRef={secRef} />
+                        </div>
+                      ) : <div className="hidden md:block" />}
                     </div>
-                  </div>
-                )}
 
-                {/* Tier 1: Secretary offshoot (positioned to the right of center) */}
-                {secretary && (
-                  <div className="flex justify-center mb-10">
-                    {/* spacer on left keeps the center line aligned with WM */}
-                    <div className="flex items-center" style={{ width: '100%', maxWidth: 640 }}>
-                      <div style={{ flex: 1 }} />
-                      <div className="w-px" style={{ flex: '0 0 2px' }} />
-                      <div style={{ flex: 0, width: 80 }} />
-                      <div className="w-44 shrink-0">
-                        <OfficerCard member={secretary.member} position={secretary.position} size="md" onClick={setSelectedMember} delay={0.1} cardRef={secRef} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tier 2: Senior Warden + Junior Warden */}
-                {wardens.length > 0 && (
-                  <div className="flex justify-center gap-12 mb-10">
-                    {sw && (
-                      <div className="w-44">
-                        <OfficerCard member={sw.member} position={sw.position} size="md" onClick={setSelectedMember} delay={0.15} cardRef={swRef} />
+                    {wardens.length > 0 && (
+                      <div className="mb-12 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-12">
+                        {sw && (
+                          <div className="w-44">
+                            <OfficerCard member={sw.member} position={sw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.16} cardRef={swRef} />
+                          </div>
+                        )}
+                        {jw && (
+                          <div className="w-44">
+                            <OfficerCard member={jw.member} position={jw.position} roleGroup="ELECTED" size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
+                          </div>
+                        )}
                       </div>
                     )}
-                    {jw && (
-                      <div className="w-44">
-                        <OfficerCard member={jw.member} position={jw.position} size="md" onClick={setSelectedMember} delay={0.2} cardRef={jwRef} />
-                      </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Tier 3: Remaining lodge officers */}
-                {tier3Officers.length > 0 && (
-                  <div className="flex flex-col items-center mb-4">
-                    <p className="text-center text-xs font-bold tracking-widest uppercase text-stone-600 mb-4 -mt-6">Lodge Officers</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 w-full">
-                      {tier3Officers.map((assignment, i) => {
-                        const assignmentKey = `${assignment.member.id}:${assignment.position.id}`;
-                        const ref = tier3RefsMap.current.get(assignmentKey)!;
-                        return (
+                    {remainingElectedSlots.length > 0 && (
+                      <div className="grid w-full grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+                        {remainingElectedSlots.map((slot, index) => (
                           <OfficerCard
-                            key={assignmentKey}
-                            member={assignment.member}
-                            position={assignment.position}
+                            key={slot.key}
+                            member={slot.member}
+                            position={slot.position}
+                            roleGroup="ELECTED"
                             size="sm"
                             onClick={setSelectedMember}
-                            delay={0.25 + i * 0.04}
-                            cardRef={ref}
+                            delay={0.24 + index * 0.04}
+                            cardRef={electedRefsMap.current.get(slot.key)!}
                           />
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-
-            {functionalAssignments.length > 0 && (
-              <div className="mt-14 border-t border-amber-200 pt-10">
-                <div className="mb-7 flex items-center gap-3">
-                  <Star size={18} className="text-amber-700" />
-                  <h2 className="text-lg font-serif text-stone-700">Functional & Elected Roles</h2>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">{functionalAssignments.length}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {functionalAssignments.map((assignment, index) => (
+              </section>
+            )}
+
+            {appointedSlots.length > 0 && (
+              <section className="mt-16 border-t border-slate-200 pt-10" aria-labelledby="appointed-officers-heading">
+                <div className="mb-8 flex items-center gap-3">
+                  <Shield size={18} className="text-slate-600" />
+                  <h2 id="appointed-officers-heading" className="font-serif text-2xl text-blue-950">Appointed Officers</h2>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{appointedSlots.length}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+                  {appointedSlots.map((slot, index) => (
                     <OfficerCard
-                      key={`${assignment.member.id}:${assignment.position.id}`}
-                      member={assignment.member}
-                      position={assignment.position}
+                      key={slot.key}
+                      member={slot.member}
+                      position={slot.position}
+                      roleGroup="APPOINTED"
                       size="sm"
                       onClick={setSelectedMember}
                       delay={0.05 + index * 0.04}
                     />
                   ))}
                 </div>
-              </div>
+              </section>
+            )}
+
+            {additionalRoleAssignments.length > 0 && (
+              <section className="mt-14 border-t border-amber-200 pt-10" aria-labelledby="other-lodge-roles-heading">
+                <div className="mb-7 flex items-center gap-3">
+                  <Star size={18} className="text-amber-700" />
+                  <h2 id="other-lodge-roles-heading" className="font-serif text-xl text-stone-700">Other Lodge Roles</h2>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">{additionalRoleAssignments.length}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {additionalRoleAssignments.map((assignment, index) => (
+                    <OfficerCard
+                      key={`${assignment.member.id}:${assignment.position.id}`}
+                      member={assignment.member}
+                      position={assignment.position}
+                      roleGroup="OTHER"
+                      size="sm"
+                      onClick={setSelectedMember}
+                      delay={0.05 + index * 0.04}
+                    />
+                  ))}
+                </div>
+              </section>
             )}
 
             {/* Regular members without a position */}
@@ -658,13 +818,21 @@ export const MembersDirectory = () => {
             >
               {(() => {
                 const selectedPrimaryPosition = primaryPosition(selectedMember);
-                const style = getCardStyle(selectedPrimaryPosition);
+                const selectedRoleGroup = selectedPrimaryPosition
+                  ? lodgeRoleGroup(selectedPrimaryPosition.name)
+                  : undefined;
+                const style = getCardStyle(selectedPrimaryPosition, selectedRoleGroup);
                 const initials = getInitials(selectedMember.full_name);
                 const Icon = style.Icon;
+                const selectedPositionNames = memberPositions(selectedMember)
+                  .map(position => displayLodgePositionName(position.name))
+                  .join(' · ') || 'Lodge Member';
                 return (
                   <>
                     <div className={`relative bg-gradient-to-br ${style.headerBg} px-8 pt-10 pb-14 text-center`}>
                       <button
+                        type="button"
+                        aria-label="Close member details"
                         onClick={() => setSelectedMember(null)}
                         className="absolute top-4 right-4 text-white/60 hover:text-white transition-colors"
                       >
@@ -674,7 +842,7 @@ export const MembersDirectory = () => {
                         {initials}
                       </div>
                       <h3 className="text-xl font-serif text-white leading-tight">{selectedMember.full_name}</h3>
-                      <p className="text-amber-300 text-sm mt-1">{positionNames(selectedMember, 'Lodge Member')}</p>
+                      <p className="text-amber-300 text-sm mt-1">{selectedPositionNames}</p>
                     </div>
                     <div className="relative -mt-6 mx-6">
                       <div className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${style.badge} ${style.badgeText}`}>

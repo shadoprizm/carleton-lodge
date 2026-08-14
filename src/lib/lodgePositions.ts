@@ -4,6 +4,11 @@ import type {
   MemberDirectoryProfileWithPosition,
 } from './supabase';
 
+export const LODGE_MEMBER_POSITION_RELATION_SELECT = [
+  'lodge_positions:lodge_positions!lodge_members_position_id_fkey(id, name, display_order, position_type, max_holders, created_at)',
+  'lodge_member_positions!lodge_member_positions_member_id_fkey(lodge_positions:lodge_positions!lodge_member_positions_position_id_fkey(id, name, display_order, position_type, max_holders, created_at))',
+].join(', ');
+
 type MemberWithPositions = Pick<
   LodgeMemberWithPosition | MemberDirectoryProfileWithPosition,
   'lodge_positions' | 'positions'

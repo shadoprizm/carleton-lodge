@@ -3,7 +3,11 @@ import { CalendarDays, ExternalLink, Mail, Phone, ShieldCheck, UserRound } from 
 import { Link, useParams } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { LodgePosition, MemberDirectoryProfileWithPosition, supabase } from '../lib/supabase';
-import { positionNames, sortedPositions } from '../lib/lodgePositions';
+import {
+  LODGE_MEMBER_POSITION_RELATION_SELECT,
+  positionNames,
+  sortedPositions,
+} from '../lib/lodgePositions';
 
 function initials(name: string) {
   return name
@@ -37,7 +41,7 @@ export const MemberProfilePage = () => {
     const loadMember = async () => {
       const { data, error } = await supabase
         .from('lodge_members')
-        .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, position_type, max_holders, created_at), lodge_member_positions(lodge_positions(id, name, display_order, position_type, max_holders, created_at))')
+        .select(`id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, ${LODGE_MEMBER_POSITION_RELATION_SELECT}`)
         .eq('id', memberId)
         .maybeSingle();
 

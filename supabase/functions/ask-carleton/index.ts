@@ -512,7 +512,7 @@ Deno.serve(async (req: Request) => {
         ? userClient
           .from("lodge_members")
           .select(
-            "id, full_name, phone, lodge_email, join_date, bio, updated_at, lodge_positions(name), lodge_member_positions(lodge_positions(name))",
+            "id, full_name, phone, lodge_email, join_date, bio, updated_at, lodge_positions:lodge_positions!lodge_members_position_id_fkey(name), lodge_member_positions!lodge_member_positions_member_id_fkey(lodge_positions:lodge_positions!lodge_member_positions_position_id_fkey(name))",
           )
           .in("id", memberSourceIds)
         : Promise.resolve({ data: [], error: null }),
