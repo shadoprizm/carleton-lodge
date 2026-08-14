@@ -3,9 +3,10 @@ import { Link } from 'react-router';
 import {
   Trash2, Edit2, Upload, FileText, X, Loader2, FolderPlus,
   Tag, ChevronDown, ChevronRight, Folder, FolderOpen, AlertCircle,
-  Files, CheckCircle2, Eye
+  Files, CheckCircle2, Eye, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { supabase, DocumentCategory, DocumentWithCategory } from '../../lib/supabase';
+import { moveDocumentInList, type DocumentMoveDirection } from '../../lib/documentOrdering';
 import { useAuth } from '../../contexts/AuthContext';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
 
@@ -33,6 +34,8 @@ export const AdminLibraryPage = () => {
   const [showCatForm, setShowCatForm] = useState(false);
   const [editingCat, setEditingCat] = useState<DocumentCategory | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentWithCategory | null>(null);
+  const [reorderingCategoryKey, setReorderingCategoryKey] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -45,7 +48,7 @@ export const AdminLibraryPage = () => {
       supabase
         .from('documents')
         .select('*, document_categories(*)')
-        .order('created_at', { ascending: false }),
+        .order('display_order', { ascending: true }),
     ]);
     if (catRes.data) {
       setCategories(catRes.data);
@@ -107,11 +110,57 @@ export const AdminLibraryPage = () => {
     }
   };
 
+  const moveDocument = async (
+    categoryId: string | null,
+    categoryDocuments: DocumentWithCategory[],
+    documentId: string,
+    direction: DocumentMoveDirection,
+  ) => {
+    const reordered = moveDocumentInList(categoryDocuments, documentId, direction);
+    if (reordered === categoryDocuments) return;
+
+    const previousDocuments = documents;
+    const positions = new Map(
+      reordered.map((document, index) => [document.id, index]),
+    );
+    const categoryKey = categoryId ?? 'uncategorised';
+
+    setReorderingCategoryKey(categoryKey);
+    setReorderError(null);
+    setDocuments((currentDocuments) => currentDocuments.map((document) => {
+      const displayOrder = positions.get(document.id);
+      return displayOrder === undefined
+        ? document
+        : { ...document, display_order: displayOrder };
+    }));
+
+    try {
+      const { error } = await supabase.rpc('reorder_library_documents', {
+        target_category_id: categoryId,
+        ordered_document_ids: reordered.map((document) => document.id),
+      });
+      if (error) throw error;
+    } catch (error: unknown) {
+      setDocuments(previousDocuments);
+      setReorderError(
+        error instanceof Error
+          ? error.message
+          : 'The new document order could not be saved.',
+      );
+    } finally {
+      setReorderingCategoryKey(null);
+    }
+  };
+
   const docsByCategory = categories.reduce<Record<string, DocumentWithCategory[]>>((acc, cat) => {
-    acc[cat.id] = documents.filter((d) => d.category_id === cat.id);
+    acc[cat.id] = documents
+      .filter((document) => document.category_id === cat.id)
+      .sort((a, b) => a.display_order - b.display_order);
     return acc;
   }, {});
-  const uncategorised = documents.filter((d) => !d.category_id);
+  const uncategorised = documents
+    .filter((document) => !document.category_id)
+    .sort((a, b) => a.display_order - b.display_order);
   const editableCategories = categories.filter((cat) => cat.name !== SUMMONS_CATEGORY_NAME);
 
   return (
@@ -119,7 +168,9 @@ export const AdminLibraryPage = () => {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-xl font-serif text-slate-900">Document Library</h2>
-          <p className="text-sm text-slate-500 mt-1">Upload and organise lodge documents</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Upload documents, then use the arrows to arrange each category in the order members should see.
+          </p>
         </div>
         {canWrite ? <div className="flex items-center space-x-2">
           <button
@@ -197,6 +248,13 @@ export const AdminLibraryPage = () => {
         />
       )}
 
+      {reorderError ? (
+        <div role="alert" className="mb-6 flex items-start space-x-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+          <span>{reorderError}</span>
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="text-center py-12 text-slate-500">Loading...</div>
       ) : activeTab === 'documents' ? (
@@ -222,12 +280,18 @@ export const AdminLibraryPage = () => {
                     {catDocs.length === 0 ? (
                       <div className="px-4 py-4 text-sm text-slate-400 italic">No documents in this category.</div>
                     ) : (
-                      catDocs.map((doc) => (
+                      catDocs.map((doc, index) => (
                         <AdminDocRow
                           key={doc.id}
                           doc={doc}
                           canWrite={canWrite}
                           canManageSummons={canManageSummons}
+                          isFirst={index === 0}
+                          isLast={index === catDocs.length - 1}
+                          isReordering={reorderingCategoryKey === cat.id}
+                          reorderDisabled={reorderingCategoryKey !== null}
+                          onMoveUp={() => moveDocument(cat.id, catDocs, doc.id, 'up')}
+                          onMoveDown={() => moveDocument(cat.id, catDocs, doc.id, 'down')}
                           onPreview={() => setPreviewDoc(doc)}
                           onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                           onDelete={() => deleteDocument(doc)}
@@ -247,12 +311,18 @@ export const AdminLibraryPage = () => {
                 <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{uncategorised.length}</span>
               </div>
               <div className="divide-y divide-slate-100">
-                {uncategorised.map((doc) => (
+                {uncategorised.map((doc, index) => (
                   <AdminDocRow
                     key={doc.id}
                     doc={doc}
                     canWrite={canWrite}
                     canManageSummons={canManageSummons}
+                    isFirst={index === 0}
+                    isLast={index === uncategorised.length - 1}
+                    isReordering={reorderingCategoryKey === 'uncategorised'}
+                    reorderDisabled={reorderingCategoryKey !== null}
+                    onMoveUp={() => moveDocument(null, uncategorised, doc.id, 'up')}
+                    onMoveDown={() => moveDocument(null, uncategorised, doc.id, 'down')}
                     onPreview={() => setPreviewDoc(doc)}
                     onEdit={() => { setEditingDoc(doc); setShowDocForm(true); setShowBulkUpload(false); }}
                     onDelete={() => deleteDocument(doc)}
@@ -319,6 +389,12 @@ const AdminDocRow = ({
   doc,
   canWrite,
   canManageSummons,
+  isFirst,
+  isLast,
+  isReordering,
+  reorderDisabled,
+  onMoveUp,
+  onMoveDown,
   onPreview,
   onEdit,
   onDelete,
@@ -326,6 +402,12 @@ const AdminDocRow = ({
   doc: DocumentWithCategory;
   canWrite: boolean;
   canManageSummons: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  isReordering: boolean;
+  reorderDisabled: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onPreview: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -339,6 +421,28 @@ const AdminDocRow = ({
       </div>
     </div>
     <div className="flex items-center space-x-1 ml-4">
+      {canWrite ? (
+        <div className="flex items-center rounded-lg border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={isFirst || reorderDisabled}
+            aria-label={`Move ${doc.title} up`}
+            className="p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+          >
+            <ArrowUp size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={isLast || reorderDisabled}
+            aria-label={`Move ${doc.title} down`}
+            className="border-l border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+          >
+            {isReordering ? <Loader2 size={14} className="animate-spin" /> : <ArrowDown size={14} />}
+          </button>
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={onPreview}
