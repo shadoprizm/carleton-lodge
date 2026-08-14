@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, History, KeyRound, Mail, Plus, RefreshCw, Send, Settings, ShieldOff, UserRoundCog, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, History, KeyRound, Mail, Plus, RefreshCw, Search, Send, Settings, ShieldOff, UserRoundCog, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   EmailAgreementReceipt,
@@ -38,6 +38,12 @@ const statusClass = (status: LodgeEmailAccount['status']) => {
   return 'bg-amber-100 text-amber-800';
 };
 
+const credentialLabel = (status: LodgeEmailAccount['credential_status']) =>
+  status.split('_').map(word => `${word.slice(0, 1)}${word.slice(1).toLowerCase()}`).join(' ');
+
+const formatAccountDate = (date: string | null) =>
+  date ? new Date(date).toLocaleString('en-CA') : 'Not recorded';
+
 export const LodgeEmailAccountsManager = () => {
   const { hasAdminPermission } = useAuth();
   const canWrite = hasAdminPermission('members', 'write');
@@ -49,6 +55,9 @@ export const LodgeEmailAccountsManager = () => {
   const [handovers, setHandovers] = useState<OfficerEmailHandover[]>([]);
   const [auditEvents, setAuditEvents] = useState<LodgeEmailAuditEvent[]>([]);
   const [acceptedAccountIds, setAcceptedAccountIds] = useState<Set<string>>(new Set());
+  const [activeMailboxTab, setActiveMailboxTab] = useState<'role' | 'personal'>('role');
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState('');
   const [error, setError] = useState('');
@@ -144,6 +153,18 @@ export const LodgeEmailAccountsManager = () => {
 
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members]);
   const latestHandover = (accountId: string) => handovers.find(handover => handover.email_account_id === accountId) ?? null;
+  const displayedAccounts = activeMailboxTab === 'role' ? accounts : personalAccounts;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredAccounts = normalizedSearch
+    ? displayedAccounts.filter(account => {
+      const memberId = account.account_type === 'MEMBER'
+        ? account.associated_member_id
+        : account.current_authorized_member_id;
+      const holderName = memberId ? memberMap.get(memberId)?.full_name : null;
+      return [account.address, account.display_name, account.position_name, holderName]
+        .some(value => value?.toLowerCase().includes(normalizedSearch));
+    })
+    : displayedAccounts;
 
   const invokeAction = async (account: AdminEmailAccount, action: string, extra: Record<string, unknown> = {}) => {
     setWorkingId(account.id);
@@ -296,9 +317,9 @@ export const LodgeEmailAccountsManager = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="text-xl font-serif text-slate-900">Lodge-owned role mailboxes</h3>
+          <h3 className="text-xl font-serif text-slate-900">Mailbox administration</h3>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">
-            Role addresses and correspondence belong permanently to Carleton Lodge. A handover revokes website authorization, rotates MXroute credentials, preserves the mailbox, and invites the successor.
+            Manage Lodge-owned role accounts and individual member mailboxes. Role correspondence remains with Carleton Lodge through every officer handover.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -314,76 +335,176 @@ export const LodgeEmailAccountsManager = () => {
       {error && <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</p>}
       {notice && <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">{notice}</p>}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1050px]">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-sm text-slate-600">
-              <th className="px-3 py-3 font-semibold">Account</th>
-              <th className="px-3 py-3 font-semibold">Type / Position</th>
-              <th className="px-3 py-3 font-semibold">Current Holder</th>
-              <th className="px-3 py-3 font-semibold">Agreement</th>
-              <th className="px-3 py-3 font-semibold">Credentials</th>
-              <th className="px-3 py-3 font-semibold">Last Transfer</th>
-              <th className="px-3 py-3 font-semibold">Status</th>
-              {canWrite && <th className="px-3 py-3 font-semibold">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {accounts.map(account => {
-              const holder = account.current_authorized_member_id ? memberMap.get(account.current_authorized_member_id) : null;
-              const handover = latestHandover(account.id);
-              const busy = workingId === account.id;
-              return (
-                <tr key={account.id} className="border-b border-slate-100 align-top hover:bg-slate-50">
-                  <td className="px-3 py-4"><span className="block break-all font-semibold text-slate-900">{account.address}</span><span className="mt-1 block text-xs text-slate-500">{account.display_name}</span></td>
-                  <td className="px-3 py-4 text-sm text-slate-700"><span className="block font-medium">{account.position_name}</span><span className="text-xs text-slate-500">{account.account_type === 'OFFICER' ? 'Officer' : 'Functional'}</span></td>
-                  <td className="px-3 py-4 text-sm text-slate-700">{holder?.full_name ?? <span className="italic text-slate-400">Vacant</span>}</td>
-                  <td className="px-3 py-4 text-sm">{acceptedAccountIds.has(account.id) ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={14} /> Accepted</span> : <span className="text-amber-700">Outstanding</span>}</td>
-                  <td className="px-3 py-4 text-xs font-semibold text-slate-600">{account.credential_status.split('_').join(' ')}</td>
-                  <td className="px-3 py-4 text-xs text-slate-600">{account.last_handover_at ? new Date(account.last_handover_at).toLocaleString('en-CA') : '—'}</td>
-                  <td className="px-3 py-4"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusClass(account.status)}`}>{statusLabel(account.status)}</span>{handover?.state === 'FAILED' && <span className="mt-2 flex items-center gap-1 text-xs font-semibold text-red-700"><AlertTriangle size={13} /> Action required</span>}</td>
-                  {canWrite && (
-                    <td className="px-3 py-4">
-                      <div className="flex max-w-[220px] flex-wrap gap-2">
-                        <ActionButton label={account.status === 'NOT_PROVISIONED' ? 'Provision' : 'Verify'} icon={RefreshCw} disabled={busy} onClick={() => syncAccount(account)} />
-                        {account.current_authorized_member_id && account.status !== 'NOT_PROVISIONED' && account.status !== 'ACTIVE' && <ActionButton label="Send Invite" icon={Send} disabled={busy} onClick={() => sendInvitation(account)} />}
-                        {account.status === 'ACTIVE' && <ActionButton label="Password Reset" icon={KeyRound} disabled={busy} onClick={() => invokeAction(account, 'admin_initiate_password_reset').then(data => data && setNotice('A secure password-reset link was sent to the current holder.'))} />}
-                        {handover?.state === 'FAILED' && <ActionButton label="Retry" icon={RefreshCw} disabled={busy} onClick={() => invokeAction(account, 'admin_retry_handover')} />}
-                        <ActionButton label={account.current_authorized_member_id ? 'Handover' : 'Assign'} icon={UserRoundCog} disabled={busy || account.status === 'NOT_PROVISIONED'} onClick={() => { setHandoverAccount(account); setIncomingMemberId(''); setHandoverConfirmed(false); }} />
-                        {account.status === 'SUSPENDED' ? <ActionButton label="Reactivate" icon={Send} disabled={busy} onClick={() => invokeAction(account, 'admin_reactivate_account')} /> : <ActionButton label="Suspend" icon={ShieldOff} disabled={busy || !account.current_authorized_member_id} onClick={() => { setConfirmationAction({ account, action: 'suspend' }); setConfirmationReason(''); setConfirmationChecked(false); }} />}
-                        {account.current_authorized_member_id && <ActionButton label="Vacate" icon={X} disabled={busy} onClick={() => { setConfirmationAction({ account, action: 'vacate' }); setConfirmationReason('Office or functional responsibility is vacant'); setConfirmationChecked(false); }} />}
-                        <ActionButton label="Configure" icon={Settings} disabled={busy} onClick={() => openConfiguration(account)} />
-                        <ActionButton label="Details" icon={History} disabled={busy} onClick={() => { setDetailAccount(account); setReceipt(null); }} />
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!loading && accounts.length === 0 && <p className="py-10 text-center text-sm text-slate-500">No Lodge role mailboxes are configured.</p>}
+      <div className="flex border-b border-slate-200" role="tablist" aria-label="Mailbox type">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMailboxTab === 'role'}
+          onClick={() => {
+            setActiveMailboxTab('role');
+            setExpandedAccountId(null);
+          }}
+          className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-semibold transition-colors ${activeMailboxTab === 'role' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Role Mailboxes
+          <span className={`ml-2 rounded-full px-1.5 py-0.5 text-xs ${activeMailboxTab === 'role' ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 text-slate-500'}`}>{accounts.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMailboxTab === 'personal'}
+          onClick={() => {
+            setActiveMailboxTab('personal');
+            setExpandedAccountId(null);
+          }}
+          className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-semibold transition-colors ${activeMailboxTab === 'personal' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Personal Mailboxes
+          <span className={`ml-2 rounded-full px-1.5 py-0.5 text-xs ${activeMailboxTab === 'personal' ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 text-slate-500'}`}>{personalAccounts.length}</span>
+        </button>
       </div>
 
-      <section className="border-t border-slate-200 pt-6">
-        <div className="mb-4">
-          <h3 className="text-xl font-serif text-slate-900">Individual member mailboxes</h3>
-          <p className="mt-1 text-sm text-slate-500">Personal Lodge email stays with the verified individual and is never handed to a successor.</p>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <label className="relative block">
+          <span className="sr-only">Search Lodge mailboxes</span>
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={event => setSearchQuery(event.target.value)}
+            placeholder="Search by address, display name, position, or member"
+            className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-100"
+          />
+        </label>
+        {!loading && <p className="text-xs text-slate-500" aria-live="polite">Showing {filteredAccounts.length} of {displayedAccounts.length}</p>}
+      </div>
+
+      {activeMailboxTab === 'personal' && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Personal Lodge email stays with the verified individual and is never handed to a successor.
+        </p>
+      )}
+
+      {loading ? (
+        <div className="py-10 text-center text-sm text-slate-500">Loading Lodge mailboxes…</div>
+      ) : displayedAccounts.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-500">
+          {activeMailboxTab === 'role' ? 'No Lodge role mailboxes are configured.' : 'No personal Lodge mailboxes have been associated yet.'}
+        </p>
+      ) : filteredAccounts.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">No mailboxes match your search.</p>
+      ) : (
+        <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {filteredAccounts.map(account => {
+            const isPersonal = account.account_type === 'MEMBER';
+            const memberId = isPersonal ? account.associated_member_id : account.current_authorized_member_id;
+            const holder = memberId ? memberMap.get(memberId) : null;
+            const handover = isPersonal ? null : latestHandover(account.id);
+            const busy = workingId === account.id;
+            const expanded = expandedAccountId === account.id;
+            const buttonId = `email-account-button-${account.id}`;
+            const panelId = `email-account-panel-${account.id}`;
+            const agreementAccepted = acceptedAccountIds.has(account.id);
+            const mailboxType = isPersonal ? 'Personal' : account.account_type === 'OFFICER' ? 'Officer' : 'Functional';
+
+            return (
+              <article key={account.id}>
+                <button
+                  id={buttonId}
+                  type="button"
+                  onClick={() => setExpandedAccountId(current => current === account.id ? null : account.id)}
+                  aria-expanded={expanded}
+                  aria-controls={panelId}
+                  aria-label={`Manage mailbox ${account.address}`}
+                  className="grid w-full gap-3 px-4 py-4 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900 sm:grid-cols-[minmax(0,1.3fr)_auto_auto_auto] sm:items-center sm:gap-5"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700"><Mail size={17} aria-hidden="true" /></span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{account.address}</span>
+                      <span className="mt-0.5 block truncate text-xs text-slate-500">{isPersonal ? holder?.full_name ?? 'Unknown member' : account.display_name}</span>
+                    </span>
+                  </span>
+                  <span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{isPersonal ? 'Personal mailbox' : account.position_name}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(account.status)}`}>{statusLabel(account.status)}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${agreementAccepted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {agreementAccepted && <CheckCircle2 size={12} aria-hidden="true" />}
+                      {agreementAccepted ? 'Agreement accepted' : 'Agreement outstanding'}
+                    </span>
+                    {handover?.state === 'FAILED' && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-800"><AlertTriangle size={12} aria-hidden="true" /> Action required</span>}
+                  </span>
+                  <ChevronDown size={18} aria-hidden="true" className={`justify-self-end text-slate-400 transition-transform ${expanded ? 'rotate-180 text-slate-700' : ''}`} />
+                </button>
+
+                {expanded && (
+                  <div id={panelId} role="region" aria-labelledby={buttonId} className="border-t border-slate-200 bg-slate-50 px-4 py-5 sm:px-6">
+                    {handover?.state === 'FAILED' && (
+                      <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <AlertTriangle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <p><strong>Handover action required.</strong>{handover.failure_message ? ` ${handover.failure_message}` : ' Review the mailbox details or retry the handover.'}</p>
+                      </div>
+                    )}
+
+                    <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ownership</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-slate-700">
+                          <p><span className="font-medium text-slate-900">Member:</span> {holder?.full_name ?? (isPersonal ? 'Unknown member' : 'Vacant')}</p>
+                          <p><span className="font-medium text-slate-900">Type:</span> {mailboxType}</p>
+                          {!isPersonal && <p><span className="font-medium text-slate-900">Position:</span> {account.position_name}</p>}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Access</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-slate-700">
+                          <p><span className="font-medium text-slate-900">Agreement:</span> {agreementAccepted ? 'Accepted' : 'Outstanding'}</p>
+                          <p><span className="font-medium text-slate-900">Credentials:</span> {credentialLabel(account.credential_status)}</p>
+                          <p><span className="font-medium text-slate-900">Configuration:</span> {account.enabled ? 'Enabled' : 'Disabled'}</p>
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mailbox</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-slate-700">
+                          <p className="break-all"><span className="font-medium text-slate-900">Address:</span> {account.address}</p>
+                          <p><span className="font-medium text-slate-900">Provider:</span> MXroute</p>
+                          <p><span className="font-medium text-slate-900">Status:</span> {statusLabel(account.status)}</p>
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Activity</dt>
+                        <dd className="mt-3 space-y-2 text-sm text-slate-700">
+                          <p><span className="font-medium text-slate-900">Activated:</span> {formatAccountDate(account.activated_at)}</p>
+                          <p><span className="font-medium text-slate-900">Credentials rotated:</span> {formatAccountDate(account.last_credential_rotation_at)}</p>
+                          {!isPersonal && <p><span className="font-medium text-slate-900">Last transfer:</span> {formatAccountDate(account.last_handover_at)}</p>}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {canWrite && (
+                      <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+                        {!isPersonal && <ActionButton label={account.status === 'NOT_PROVISIONED' ? 'Provision' : 'Verify'} icon={RefreshCw} disabled={busy} onClick={() => syncAccount(account)} />}
+                        {!isPersonal && account.current_authorized_member_id && account.status !== 'NOT_PROVISIONED' && account.status !== 'ACTIVE' && <ActionButton label="Send Invite" icon={Send} disabled={busy} onClick={() => sendInvitation(account)} />}
+                        {!isPersonal && account.status === 'ACTIVE' && <ActionButton label="Password Reset" icon={KeyRound} disabled={busy} onClick={() => invokeAction(account, 'admin_initiate_password_reset').then(data => data && setNotice('A secure password-reset link was sent to the current holder.'))} />}
+                        {isPersonal && account.status === 'ACTIVE' && <ActionButton label="Password Reset" icon={KeyRound} disabled={busy} onClick={() => invokeAction(account, 'admin_initiate_personal_password_reset').then(data => data && setNotice('A secure password-reset link was sent to the member.'))} />}
+                        {!isPersonal && handover?.state === 'FAILED' && <ActionButton label="Retry Handover" icon={RefreshCw} disabled={busy} onClick={() => invokeAction(account, 'admin_retry_handover')} />}
+                        {!isPersonal && <ActionButton label={account.current_authorized_member_id ? 'Handover' : 'Assign'} icon={UserRoundCog} disabled={busy || account.status === 'NOT_PROVISIONED'} onClick={() => { setHandoverAccount(account); setIncomingMemberId(''); setHandoverConfirmed(false); }} />}
+                        {isPersonal && account.status === 'SUSPENDED' && <ActionButton label="Reactivate" icon={Send} disabled={busy} onClick={() => invokeAction(account, 'admin_reactivate_personal_account').then(data => data && setNotice('A secure reactivation link was sent to the member.'))} />}
+                        {isPersonal && account.status !== 'SUSPENDED' && <ActionButton label="Suspend" icon={ShieldOff} disabled={busy} onClick={() => { setConfirmationAction({ account, action: 'suspend', personal: true }); setConfirmationReason(''); setConfirmationChecked(false); }} />}
+                        {!isPersonal && account.status === 'SUSPENDED' && <ActionButton label="Reactivate" icon={Send} disabled={busy} onClick={() => invokeAction(account, 'admin_reactivate_account')} />}
+                        {!isPersonal && account.status !== 'SUSPENDED' && <ActionButton label="Suspend" icon={ShieldOff} disabled={busy || !account.current_authorized_member_id} onClick={() => { setConfirmationAction({ account, action: 'suspend' }); setConfirmationReason(''); setConfirmationChecked(false); }} />}
+                        {!isPersonal && account.current_authorized_member_id && <ActionButton label="Vacate" icon={X} disabled={busy} onClick={() => { setConfirmationAction({ account, action: 'vacate' }); setConfirmationReason('Office or functional responsibility is vacant'); setConfirmationChecked(false); }} />}
+                        {!isPersonal && <ActionButton label="Configure" icon={Settings} disabled={busy} onClick={() => openConfiguration(account)} />}
+                        <ActionButton label="Details & History" icon={History} disabled={busy} onClick={() => { setDetailAccount(account); setReceipt(null); }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px]">
-            <thead><tr className="border-b border-slate-200 text-left text-sm text-slate-600"><th className="px-3 py-3 font-semibold">Account</th><th className="px-3 py-3 font-semibold">Member</th><th className="px-3 py-3 font-semibold">Agreement</th><th className="px-3 py-3 font-semibold">Credentials</th><th className="px-3 py-3 font-semibold">Status</th>{canWrite && <th className="px-3 py-3 font-semibold">Actions</th>}</tr></thead>
-            <tbody>
-              {personalAccounts.map(account => {
-                const member = account.associated_member_id ? memberMap.get(account.associated_member_id) : null;
-                const busy = workingId === account.id;
-                return <tr key={account.id} className="border-b border-slate-100 hover:bg-slate-50"><td className="px-3 py-4"><span className="block break-all font-semibold text-slate-900">{account.address}</span></td><td className="px-3 py-4 text-sm text-slate-700">{member?.full_name ?? 'Unknown member'}</td><td className="px-3 py-4 text-sm">{acceptedAccountIds.has(account.id) ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={14} /> Accepted</span> : <span className="text-amber-700">Outstanding</span>}</td><td className="px-3 py-4 text-xs font-semibold text-slate-600">{account.credential_status.split('_').join(' ')}</td><td className="px-3 py-4"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusClass(account.status)}`}>{statusLabel(account.status)}</span></td>{canWrite && <td className="px-3 py-4"><div className="flex flex-wrap gap-2">{account.status === 'ACTIVE' && <ActionButton label="Password Reset" icon={KeyRound} disabled={busy} onClick={() => invokeAction(account, 'admin_initiate_personal_password_reset').then(data => data && setNotice('A secure password-reset link was sent to the member.'))} />}{account.status === 'SUSPENDED' ? <ActionButton label="Reactivate" icon={Send} disabled={busy} onClick={() => invokeAction(account, 'admin_reactivate_personal_account').then(data => data && setNotice('A secure reactivation link was sent to the member.'))} /> : <ActionButton label="Suspend" icon={ShieldOff} disabled={busy} onClick={() => { setConfirmationAction({ account, action: 'suspend', personal: true }); setConfirmationReason(''); setConfirmationChecked(false); }} />}<ActionButton label="Details" icon={History} disabled={busy} onClick={() => { setDetailAccount(account); setReceipt(null); }} /></div></td>}</tr>;
-              })}
-            </tbody>
-          </table>
-          {!loading && personalAccounts.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No personal Lodge mailboxes have been associated yet.</p>}
-        </div>
-      </section>
+      )}
 
       {showCreate && (
         <Modal title="Add Role Mailbox" onClose={() => setShowCreate(false)}>
@@ -453,11 +574,11 @@ export const LodgeEmailAccountsManager = () => {
   );
 };
 
-const ActionButton = ({ label, icon: Icon, disabled, onClick }: { label: string; icon: typeof Mail; disabled?: boolean; onClick: () => void }) => <button type="button" onClick={onClick} disabled={disabled} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 disabled:opacity-50"><Icon size={13} /> {label}</button>;
+const ActionButton = ({ label, icon: Icon, disabled, onClick }: { label: string; icon: typeof Mail; disabled?: boolean; onClick: () => void }) => <button type="button" onClick={onClick} disabled={disabled} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><Icon size={13} aria-hidden="true" /> {label}</button>;
 
 const FieldLabel = ({ label, children }: { label: string; children: React.ReactNode }) => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>;
 
-const Modal = ({ title, onClose, wide = false, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-label={title} className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${wide ? 'max-w-4xl' : 'max-w-lg'}`}><div className="flex items-center justify-between border-b border-slate-200 p-5"><h4 className="text-xl font-serif text-slate-900">{title}</h4><button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button></div><div className="p-5 sm:p-6">{children}</div></div></div>;
+const Modal = ({ title, onClose, wide = false, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-label={title} className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${wide ? 'max-w-4xl' : 'max-w-lg'}`}><div className="flex items-center justify-between border-b border-slate-200 p-5"><h4 className="text-xl font-serif text-slate-900">{title}</h4><button type="button" onClick={onClose} aria-label={`Close ${title}`} className="text-slate-400 hover:text-slate-700"><X size={20} /></button></div><div className="p-5 sm:p-6">{children}</div></div></div>;
 
 const AccountDetails = ({ account, members, assignments, handovers, auditEvents, receipt, onLoadReceipt }: { account: AdminEmailAccount; members: Map<string, LodgeMember>; assignments: OfficerMailboxAssignment[]; handovers: OfficerEmailHandover[]; auditEvents: LodgeEmailAuditEvent[]; receipt: EmailAgreementReceipt | null; onLoadReceipt: () => void }) => (
   <div className="space-y-6 text-sm">
