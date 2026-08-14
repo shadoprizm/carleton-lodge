@@ -584,7 +584,7 @@ export const MembersDirectory = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl"
               onClick={e => e.stopPropagation()}
             >
               {(() => {
@@ -649,7 +649,7 @@ export const MembersDirectory = () => {
                       {selectedMember.bio && (
                         <div className="pt-2 border-t border-stone-100">
                           <p className="text-xs text-stone-400 font-medium mb-2">About</p>
-                          <p className="text-sm text-stone-700 leading-relaxed">{selectedMember.bio}</p>
+                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-700">{selectedMember.bio}</p>
                         </div>
                       )}
                       {!selectedMember.phone && !selectedMember.lodge_email && !selectedMember.bio && (

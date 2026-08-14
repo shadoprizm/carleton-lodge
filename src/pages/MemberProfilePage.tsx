@@ -93,7 +93,7 @@ export const MemberProfilePage = () => {
           <main className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="text-2xl font-serif text-slate-900">About</h2>
             {member.bio ? (
-              <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-slate-700">{member.bio}</p>
+              <p className="mt-4 whitespace-pre-wrap break-words text-lg leading-relaxed text-slate-700">{member.bio}</p>
             ) : (
               <p className="mt-4 text-lg text-slate-600">No biography has been added yet.</p>
             )}
