@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, ExternalLink, FileText, Loader2, AlertCircle, FileSpreadsheet, FileType } from 'lucide-react';
 import { supabase, DocumentWithCategory } from '../lib/supabase';
@@ -12,6 +12,28 @@ const OFFICE_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
+
+const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
+  pdf: PDF_TYPE,
+  txt: TEXT_TYPE,
+  csv: TEXT_TYPE,
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+function inferMimeType(filename: string, reportedType: string | null | undefined) {
+  if (reportedType) return reportedType;
+  const extension = filename.split('.').pop()?.toLowerCase() ?? '';
+  return MIME_TYPE_BY_EXTENSION[extension] ?? null;
+}
 
 function isImage(mimeType: string | null) {
   return IMAGE_TYPES.includes(mimeType ?? '');
@@ -31,99 +53,135 @@ function isOffice(mimeType: string | null) {
 
 interface Props {
   doc: DocumentWithCategory | null;
+  localFile?: File | null;
   onClose: () => void;
-  onDownload: (doc: DocumentWithCategory) => void;
+  onDownload?: (doc: DocumentWithCategory) => void;
 }
 
-export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
+export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownload }: Props) => {
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
+  const previewTitle = doc?.title ?? localFile?.name ?? 'Document preview';
+  const previewDescription = doc?.description ?? null;
+  const previewMimeType = inferMimeType(
+    doc?.file_name ?? localFile?.name ?? '',
+    doc?.file_type ?? localFile?.type,
+  );
 
   useEffect(() => {
-    if (!doc) return;
-    
-    // Clean up previous blob URL
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
-    
+    if (!doc && !localFile) return;
+
+    let disposed = false;
+    let objectUrl: string | null = null;
+
     setDisplayUrl(null);
     setError(false);
     setIframeLoaded(false);
     setTextContent(null);
     setLoading(true);
 
-    const bucket = doc.storage_bucket || 'lodge-documents';
-    
-    // Fetch file through proxy to hide Supabase URL
+    const setPreviewBlob = async (blob: Blob) => {
+      objectUrl = URL.createObjectURL(blob);
+      if (disposed) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+        return;
+      }
+
+      setDisplayUrl(objectUrl);
+      if (isText(previewMimeType)) {
+        try {
+          const text = await blob.text();
+          if (!disposed) setTextContent(text);
+        } catch {
+          // The browser can still offer the file for opening or download.
+        }
+      }
+      if (!disposed) setLoading(false);
+    };
+
     const fetchFile = async () => {
       try {
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(doc.file_url, 60);
-        
-        if (signedError || !signedData?.signedUrl) {
-          setError(true);
-          setLoading(false);
+        if (localFile) {
+          await setPreviewBlob(localFile);
           return;
         }
 
-        // Fetch the actual file content
+        if (!doc) return;
+        const bucket = doc.storage_bucket || 'lodge-documents';
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(doc.file_url, 60);
+
+        if (signedError || !signedData?.signedUrl) {
+          if (!disposed) {
+            setError(true);
+            setLoading(false);
+          }
+          return;
+        }
+
         const response = await fetch(signedData.signedUrl);
         if (!response.ok) throw new Error('Failed to fetch file');
-        
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        blobUrlRef.current = blobUrl;
-        setDisplayUrl(blobUrl);
-        
-        // For text files, also extract the content
-        if (isText(doc.file_type)) {
-          try {
-            const text = await blob.text();
-            setTextContent(text);
-          } catch {
-            // fallback to iframe
-          }
-        }
-        
-        setLoading(false);
+
+        await setPreviewBlob(await response.blob());
       } catch (err) {
         console.error('Error fetching file:', err);
-        setError(true);
-        setLoading(false);
+        if (!disposed) {
+          setError(true);
+          setLoading(false);
+        }
       }
     };
 
-    fetchFile();
-    
-    // Cleanup on unmount or when doc changes
+    void fetchFile();
+
     return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
+      disposed = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
       }
     };
-  }, [doc]);
+  }, [doc, localFile, previewMimeType]);
 
   useEffect(() => {
+    if (!doc && !localFile) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [doc, localFile, onClose]);
+
+  const handleDownload = () => {
+    if (doc && onDownload) {
+      onDownload(doc);
+      return;
+    }
+    if (!displayUrl) return;
+
+    const link = document.createElement('a');
+    link.href = displayUrl;
+    link.download = doc?.file_name ?? localFile?.name ?? 'document';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const canDownload = Boolean((doc && onDownload) || displayUrl);
 
   return (
     <AnimatePresence>
-      {doc && (
+      {(doc || localFile) && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Preview ${previewTitle}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -147,11 +205,11 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                 <FileText size={20} className="text-slate-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <h2 className="font-semibold text-slate-900 truncate text-sm leading-tight">
-                    {doc.title}
+                    {previewTitle}
                   </h2>
-                  {doc.description && (
+                  {previewDescription && (
                     <p className="text-xs text-slate-500 truncate mt-0.5">
-                      {doc.description}
+                      {previewDescription}
                     </p>
                   )}
                 </div>
@@ -169,15 +227,18 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                     <span>Open</span>
                   </a>
                 )}
-                <button
-                  onClick={() => onDownload(doc)}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  <Download size={13} />
-                  <span>Download</span>
-                </button>
+                {canDownload ? (
+                  <button
+                    onClick={handleDownload}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    <Download size={13} />
+                    <span>Download</span>
+                  </button>
+                ) : null}
                 <button
                   onClick={onClose}
+                  aria-label="Close preview"
                   className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <X size={18} />
@@ -197,27 +258,29 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                 <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400">
                   <AlertCircle size={32} className="mb-3 text-slate-300" />
                   <p className="text-sm font-medium text-slate-500">Unable to load preview</p>
-                  <button
-                    onClick={() => onDownload(doc)}
-                    className="mt-4 flex items-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
-                  >
-                    <Download size={14} />
-                    <span>Download instead</span>
-                  </button>
+                  {canDownload ? (
+                    <button
+                      onClick={handleDownload}
+                      className="mt-4 flex items-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                    >
+                      <Download size={14} />
+                      <span>Download instead</span>
+                    </button>
+                  ) : null}
                 </div>
               )}
 
               {!loading && !error && displayUrl && (
                 <>
-                  {isImage(doc.file_type) ? (
+                  {isImage(previewMimeType) ? (
                     <div className="flex items-center justify-center h-full p-6 overflow-auto">
                       <img
                         src={displayUrl}
-                        alt={doc.title}
+                        alt={previewTitle}
                         className="max-w-full max-h-full object-contain rounded-lg shadow-md"
                       />
                     </div>
-                  ) : isPdf(doc.file_type) ? (
+                  ) : isPdf(previewMimeType) ? (
                     <div className="relative h-full" style={{ minHeight: '60vh' }}>
                       {!iframeLoaded && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50 z-10">
@@ -227,22 +290,22 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                       )}
                       <iframe
                         src={displayUrl}
-                        title={doc.title}
+                        title={previewTitle}
                         className="w-full h-full rounded-b-2xl border-0"
                         style={{ minHeight: '60vh' }}
                         onLoad={() => setIframeLoaded(true)}
                       />
                     </div>
-                  ) : isText(doc.file_type) && textContent !== null ? (
+                  ) : isText(previewMimeType) && textContent !== null ? (
                     <div className="h-full overflow-auto p-6">
                       <pre className="text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                         {textContent}
                       </pre>
                     </div>
-                  ) : isOffice(doc.file_type) ? (
+                  ) : isOffice(previewMimeType) ? (
                     <div className="flex flex-col items-center justify-center h-full py-16 px-6 text-slate-400">
                       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 max-w-sm w-full text-center">
-                        {doc.file_type?.includes('spreadsheet') || doc.file_type?.includes('excel') ? (
+                        {previewMimeType?.includes('spreadsheet') || previewMimeType?.includes('excel') ? (
                           <FileSpreadsheet size={44} className="mx-auto mb-4 text-green-400" />
                         ) : (
                           <FileType size={44} className="mx-auto mb-4 text-blue-400" />
@@ -263,13 +326,15 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                             <ExternalLink size={14} />
                             <span>Open in new tab</span>
                           </a>
-                          <button
-                            onClick={() => onDownload(doc)}
-                            className="flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
-                          >
-                            <Download size={14} />
-                            <span>Download</span>
-                          </button>
+                          {canDownload ? (
+                            <button
+                              onClick={handleDownload}
+                              className="flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                            >
+                              <Download size={14} />
+                              <span>Download</span>
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -282,13 +347,15 @@ export const DocumentPreviewModal = ({ doc, onClose, onDownload }: Props) => {
                       <p className="text-xs text-slate-400 mt-1 mb-4">
                         Download the file to view it on your device
                       </p>
-                      <button
-                        onClick={() => onDownload(doc)}
-                        className="flex items-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
-                      >
-                        <Download size={14} />
-                        <span>Download</span>
-                      </button>
+                      {canDownload ? (
+                        <button
+                          onClick={handleDownload}
+                          className="flex items-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                        >
+                          <Download size={14} />
+                          <span>Download</span>
+                        </button>
+                      ) : null}
                     </div>
                   )}
                 </>
