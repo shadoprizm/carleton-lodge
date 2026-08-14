@@ -15,6 +15,13 @@ const functionSources = import.meta.glob(
   { eager: true, import: 'default', query: '?raw' },
 ) as Record<string, string>;
 const functions = Object.values(functionSources).join('\n');
+const webhook = Object.entries(functionSources).find(([path]) => path.includes('cl-email-webhook'))?.[1] ?? '';
+
+const ingressMigrationSources = import.meta.glob(
+  '/supabase/migrations/*_isolate_mailroom_ingress.sql',
+  { eager: true, import: 'default', query: '?raw' },
+) as Record<string, string>;
+const ingressMigration = Object.values(ingressMigrationSources)[0];
 
 describe('intelligent Mailroom contract', () => {
   it('keeps publication behind review and shadow mode locked', () => {
@@ -39,6 +46,18 @@ describe('intelligent Mailroom contract', () => {
     expect(functions).toContain('trusted_email_senders');
     expect(migration).toContain("Material outside Ottawa Districts 1 and 2 must remain on hold");
     expect(migration).toContain("district_name_value NOT IN ('Ottawa District 1', 'Ottawa District 2')");
+  });
+
+  it('rejects foreign-domain recipients before storage and limits reader access', () => {
+    const recipientGuard = webhook.indexOf('if (!reachedMailroom)');
+    const databaseClient = webhook.indexOf('createClient(supabaseUrl');
+
+    expect(recipientGuard).toBeGreaterThan(-1);
+    expect(databaseClient).toBeGreaterThan(-1);
+    expect(recipientGuard).toBeLessThan(databaseClient);
+    expect(webhook).toContain('stored: false, queued: false');
+    expect(ingressMigration).toContain("mailroom@(inbound[.])?carpmasons[.]ca");
+    expect(ingressMigration).toContain("has_admin_section_permission('communications', 'read')");
   });
 
   it('supports retries, duplicate detection, and one-year content purging', () => {

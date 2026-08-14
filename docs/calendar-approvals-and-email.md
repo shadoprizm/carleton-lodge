@@ -38,13 +38,16 @@ All transactional notifications render through
 - Preheader text, escaped dynamic content, an accessible primary action, and a
   consistent lodge header, signature, and footer.
 
-`cl-email-webhook` verifies Svix signatures before accepting inbound provider
-events and stores normalized messages in `inbound_emails`. Both Resend and
-AgentMail use Svix-signed webhooks, so the trust boundary is provider-neutral.
+`cl-email-webhook` verifies Svix signatures and confirms that the designated
+Lodge Mailroom is a recipient before storing normalized messages in
+`inbound_emails`. Events for other recipients in a shared provider account are
+acknowledged without being stored. Both Resend and AgentMail use Svix-signed
+webhooks, so the trust boundary is provider-neutral.
 
 The Communications admin permission controls read access to delivery history and
-inbound messages. The browser never receives provider API keys, webhook secrets,
-or the Supabase service-role key.
+Mailroom-addressed inbound messages. RLS independently enforces the Mailroom
+recipient boundary as a backstop. The browser never receives provider API keys,
+webhook secrets, or the Supabase service-role key.
 
 ## Provider configuration
 

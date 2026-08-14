@@ -196,17 +196,36 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const { createClient } = await import("npm:@supabase/supabase-js@2.110.8");
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
   providerMessageId = String(
     message.id ??
       message.email_id ??
       message.message_id ??
       providerMessageId,
   );
+
+  const toAddresses = asStringArray(message.to ?? webhookData.to);
+  const ccAddresses = asStringArray(message.cc ?? webhookData.cc);
+  const receivedForAddresses = asStringArray(
+    message.received_for ?? message.receivedFor ?? webhookData.received_for ??
+      webhookData.receivedFor,
+  );
+  const configuredRecipient = Deno.env.get("MAILROOM_RECIPIENT") ??
+    "mailroom@inbound.carpmasons.ca";
+  const publicAlias = Deno.env.get("MAILROOM_PUBLIC_ADDRESS") ??
+    "mailroom@carpmasons.ca";
+  const reachedMailroom = messageReachedMailroom(
+    [toAddresses, ccAddresses, receivedForAddresses],
+    configuredRecipient,
+    publicAlias,
+  );
+  if (!reachedMailroom) {
+    return jsonResponse({ received: true, stored: false, queued: false });
+  }
+
+  const { createClient } = await import("npm:@supabase/supabase-js@2.110.8");
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   const { data: existingEmail } = await supabase
     .from("inbound_emails")
@@ -218,12 +237,6 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ received: true, stored: true, replay: true });
   }
 
-  const toAddresses = asStringArray(message.to ?? webhookData.to);
-  const ccAddresses = asStringArray(message.cc ?? webhookData.cc);
-  const receivedForAddresses = asStringArray(
-    message.received_for ?? message.receivedFor ?? webhookData.received_for ??
-      webhookData.receivedFor,
-  );
   const fromAddress = asAddressString(message.from ?? webhookData.from) || null;
   const headers = message.headers && typeof message.headers === "object"
     ? message.headers
@@ -279,16 +292,7 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Could not store inbound email" }, 500);
   }
 
-  const configuredRecipient = Deno.env.get("MAILROOM_RECIPIENT") ??
-    "mailroom@inbound.carpmasons.ca";
-  const publicAlias = Deno.env.get("MAILROOM_PUBLIC_ADDRESS") ??
-    "mailroom@carpmasons.ca";
-  const reachedMailroom = messageReachedMailroom(
-    [toAddresses, ccAddresses, receivedForAddresses],
-    configuredRecipient,
-    publicAlias,
-  );
-  if (!reachedMailroom || !messageAuthenticationPassed(headers)) {
+  if (!messageAuthenticationPassed(headers)) {
     return jsonResponse({ received: true, stored: true, queued: false });
   }
 
