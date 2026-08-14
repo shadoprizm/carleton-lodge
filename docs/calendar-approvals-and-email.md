@@ -97,6 +97,9 @@ Resend is the active provider. The production configuration is:
   Members administrator creates or resets website access.
 - `mailroom_draft_ready` to full and delegated Communications administrators,
   with a direct link to the Mailroom review screen.
+- `external_link_failure` to `webmaster@carpmasons.ca` on the first recorded
+  failure for an allowlisted Masonic link. The permanent link-key constraint
+  prevents repeat email when later visitors encounter the same failure.
 
 `standard_template_preview` is an internal delivery-test type used to verify the
 shared template and provider pipeline without implying a real calendar action.

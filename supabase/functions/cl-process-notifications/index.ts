@@ -14,6 +14,7 @@ import {
   ACCOUNT_SETUP_REDIRECT_URL,
   validateAccountSetupActionLink,
 } from "../_shared/auth-action-link.ts";
+import { renderExternalLinkAlertEmail } from "../_shared/external-link-alert-email.ts";
 
 type NotificationJob = {
   id: string;
@@ -264,6 +265,21 @@ const renderEmail = (
       paragraphs: body ? [body] : ["A new lodge announcement has been posted."],
       details: [{ label: "Priority", value: priority }],
       cta: { label: "View announcements on My Lodge", url: myLodgeUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "external_link_failure") {
+    const linkName = payloadString(job.payload, "link_name") || "External website";
+    const targetUrl = payloadString(job.payload, "target_url");
+    const failureReason = payloadString(job.payload, "failure_reason");
+    const detectedAt = payloadString(job.payload, "first_failed_at");
+
+    return renderExternalLinkAlertEmail({
+      linkName,
+      targetUrl,
+      failureReason,
+      detectedAt,
       siteUrl,
     });
   }

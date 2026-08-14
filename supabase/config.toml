@@ -33,3 +33,8 @@ entrypoint = "./functions/cl-mailroom/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/cl-process-notifications/index.ts"
+
+[functions.check-external-link]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/check-external-link/index.ts"

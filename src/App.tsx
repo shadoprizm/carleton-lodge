@@ -32,6 +32,8 @@ const GalleryPage = lazy(() => import('./pages/GalleryPage').then((module) => ({
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then((module) => ({ default: module.PrivacyPolicyPage })));
 const TermsAndConditionsPage = lazy(() => import('./pages/TermsAndConditionsPage').then((module) => ({ default: module.TermsAndConditionsPage })));
 const LinksPage = lazy(() => import('./pages/LinksPage').then((module) => ({ default: module.LinksPage })));
+const ExternalLinkOpenPage = lazy(() => import('./pages/ExternalLinkOpenPage').then((module) => ({ default: module.ExternalLinkOpenPage })));
+const ExternalLinkUnavailablePage = lazy(() => import('./pages/ExternalLinkUnavailablePage').then((module) => ({ default: module.ExternalLinkUnavailablePage })));
 const ContactPage = lazy(() => import('./pages/ContactPage').then((module) => ({ default: module.ContactPage })));
 const FreemasonryPage = lazy(() => import('./pages/FreemasonryPage').then((module) => ({ default: module.FreemasonryPage })));
 const BecomingAMasonPage = lazy(() => import('./pages/BecomingAMasonPage').then((module) => ({ default: module.BecomingAMasonPage })));
@@ -121,6 +123,8 @@ const AppShell = () => {
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
           <Route path="/links" element={<LinksPage />} />
+          <Route path="/links/open/:resourceId" element={<ExternalLinkOpenPage />} />
+          <Route path="/links/external-unavailable" element={<ExternalLinkUnavailablePage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/freemasonry" element={<FreemasonryPage />} />
           <Route path="/becoming-a-mason" element={<BecomingAMasonPage />} />

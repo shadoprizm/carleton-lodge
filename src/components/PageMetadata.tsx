@@ -17,6 +17,7 @@ const pages = [
   { match: (path: string) => path.startsWith('/history'), title: 'Our History | Carleton Lodge No. 465', description: 'Explore the history of Carleton Lodge No. 465, founded in Carp, Ontario in 1904 — a source-grounded digital archive.' },
   { match: (path: string) => path === '/gallery', title: 'Photo Gallery | Carleton Lodge No. 465', description: 'Public photographs from Carleton Lodge No. 465 and its community.' },
   { match: (path: string) => path === '/links', title: 'Trusted Masonic Links | Carleton Lodge No. 465', description: 'Official Grand Lodge, Ottawa district, educational, charitable, and Masonic body resources.' },
+  { match: (path: string) => path === '/links/external-unavailable', title: 'External Link Unavailable | Carleton Lodge No. 465', description: 'Information about a temporarily unavailable external Masonic resource.' },
   { match: (path: string) => path === '/contact', title: 'Contact Carleton Lodge | Carleton Lodge No. 465', description: 'Contact Carleton Lodge No. 465 in Carp, Ontario — questions about Freemasonry, visiting the Lodge, events, or lodge history.' },
   { match: (path: string) => path === '/freemasonry', title: 'What is Freemasonry? | Carleton Lodge No. 465', description: 'An introduction to Freemasonry for the curious — its principles of Brotherly Love, Relief, and Truth, and what Freemasonry is and is not.' },
   { match: (path: string) => path === '/becoming-a-mason', title: 'Becoming a Mason | Carleton Lodge No. 465', description: 'Interested in Freemasonry? Learn who can become a Mason in Ontario and how to start a conversation with Carleton Lodge No. 465 in Carp.' },
@@ -35,7 +36,7 @@ const pages = [
   { match: (path: string) => path.startsWith('/admin'), title: 'Website Administration | Carleton Lodge No. 465', description: 'Secure Carleton Lodge website administration.' },
 ];
 
-const privatePrefixes = ['/my-lodge', '/lodge-guide', '/ask-carleton', '/summons', '/district', '/members', '/library', '/admin', '/reset-password'];
+const privatePrefixes = ['/my-lodge', '/lodge-guide', '/ask-carleton', '/summons', '/district', '/members', '/library', '/admin', '/reset-password', '/links/open', '/links/external-unavailable'];
 
 const setMeta = (selector: string, attribute: string, value: string) => {
   const element = document.querySelector<HTMLMetaElement>(selector);

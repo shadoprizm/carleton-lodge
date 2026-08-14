@@ -79,6 +79,10 @@
       }
     },
     {
+      "src": "/links/open/([a-z0-9-]+)",
+      "dest": "https://isnxsygngysxgzeuhmjm.supabase.co/functions/v1/check-external-link?resource=$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
