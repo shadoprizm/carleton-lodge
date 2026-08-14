@@ -147,4 +147,33 @@ describe('MembersDirectory officer structure', () => {
     expect(within(otherRolesSection!).getByText('Lodge Historian')).toBeInTheDocument();
     expect(within(otherRolesSection!).queryByText('Lodge Auditor')).not.toBeInTheDocument();
   });
+
+  it('shows a retryable error instead of an empty page when the roster query fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'lodge_positions') {
+        return {
+          select: vi.fn(() => ({
+            order: vi.fn().mockResolvedValue({ data: [...positions.values()], error: null }),
+          })),
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST201' } }),
+        })),
+      };
+    });
+
+    render(
+      <MemoryRouter>
+        <MembersDirectory />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Member directory unavailable' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Elected Officers' })).not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
 });

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { LodgePosition } from './supabase';
-import { memberPositions, positionNames, positionsOfType, primaryPosition } from './lodgePositions';
+import {
+  LODGE_MEMBER_POSITION_RELATION_SELECT,
+  memberPositions,
+  positionNames,
+  positionsOfType,
+  primaryPosition,
+} from './lodgePositions';
 
 const historian: LodgePosition = {
   id: 'historian',
@@ -21,6 +27,12 @@ const auditor: LodgePosition = {
 };
 
 describe('Lodge member positions', () => {
+  it('disambiguates both PostgREST position relationships by foreign key', () => {
+    expect(LODGE_MEMBER_POSITION_RELATION_SELECT).toContain('!lodge_members_position_id_fkey');
+    expect(LODGE_MEMBER_POSITION_RELATION_SELECT).toContain('!lodge_member_positions_member_id_fkey');
+    expect(LODGE_MEMBER_POSITION_RELATION_SELECT).toContain('!lodge_member_positions_position_id_fkey');
+  });
+
   it('sorts and presents every concurrent position', () => {
     const member = { lodge_positions: historian, positions: [auditor, historian] };
 

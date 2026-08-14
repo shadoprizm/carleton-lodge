@@ -4,7 +4,12 @@ import { Mail, Phone, X, Crown, Shield, Star, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase, LodgePosition, MemberDirectoryProfileWithPosition } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { memberPositions, primaryPosition, sortedPositions } from '../lib/lodgePositions';
+import {
+  LODGE_MEMBER_POSITION_RELATION_SELECT,
+  memberPositions,
+  primaryPosition,
+  sortedPositions,
+} from '../lib/lodgePositions';
 import {
   displayLodgePositionName,
   LodgeRoleGroup,
@@ -446,6 +451,7 @@ export const MembersDirectory = () => {
   const [members, setMembers] = useState<MemberDirectoryProfileWithPosition[]>([]);
   const [lodgePositions, setLodgePositions] = useState<LodgePosition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<MemberDirectoryProfileWithPosition | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -463,18 +469,27 @@ export const MembersDirectory = () => {
 
   const fetchMembers = async () => {
     setLoading(true);
-    const [membersResult, positionsResult] = await Promise.all([
-      supabase
-        .from('lodge_members')
-        .select('id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, lodge_positions(id, name, display_order, position_type, max_holders, created_at), lodge_member_positions(lodge_positions(id, name, display_order, position_type, max_holders, created_at))')
-        .eq('visible_to_members', true),
-      supabase
-        .from('lodge_positions')
-        .select('id, name, display_order, position_type, max_holders, created_at')
-        .order('display_order'),
-    ]);
-    if (!membersResult.error && membersResult.data) {
-      const loadedMembers = membersResult.data as unknown as Array<
+    setLoadError(null);
+    try {
+      const [membersResult, positionsResult] = await Promise.all([
+        supabase
+          .from('lodge_members')
+          .select(`id, full_name, phone, join_date, position_id, bio, visible_to_members, linked_profile_id, lodge_email, mailbox_status, mailbox_provisioned_at, mailbox_activated_at, created_at, updated_at, ${LODGE_MEMBER_POSITION_RELATION_SELECT}`)
+          .eq('visible_to_members', true),
+        supabase
+          .from('lodge_positions')
+          .select('id, name, display_order, position_type, max_holders, created_at')
+          .order('display_order'),
+      ]);
+
+      if (membersResult.error) {
+        console.error('Could not load the member directory:', membersResult.error);
+        setMembers([]);
+        setLoadError('The member directory could not be loaded. Please try again.');
+        return;
+      }
+
+      const loadedMembers = (membersResult.data ?? []) as unknown as Array<
         Omit<MemberDirectoryProfileWithPosition, 'positions'> & {
           lodge_member_positions?: Array<{ lodge_positions: LodgePosition | null }>;
         }
@@ -487,11 +502,19 @@ export const MembersDirectory = () => {
             .filter((position): position is LodgePosition => position !== null),
         ),
       })));
+
+      if (positionsResult.error) {
+        console.warn('Could not load vacant Lodge positions:', positionsResult.error);
+      } else {
+        setLodgePositions((positionsResult.data ?? []) as LodgePosition[]);
+      }
+    } catch (error) {
+      console.error('Could not load the member directory:', error);
+      setMembers([]);
+      setLoadError('The member directory could not be loaded. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    if (!positionsResult.error && positionsResult.data) {
-      setLodgePositions(positionsResult.data as LodgePosition[]);
-    }
-    setLoading(false);
   };
 
   if (!user) return null;
@@ -591,6 +614,18 @@ export const MembersDirectory = () => {
                 />
               ))}
             </div>
+          </div>
+        ) : loadError ? (
+          <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm" role="alert">
+            <h2 className="font-serif text-2xl text-slate-900">Member directory unavailable</h2>
+            <p className="mt-3 text-base text-slate-600">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchMembers}
+              className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-900 px-6 font-semibold text-amber-300 transition-colors hover:bg-slate-800"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <>
