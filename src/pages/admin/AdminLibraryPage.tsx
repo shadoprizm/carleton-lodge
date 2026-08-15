@@ -9,6 +9,11 @@ import { supabase, DocumentCategory, DocumentWithCategory } from '../../lib/supa
 import { moveDocumentInList, type DocumentMoveDirection } from '../../lib/documentOrdering';
 import { useAuth } from '../../contexts/AuthContext';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  resolveDocumentMimeType,
+  validateDocumentUpload,
+} from '../../lib/documentFiles';
 
 const DOCUMENTS_BUCKET = 'lodge-documents';
 const BULK_INTAKE_CATEGORY_NAME = 'Needs Sorting';
@@ -516,6 +521,15 @@ const DocumentForm = ({
   });
 
   const handleFileSelect = (file: File) => {
+    const validationError = validateDocumentUpload(file);
+    if (validationError) {
+      setError(validationError);
+      setSelectedFile(null);
+      setPreviewFile(null);
+      return;
+    }
+
+    setError(null);
     setSelectedFile(file);
     setPreviewFile(null);
     if (!formData.title) {
@@ -540,9 +554,14 @@ const DocumentForm = ({
       if (selectedFile) {
         const ext = selectedFile.name.split('.').pop();
         const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const resolvedMimeType = resolveDocumentMimeType(selectedFile.name, selectedFile.type);
         const { error: uploadError } = await supabase.storage
           .from(DOCUMENTS_BUCKET)
-          .upload(path, selectedFile);
+          .upload(
+            path,
+            selectedFile,
+            resolvedMimeType ? { contentType: resolvedMimeType } : undefined,
+          );
         if (uploadError) throw uploadError;
 
         if (editingDoc?.file_url && !editingDoc.source_mailroom_import_id) {
@@ -553,7 +572,7 @@ const DocumentForm = ({
         fileUrl = path;
         fileName = selectedFile.name;
         fileSize = selectedFile.size;
-        fileType = selectedFile.type;
+        fileType = resolvedMimeType;
       }
 
       const tags = formData.tags
@@ -624,12 +643,13 @@ const DocumentForm = ({
                 <>
                   <Upload size={28} className="text-slate-400 mb-2" />
                   <p className="text-sm text-slate-600 font-medium">Drop file here or click to browse</p>
-                  <p className="text-xs text-slate-400 mt-1">PDF, Word, Excel, images up to 50 MB</p>
+                  <p className="text-xs text-slate-400 mt-1">PDF, Word, PowerPoint, Excel, text, CSV, and image files up to 25 MB</p>
                 </>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
               />
@@ -651,7 +671,7 @@ const DocumentForm = ({
             >
               <Upload size={16} className={selectedFile ? 'text-green-500' : 'text-slate-400'} />
               <span className="text-sm text-slate-600">{selectedFile ? selectedFile.name : `Current: ${editingDoc.file_name}`}</span>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} />
+              <input ref={fileInputRef} type="file" accept={DOCUMENT_UPLOAD_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} />
             </div>
           </div>
         )}
@@ -790,7 +810,17 @@ const BulkUploadForm = ({
 
   const addFiles = (fileList: FileList | null) => {
     if (!fileList?.length) return;
-    setFiles((prev) => [...prev, ...Array.from(fileList)]);
+    const nextFiles = Array.from(fileList);
+    const validationError = nextFiles
+      .map((file) => validateDocumentUpload(file))
+      .find((message): message is string => Boolean(message));
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setFiles((prev) => [...prev, ...nextFiles]);
     setError(null);
   };
 
@@ -827,9 +857,14 @@ const BulkUploadForm = ({
       for (const file of files) {
         const ext = file.name.split('.').pop();
         const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? `.${ext}` : ''}`;
+        const resolvedMimeType = resolveDocumentMimeType(file.name, file.type);
         const { error: uploadError } = await supabase.storage
           .from(DOCUMENTS_BUCKET)
-          .upload(path, file, file.type ? { contentType: file.type } : undefined);
+          .upload(
+            path,
+            file,
+            resolvedMimeType ? { contentType: resolvedMimeType } : undefined,
+          );
 
         if (uploadError) throw uploadError;
 
@@ -840,7 +875,7 @@ const BulkUploadForm = ({
           file_url: path,
           file_name: file.name,
           file_size: file.size,
-          file_type: file.type || null,
+          file_type: resolvedMimeType,
           storage_bucket: DOCUMENTS_BUCKET,
           tags: parsedTags,
           uploaded_by: userId,
@@ -889,11 +924,12 @@ const BulkUploadForm = ({
             <p className="text-sm font-medium text-slate-700">
               {files.length > 0 ? `${files.length} file${files.length === 1 ? '' : 's'} selected` : 'Drop files here or click to browse'}
             </p>
-            <p className="text-xs text-slate-400 mt-1">PDF, Word, Excel, text, and image files up to 50 MB each</p>
+            <p className="text-xs text-slate-400 mt-1">PDF, Word, PowerPoint, Excel, text, CSV, and image files up to 25 MB each</p>
             <input
               ref={fileInputRef}
               type="file"
               multiple
+              accept={DOCUMENT_UPLOAD_ACCEPT}
               className="hidden"
               onChange={(e) => addFiles(e.target.files)}
             />
