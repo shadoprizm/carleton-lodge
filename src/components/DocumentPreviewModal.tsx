@@ -9,7 +9,10 @@ import {
 } from '../lib/documentFiles';
 
 const STANDARD_PREVIEW_URL_LIFETIME_SECONDS = 60;
-const OFFICE_PREVIEW_URL_LIFETIME_SECONDS = 15 * 60;
+
+type OfficePreviewResponse = {
+  previewUrl?: string;
+};
 
 function enableCredentiallessIframe(frame: HTMLIFrameElement | null) {
   frame?.setAttribute('credentialless', '');
@@ -78,30 +81,40 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
         }
 
         if (!doc) return;
-        const bucket = doc.storage_bucket || 'lodge-documents';
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(
-            doc.file_url,
-            officeDocument
-              ? OFFICE_PREVIEW_URL_LIFETIME_SECONDS
-              : STANDARD_PREVIEW_URL_LIFETIME_SECONDS,
+
+        // Microsoft's viewer has a practical limit on source URL length. The
+        // Edge Function exchanges the member's authenticated request for a
+        // compact, signed, 15-minute proxy URL instead of exposing the much
+        // longer private-storage URL in the viewer query string.
+        if (officeDocument) {
+          const { data, error: previewError } = await supabase.functions.invoke<OfficePreviewResponse>(
+            'office-document-preview',
+            { body: { documentId: doc.id } },
           );
 
-        if (signedError || !signedData?.signedUrl) {
+          if (previewError || !data?.previewUrl) {
+            if (!disposed) {
+              setError(true);
+              setLoading(false);
+            }
+            return;
+          }
+
           if (!disposed) {
-            setError(true);
+            setDisplayUrl(buildOfficeViewerUrl(data.previewUrl));
             setLoading(false);
           }
           return;
         }
 
-        // Office's browser viewer must retrieve the original file from an
-        // internet-accessible URL. The private object is shared through a
-        // short-lived signed URL only after an authenticated member requests it.
-        if (officeDocument) {
+        const bucket = doc.storage_bucket || 'lodge-documents';
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(doc.file_url, STANDARD_PREVIEW_URL_LIFETIME_SECONDS);
+
+        if (signedError || !signedData?.signedUrl) {
           if (!disposed) {
-            setDisplayUrl(buildOfficeViewerUrl(signedData.signedUrl));
+            setError(true);
             setLoading(false);
           }
           return;

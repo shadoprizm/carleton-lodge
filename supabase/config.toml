@@ -38,3 +38,8 @@ entrypoint = "./functions/cl-process-notifications/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/check-external-link/index.ts"
+
+[functions.office-document-preview]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/office-document-preview/index.ts"
