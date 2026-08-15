@@ -68,6 +68,13 @@ type CalendarEvent = {
     | "other";
 };
 
+type ExistingCalendarOccurrence =
+  & Pick<
+    CalendarEvent,
+    "external_uid" | "event_date" | "event_time"
+  >
+  & { id: string };
+
 type RefreshResult = {
   source_id: string;
   name: string;
@@ -96,6 +103,22 @@ const cleanString = (value: unknown, maximum = 10_000) =>
     ? value.replaceAll(String.fromCharCode(0), "").replace(/\s+/g, " ").trim()
       .slice(0, maximum)
     : "";
+
+const errorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const details = ["message", "details", "hint", "code"]
+      .map((key) => cleanString((error as Record<string, unknown>)[key], 500))
+      .filter(Boolean);
+    if (details.length > 0) return details.join(" — ");
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "Unknown object error";
+    }
+  }
+  return String(error);
+};
 
 const decodeEntities = (value: string) =>
   value
@@ -498,6 +521,16 @@ export const parseDistrictCalendar = (ics: string): CalendarEvent[] => {
     .slice(0, 500);
 };
 
+export const calendarOccurrenceKey = (
+  occurrence: Pick<
+    CalendarEvent,
+    "external_uid" | "event_date" | "event_time"
+  >,
+) =>
+  `${occurrence.external_uid}\u0000${occurrence.event_date}\u0000${
+    occurrence.event_time ?? "all-day"
+  }`;
+
 const normalizeLodgeText = (value: string) =>
   value.toLowerCase()
     .replace(/&/g, " and ")
@@ -571,10 +604,23 @@ const syncCalendarEvents = async (
   if (lodgeError) throw lodgeError;
   const lodges = (lodgeRows ?? []) as DistrictLodge[];
 
-  const keptIds = new Set<string>();
-  for (const event of events) {
+  const { data: existingRows, error: existingError } = await adminClient
+    .from("district_events")
+    .select("id, external_uid, event_date, event_time")
+    .eq("trusted_source_id", source.id);
+  if (existingError) throw existingError;
+  const existingByOccurrence = new Map(
+    ((existingRows ?? []) as ExistingCalendarOccurrence[]).map((row) => [
+      calendarOccurrenceKey(row),
+      row.id,
+    ]),
+  );
+
+  const rows = events.map((event) => {
     const lodge = matchDistrictLodge(event, lodges);
-    const { data, error } = await adminClient.from("district_events").upsert({
+    return {
+      id: existingByOccurrence.get(calendarOccurrenceKey(event)) ??
+        crypto.randomUUID(),
       lodge_id: lodge?.id ?? null,
       summons_id: null,
       district_name: source.district_name,
@@ -593,21 +639,26 @@ const syncCalendarEvents = async (
       degree: event.degree,
       contact_name: null,
       contact_details: null,
-    }, {
-      onConflict: "trusted_source_id,external_uid,event_date,event_time",
-    }).select("id").single();
+    };
+  });
+  const keptIds = new Set<string>();
+  if (rows.length > 0) {
+    const { data, error } = await adminClient.from("district_events").upsert(
+      rows,
+      { onConflict: "id" },
+    ).select("id");
     if (error) throw error;
-    if (data?.id) keptIds.add(data.id as string);
+    for (const row of data ?? []) keptIds.add(row.id as string);
   }
 
   const today = formatterParts(new Date()).date;
-  const { data: existing, error: existingError } = await adminClient
+  const { data: currentRows, error: currentError } = await adminClient
     .from("district_events")
     .select("id")
     .eq("trusted_source_id", source.id)
     .gte("event_date", today);
-  if (existingError) throw existingError;
-  const staleIds = (existing ?? [])
+  if (currentError) throw currentError;
+  const staleIds = (currentRows ?? [])
     .map((row) => row.id as string)
     .filter((id) => !keptIds.has(id));
   if (staleIds.length > 0) {
@@ -755,7 +806,7 @@ const refreshSource = async (
       events: eventsCount,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     await adminClient.from("trusted_knowledge_sources").update({
       fetch_status: "error",
       last_checked_at: checkedAt,

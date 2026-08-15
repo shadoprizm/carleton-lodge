@@ -1,10 +1,28 @@
 import { assertEquals, assertMatch } from "jsr:@std/assert@1.0.14";
 import {
+  calendarOccurrenceKey,
   compactCalendarSource,
   htmlToKnowledgeText,
   parseDistrictCalendar,
   trustedUrlIsAllowed,
 } from "./index.ts";
+
+Deno.test("calendar occurrence keys reconcile all-day events", () => {
+  const occurrence = {
+    external_uid: "district-all-day@example.test",
+    event_date: "2026-09-12",
+    event_time: null,
+  };
+  assertEquals(
+    calendarOccurrenceKey(occurrence),
+    calendarOccurrenceKey({ ...occurrence }),
+  );
+  assertEquals(
+    calendarOccurrenceKey(occurrence) ===
+      calendarOccurrenceKey({ ...occurrence, event_time: "19:30:00" }),
+    false,
+  );
+});
 
 Deno.test("trusted source URLs require an approved public HTTPS domain", () => {
   const domains = new Set(["ontariomasons.ca", "ottawamasons.ca"]);
