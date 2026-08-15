@@ -3,14 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DocumentWithCategory } from '../lib/supabase';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 
-const { createSignedUrlMock } = vi.hoisted(() => ({
+const { createSignedUrlMock, invokeFunctionMock } = vi.hoisted(() => ({
   createSignedUrlMock: vi.fn(),
+  invokeFunctionMock: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
     storage: {
       from: () => ({ createSignedUrl: createSignedUrlMock }),
+    },
+    functions: {
+      invoke: invokeFunctionMock,
     },
   },
 }));
@@ -21,6 +25,7 @@ describe('DocumentPreviewModal local files', () => {
 
   beforeEach(() => {
     createSignedUrlMock.mockReset();
+    invokeFunctionMock.mockReset();
     createObjectUrlMock.mockClear();
     revokeObjectUrlMock.mockClear();
     vi.stubGlobal('URL', {
@@ -59,9 +64,9 @@ describe('DocumentPreviewModal local files', () => {
   });
 
   it('loads a stored PowerPoint inside the Microsoft Office viewer', async () => {
-    createSignedUrlMock.mockResolvedValue({
+    invokeFunctionMock.mockResolvedValue({
       data: {
-        signedUrl: 'https://example.supabase.co/storage/slides.pptx?token=temporary',
+        previewUrl: 'https://example.supabase.co/functions/v1/office-document-preview?token=short',
       },
       error: null,
     });
@@ -101,9 +106,13 @@ describe('DocumentPreviewModal local files', () => {
     const source = iframe.getAttribute('src');
 
     expect(source).toContain('https://view.officeapps.live.com/op/embed.aspx?src=');
-    expect(decodeURIComponent(source?.split('?src=')[1] ?? '')).toContain('token=temporary');
+    expect(decodeURIComponent(source?.split('?src=')[1] ?? '')).toContain('token=short');
     expect(iframe).toHaveAttribute('credentialless');
-    expect(createSignedUrlMock).toHaveBeenCalledWith('education/slides.pptx', 900);
+    expect(invokeFunctionMock).toHaveBeenCalledWith(
+      'office-document-preview',
+      { body: { documentId: 'document-1' } },
+    );
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
     expect(screen.getByText(/temporary view-only link/i)).toBeInTheDocument();
   });
 });
