@@ -259,6 +259,13 @@ const formatterParts = (date: Date) => {
   };
 };
 
+const calendarDate = (time: InstanceType<typeof ICAL.Time>) =>
+  [
+    String(time.year).padStart(4, "0"),
+    String(time.month).padStart(2, "0"),
+    String(time.day).padStart(2, "0"),
+  ].join("-");
+
 const inferDegree = (value: string): CalendarEvent["degree"] => {
   if (/\b(first|1st)\s+degree\b|(?:^|[\s(])1[º°](?:[\s);,]|$)/i.test(value)) {
     return "first";
@@ -454,16 +461,19 @@ export const parseDistrictCalendar = (ics: string): CalendarEvent[] => {
       40,
     ).toUpperCase();
     if (status === "CANCELLED") return;
-    const startDate = startTime.toJSDate();
+    const allDay = Boolean(startTime.isDate);
+    const startDate = allDay
+      ? new Date(Date.UTC(startTime.year, startTime.month - 1, startTime.day))
+      : startTime.toJSDate();
     if (startDate < windowStart || startDate > windowEnd) return;
-    const endDate = endTime.toJSDate();
-    const startParts = formatterParts(startDate);
-    const endParts = formatterParts(endDate);
+    const startParts = allDay
+      ? { date: calendarDate(startTime), time: "00:00:00" }
+      : formatterParts(startDate);
+    const endParts = allDay ? null : formatterParts(endTime.toJSDate());
     const title = cleanString(item.summary, 240);
     if (title.length < 2) return;
     const description = cleanString(item.description, 20_000) || null;
     const location = cleanString(item.location, 500) || "Location not stated";
-    const allDay = Boolean(startTime.isDate);
     const combined = `${title}\n${description ?? ""}`;
     const uid = cleanString(item.uid, 500);
     const key = `${uid}:${startParts.date}:${
@@ -475,7 +485,7 @@ export const parseDistrictCalendar = (ics: string): CalendarEvent[] => {
       description,
       event_date: startParts.date,
       event_time: allDay ? null : startParts.time,
-      event_end_time: allDay || endParts.date !== startParts.date
+      event_end_time: !endParts || endParts.date !== startParts.date
         ? null
         : endParts.time,
       location,

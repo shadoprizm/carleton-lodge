@@ -79,6 +79,30 @@ END:VCALENDAR`);
   assertMatch(events[0].title, /Russell Lodge/);
 });
 
+Deno.test("calendar parsing preserves an all-day event's published date", () => {
+  const future = new Date();
+  future.setUTCMonth(future.getUTCMonth() + 1);
+  future.setUTCDate(15);
+  const nextDay = new Date(future);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const value = future.toISOString().slice(0, 10).replaceAll("-", "");
+  const nextValue = nextDay.toISOString().slice(0, 10).replaceAll("-", "");
+  const events = parseDistrictCalendar(`BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Carleton Lodge Test//EN
+BEGIN:VEVENT
+UID:district-all-day-date@example.test
+DTSTART;VALUE=DATE:${value}
+DTEND;VALUE=DATE:${nextValue}
+SUMMARY:District all-day event
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR`);
+  assertEquals(events.length, 1);
+  assertEquals(events[0].event_date, future.toISOString().slice(0, 10));
+  assertEquals(events[0].event_time, null);
+});
+
 Deno.test("calendar compaction drops expired history before parsing", () => {
   const now = new Date();
   const windowEnd = new Date(now);
