@@ -10,4 +10,5 @@
 - [2026-07-26] Member account emails never contain administrator-created passwords; Members writers queue a branded welcome email whose single-use Supabase Auth link is generated only at send time and requires the member to choose a password.
 
 ## Open questions
+- Consider a named website/community-inquiry steward role with a dedicated address for prospective-member and website questions; no implementation or routing decision yet.
 - Decide which opt-in broadcasts beyond approval workflow should be active: approved new events, event changes/cancellations, summons, and contact/inbound routing.

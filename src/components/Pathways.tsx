@@ -12,7 +12,7 @@ interface Pathway {
 const pathways: Pathway[] = [
   {
     question: 'Curious about Freemasonry?',
-    description: 'Learn what Freemasonry is and how a conversation begins.',
+    description: '2B1ASK1 — “To be one, ask one.” Learn what Freemasonry is and how a conversation begins.',
     linkLabel: 'Becoming a Mason',
     path: '/becoming-a-mason',
   },
