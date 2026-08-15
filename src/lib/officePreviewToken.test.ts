@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildOfficePreviewProxyUrl,
   createOfficePreviewToken,
+  getOfficePreviewTokenFromUrl,
   verifyOfficePreviewToken,
 } from '../../supabase/functions/_shared/office-preview-token';
 
@@ -9,6 +11,23 @@ const SECRET = 'test-service-role-secret';
 const NOW = 1_786_827_000;
 
 describe('office preview tokens', () => {
+  it('builds the canonical public Edge Function URL', () => {
+    const previewUrl = buildOfficePreviewProxyUrl(
+      'https://project.supabase.co/',
+      'compact-token',
+      'Budget 2025.docx',
+    );
+
+    expect(previewUrl)
+      .toBe(
+        'https://project.supabase.co/functions/v1/office-document-preview/compact-token/Budget%202025.docx',
+      );
+    expect(getOfficePreviewTokenFromUrl(previewUrl)).toBe('compact-token');
+    expect(getOfficePreviewTokenFromUrl(
+      'https://project.supabase.co/functions/v1/office-document-preview?token=legacy-token',
+    )).toBe('legacy-token');
+  });
+
   it('round-trips a document id in a compact token', async () => {
     const token = await createOfficePreviewToken(DOCUMENT_ID, NOW + 900, SECRET);
 

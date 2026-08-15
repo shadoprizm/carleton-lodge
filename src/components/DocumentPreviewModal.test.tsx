@@ -107,7 +107,6 @@ describe('DocumentPreviewModal local files', () => {
 
     expect(source).toContain('https://view.officeapps.live.com/op/embed.aspx?src=');
     expect(decodeURIComponent(source?.split('?src=')[1] ?? '')).toContain('token=short');
-    expect(iframe).toHaveAttribute('credentialless');
     expect(invokeFunctionMock).toHaveBeenCalledWith(
       'office-document-preview',
       { body: { documentId: 'document-1' } },

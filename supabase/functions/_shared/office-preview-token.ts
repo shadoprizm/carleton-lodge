@@ -11,6 +11,27 @@ export type OfficePreviewTokenPayload = {
   expiresAtSeconds: number;
 };
 
+export function buildOfficePreviewProxyUrl(
+  supabaseUrl: string,
+  token: string,
+  fileName: string,
+) {
+  const baseUrl = supabaseUrl.replace(/\/+$/, "");
+  return `${baseUrl}/functions/v1/office-document-preview/${
+    encodeURIComponent(token)
+  }/${encodeURIComponent(fileName)}`;
+}
+
+export function getOfficePreviewTokenFromUrl(requestUrl: string) {
+  const url = new URL(requestUrl);
+  const queryToken = url.searchParams.get("token");
+  if (queryToken) return queryToken;
+
+  const segments = url.pathname.split("/").filter(Boolean);
+  const functionIndex = segments.lastIndexOf("office-document-preview");
+  return functionIndex >= 0 ? segments[functionIndex + 1] ?? "" : "";
+}
+
 function encodeBase64Url(bytes: Uint8Array) {
   const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
   return btoa(binary)
