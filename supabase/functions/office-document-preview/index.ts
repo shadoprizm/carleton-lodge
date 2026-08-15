@@ -10,7 +10,9 @@ import {
   rejectDisallowedOrigin,
 } from "../_shared/http-security.ts";
 import {
+  buildOfficePreviewProxyUrl,
   createOfficePreviewToken,
+  getOfficePreviewTokenFromUrl,
   verifyOfficePreviewToken,
 } from "../_shared/office-preview-token.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
@@ -169,12 +171,13 @@ Deno.serve(async (req: Request) => {
         expiresAtSeconds,
         serviceRoleKey,
       );
-      const previewUrl = new URL(req.url);
-      previewUrl.search = "";
-      previewUrl.searchParams.set("token", token);
 
       return jsonResponse(req, {
-        previewUrl: previewUrl.toString(),
+        previewUrl: buildOfficePreviewProxyUrl(
+          supabaseUrl,
+          token,
+          document.file_name,
+        ),
         expiresAt: new Date(expiresAtSeconds * 1000).toISOString(),
       });
     } catch (error) {
@@ -189,7 +192,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const token = new URL(req.url).searchParams.get("token") ?? "";
+  const token = getOfficePreviewTokenFromUrl(req.url);
   const payload = await verifyOfficePreviewToken(token, serviceRoleKey);
   if (!payload) {
     return new Response("Preview link is invalid or expired", {

@@ -14,10 +14,6 @@ type OfficePreviewResponse = {
   previewUrl?: string;
 };
 
-function enableCredentiallessIframe(frame: HTMLIFrameElement | null) {
-  frame?.setAttribute('credentialless', '');
-}
-
 interface Props {
   doc: DocumentWithCategory | null;
   localFile?: File | null;
@@ -314,7 +310,6 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
                           className="h-full w-full border-0"
                           style={{ minHeight: '56vh' }}
                           referrerPolicy="no-referrer"
-                          ref={enableCredentiallessIframe}
                           onLoad={() => setIframeLoaded(true)}
                           onError={() => setError(true)}
                         />
