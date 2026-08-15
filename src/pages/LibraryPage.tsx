@@ -5,27 +5,7 @@ import { supabase, DocumentCategory, DocumentWithCategory } from '../lib/supabas
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal';
-
-const FILE_TYPE_LABELS: Record<string, string> = {
-  'application/pdf': 'PDF',
-  'application/msword': 'DOC',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-  'application/vnd.ms-excel': 'XLS',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
-  'text/plain': 'TXT',
-  'image/jpeg': 'JPG',
-  'image/png': 'PNG',
-  'image/gif': 'GIF',
-};
-
-const FILE_TYPE_COLORS: Record<string, string> = {
-  'application/pdf': 'bg-red-100 text-red-700',
-  'application/msword': 'bg-blue-100 text-blue-700',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'bg-blue-100 text-blue-700',
-  'application/vnd.ms-excel': 'bg-green-100 text-green-700',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'bg-green-100 text-green-700',
-  'text/plain': 'bg-slate-100 text-slate-700',
-};
+import { getDocumentFileTypeLabel, getDocumentFormat } from '../lib/documentFiles';
 
 function formatFileSize(bytes: number | null): string {
   if (!bytes) return '';
@@ -34,14 +14,19 @@ function formatFileSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getFileTypeLabel(mimeType: string | null): string {
-  if (!mimeType) return 'FILE';
-  return FILE_TYPE_LABELS[mimeType] || mimeType.split('/')[1]?.toUpperCase() || 'FILE';
-}
-
-function getFileTypeColor(mimeType: string | null): string {
-  if (!mimeType) return 'bg-slate-100 text-slate-700';
-  return FILE_TYPE_COLORS[mimeType] || 'bg-slate-100 text-slate-700';
+function getFileTypeColor(fileName: string, mimeType: string | null): string {
+  switch (getDocumentFormat(fileName, mimeType)) {
+    case 'pdf':
+      return 'bg-red-100 text-red-700';
+    case 'word':
+      return 'bg-blue-100 text-blue-700';
+    case 'spreadsheet':
+      return 'bg-green-100 text-green-700';
+    case 'presentation':
+      return 'bg-orange-100 text-orange-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
 }
 
 export const LibraryPage = () => {
@@ -312,11 +297,9 @@ const DocumentRow = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <span className="font-medium text-slate-900 truncate">{doc.title}</span>
-            {doc.file_type && (
-              <span className={`text-xs px-2 py-0.5 rounded font-semibold flex-shrink-0 ${getFileTypeColor(doc.file_type)}`}>
-                {getFileTypeLabel(doc.file_type)}
-              </span>
-            )}
+            <span className={`text-xs px-2 py-0.5 rounded font-semibold flex-shrink-0 ${getFileTypeColor(doc.file_name, doc.file_type)}`}>
+              {getDocumentFileTypeLabel(doc.file_name, doc.file_type)}
+            </span>
           </div>
           {doc.description && (
             <p className="text-sm text-slate-500 mt-0.5 line-clamp-1">{doc.description}</p>

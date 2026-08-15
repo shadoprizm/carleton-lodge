@@ -1,54 +1,18 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, ExternalLink, FileText, Loader2, AlertCircle, FileSpreadsheet, FileType } from 'lucide-react';
+import { X, Download, ExternalLink, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { supabase, DocumentWithCategory } from '../lib/supabase';
+import {
+  buildOfficeViewerUrl,
+  getDocumentFormat,
+  isOfficeDocument,
+} from '../lib/documentFiles';
 
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-const PDF_TYPE = 'application/pdf';
-const TEXT_TYPE = 'text/plain';
-const OFFICE_TYPES = [
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-];
+const STANDARD_PREVIEW_URL_LIFETIME_SECONDS = 60;
+const OFFICE_PREVIEW_URL_LIFETIME_SECONDS = 15 * 60;
 
-const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
-  pdf: PDF_TYPE,
-  txt: TEXT_TYPE,
-  csv: TEXT_TYPE,
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-};
-
-function inferMimeType(filename: string, reportedType: string | null | undefined) {
-  if (reportedType) return reportedType;
-  const extension = filename.split('.').pop()?.toLowerCase() ?? '';
-  return MIME_TYPE_BY_EXTENSION[extension] ?? null;
-}
-
-function isImage(mimeType: string | null) {
-  return IMAGE_TYPES.includes(mimeType ?? '');
-}
-
-function isPdf(mimeType: string | null) {
-  return mimeType === PDF_TYPE;
-}
-
-function isText(mimeType: string | null) {
-  return mimeType === TEXT_TYPE;
-}
-
-function isOffice(mimeType: string | null) {
-  return OFFICE_TYPES.includes(mimeType ?? '');
+function enableCredentiallessIframe(frame: HTMLIFrameElement | null) {
+  frame?.setAttribute('credentialless', '');
 }
 
 interface Props {
@@ -66,16 +30,19 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
   const [textContent, setTextContent] = useState<string | null>(null);
   const previewTitle = doc?.title ?? localFile?.name ?? 'Document preview';
   const previewDescription = doc?.description ?? null;
-  const previewMimeType = inferMimeType(
+  const previewFormat = getDocumentFormat(
     doc?.file_name ?? localFile?.name ?? '',
-    doc?.file_type ?? localFile?.type,
+    doc?.file_type ?? localFile?.type ?? null,
   );
+  const officeDocument = isOfficeDocument(previewFormat);
+  const embeddedOfficePreview = Boolean(doc && officeDocument && !localFile);
 
   useEffect(() => {
     if (!doc && !localFile) return;
 
     let disposed = false;
     let objectUrl: string | null = null;
+    const abortController = new AbortController();
 
     setDisplayUrl(null);
     setError(false);
@@ -92,7 +59,7 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
       }
 
       setDisplayUrl(objectUrl);
-      if (isText(previewMimeType)) {
+      if (previewFormat === 'text') {
         try {
           const text = await blob.text();
           if (!disposed) setTextContent(text);
@@ -114,7 +81,12 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
         const bucket = doc.storage_bucket || 'lodge-documents';
         const { data: signedData, error: signedError } = await supabase.storage
           .from(bucket)
-          .createSignedUrl(doc.file_url, 60);
+          .createSignedUrl(
+            doc.file_url,
+            officeDocument
+              ? OFFICE_PREVIEW_URL_LIFETIME_SECONDS
+              : STANDARD_PREVIEW_URL_LIFETIME_SECONDS,
+          );
 
         if (signedError || !signedData?.signedUrl) {
           if (!disposed) {
@@ -124,16 +96,26 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
           return;
         }
 
-        const response = await fetch(signedData.signedUrl);
+        // Office's browser viewer must retrieve the original file from an
+        // internet-accessible URL. The private object is shared through a
+        // short-lived signed URL only after an authenticated member requests it.
+        if (officeDocument) {
+          if (!disposed) {
+            setDisplayUrl(buildOfficeViewerUrl(signedData.signedUrl));
+            setLoading(false);
+          }
+          return;
+        }
+
+        const response = await fetch(signedData.signedUrl, { signal: abortController.signal });
         if (!response.ok) throw new Error('Failed to fetch file');
 
         await setPreviewBlob(await response.blob());
       } catch (err) {
+        if (disposed || (err instanceof DOMException && err.name === 'AbortError')) return;
         console.error('Error fetching file:', err);
-        if (!disposed) {
-          setError(true);
-          setLoading(false);
-        }
+        setError(true);
+        setLoading(false);
       }
     };
 
@@ -141,12 +123,13 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
 
     return () => {
       disposed = true;
+      abortController.abort();
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
       }
     };
-  }, [doc, localFile, previewMimeType]);
+  }, [doc, localFile, officeDocument, previewFormat]);
 
   useEffect(() => {
     if (!doc && !localFile) return;
@@ -272,7 +255,7 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
 
               {!loading && !error && displayUrl && (
                 <>
-                  {isImage(previewMimeType) ? (
+                  {previewFormat === 'image' ? (
                     <div className="flex items-center justify-center h-full p-6 overflow-auto">
                       <img
                         src={displayUrl}
@@ -280,7 +263,7 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
                         className="max-w-full max-h-full object-contain rounded-lg shadow-md"
                       />
                     </div>
-                  ) : isPdf(previewMimeType) ? (
+                  ) : previewFormat === 'pdf' ? (
                     <div className="relative h-full" style={{ minHeight: '60vh' }}>
                       {!iframeLoaded && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50 z-10">
@@ -294,48 +277,66 @@ export const DocumentPreviewModal = ({ doc, localFile = null, onClose, onDownloa
                         className="w-full h-full rounded-b-2xl border-0"
                         style={{ minHeight: '60vh' }}
                         onLoad={() => setIframeLoaded(true)}
+                        onError={() => setError(true)}
                       />
                     </div>
-                  ) : isText(previewMimeType) && textContent !== null ? (
+                  ) : previewFormat === 'text' && textContent !== null ? (
                     <div className="h-full overflow-auto p-6">
                       <pre className="text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                         {textContent}
                       </pre>
                     </div>
-                  ) : isOffice(previewMimeType) ? (
+                  ) : embeddedOfficePreview ? (
+                    <div className="flex h-full min-h-[60vh] flex-col bg-white">
+                      <div className="relative min-h-0 flex-1">
+                        {!iframeLoaded && (
+                          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+                            <Loader2 size={32} className="mb-3 animate-spin" />
+                            <span className="text-sm">Loading Office preview...</span>
+                          </div>
+                        )}
+                        <iframe
+                          src={displayUrl}
+                          title={`${previewTitle} preview`}
+                          className="h-full w-full border-0"
+                          style={{ minHeight: '56vh' }}
+                          referrerPolicy="no-referrer"
+                          ref={enableCredentiallessIframe}
+                          onLoad={() => setIframeLoaded(true)}
+                          onError={() => setError(true)}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+                        <span>Office previews are rendered by Microsoft using a temporary view-only link.</span>
+                        {canDownload ? (
+                          <button
+                            onClick={handleDownload}
+                            className="font-medium text-slate-700 hover:text-slate-900"
+                          >
+                            Preview not loading? Download the file
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : officeDocument ? (
                     <div className="flex flex-col items-center justify-center h-full py-16 px-6 text-slate-400">
                       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 max-w-sm w-full text-center">
-                        {previewMimeType?.includes('spreadsheet') || previewMimeType?.includes('excel') ? (
-                          <FileSpreadsheet size={44} className="mx-auto mb-4 text-green-400" />
-                        ) : (
-                          <FileType size={44} className="mx-auto mb-4 text-blue-400" />
-                        )}
+                        <FileText size={44} className="mx-auto mb-4 text-blue-400" />
                         <p className="text-sm font-semibold text-slate-700 mb-1">
-                          Office documents cannot be previewed inline
+                          Upload this file to enable its Office preview
                         </p>
                         <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                          Open the file in a new tab to view it, or download it to your device.
+                          Microsoft&apos;s viewer needs a temporary link to the stored file. You can still open the selected file locally before uploading.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                          <a
-                            href={displayUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                          >
-                            <ExternalLink size={14} />
-                            <span>Open in new tab</span>
-                          </a>
-                          {canDownload ? (
-                            <button
-                              onClick={handleDownload}
-                              className="flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
-                            >
-                              <Download size={14} />
-                              <span>Download</span>
-                            </button>
-                          ) : null}
-                        </div>
+                        <a
+                          href={displayUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                          <ExternalLink size={14} />
+                          <span>Open selected file</span>
+                        </a>
                       </div>
                     </div>
                   ) : (
