@@ -110,7 +110,9 @@ export const MembersManager = () => {
     full_name: '',
     email: '',
     phone: '',
+    alternate_phone: '',
     address: '',
+    spouse_name: '',
     grand_lodge_membership_number: '',
     join_date: '',
     position_ids: [] as string[],
@@ -183,7 +185,9 @@ export const MembersManager = () => {
       full_name: formData.full_name.trim(),
       email: formData.email.trim() || null,
       phone: formData.phone.trim() || null,
+      alternate_phone: formData.alternate_phone.trim() || null,
       address: formData.address.trim() || null,
+      spouse_name: formData.spouse_name.trim() || null,
       grand_lodge_membership_number: formData.grand_lodge_membership_number.trim() || null,
       join_date: formData.join_date || null,
       bio: formData.bio.trim() || null,
@@ -248,7 +252,9 @@ export const MembersManager = () => {
       full_name: member.full_name,
       email: member.email || '',
       phone: member.phone || '',
+      alternate_phone: member.alternate_phone || '',
       address: member.address || '',
+      spouse_name: member.spouse_name || '',
       grand_lodge_membership_number: member.grand_lodge_membership_number || '',
       join_date: member.join_date || '',
       position_ids: memberPositions(member).map(position => position.id),
@@ -391,7 +397,9 @@ export const MembersManager = () => {
       full_name: '',
       email: '',
       phone: '',
+      alternate_phone: '',
       address: '',
+      spouse_name: '',
       grand_lodge_membership_number: '',
       join_date: '',
       position_ids: [],
@@ -417,6 +425,10 @@ export const MembersManager = () => {
         member.full_name,
         member.email,
         member.lodge_email,
+        member.phone,
+        member.alternate_phone,
+        member.address,
+        member.spouse_name,
         member.grand_lodge_membership_number,
         ...memberPositions(member).map(position => position.name),
       ].some((value) => value?.toLowerCase().includes(normalizedSearch))
@@ -531,8 +543,9 @@ export const MembersManager = () => {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label htmlFor="member-primary-phone" className="block text-sm font-medium text-gray-700 mb-1">Primary Phone</label>
                 <input
+                  id="member-primary-phone"
                   type="tel"
                   maxLength={50}
                   value={formData.phone}
@@ -542,24 +555,62 @@ export const MembersManager = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
+                <label htmlFor="member-alternate-phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  Alternate Phone
+                  <span className="ml-1 text-xs font-normal text-gray-400">(private)</span>
+                </label>
                 <input
-                  type="date"
-                  value={formData.join_date}
-                  onChange={(e) => setFormData({ ...formData, join_date: e.target.value })}
+                  id="member-alternate-phone"
+                  type="tel"
+                  maxLength={50}
+                  value={formData.alternate_phone}
+                  onChange={(e) => setFormData({ ...formData, alternate_phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
                 />
               </div>
             </div>
 
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="member-address" className="block text-sm font-medium text-gray-700 mb-1">
+                  Address
+                  <span className="ml-1 text-xs font-normal text-gray-400">(private)</span>
+                </label>
+                <textarea
+                  id="member-address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  rows={2}
+                  maxLength={500}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="member-spouse-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Spouse Name
+                  <span className="ml-1 text-xs font-normal text-gray-400">(private)</span>
+                </label>
+                <input
+                  id="member-spouse-name"
+                  type="text"
+                  maxLength={200}
+                  value={formData.spouse_name}
+                  onChange={(e) => setFormData({ ...formData, spouse_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <textarea
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                rows={2}
-                maxLength={500}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900"
+              <label htmlFor="member-join-date" className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
+              <input
+                id="member-join-date"
+                type="date"
+                value={formData.join_date}
+                onChange={(e) => setFormData({ ...formData, join_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-900 focus:border-blue-900 md:max-w-[calc(50%-0.5rem)]"
               />
             </div>
 
@@ -888,7 +939,7 @@ export const MembersManager = () => {
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search by name, email, position, or Grand Lodge number"
+            placeholder="Search names, contact details, positions, or Lodge numbers"
             className="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-900 focus:ring-2 focus:ring-blue-100"
           />
         </label>
@@ -975,8 +1026,10 @@ export const MembersManager = () => {
                         <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Personal contact</dt>
                         <dd className="mt-3 space-y-2 text-sm text-gray-700">
                           <p><span className="font-medium text-gray-900">Email:</span> {displayValue(member.email)}</p>
-                          <p><span className="font-medium text-gray-900">Phone:</span> {displayValue(member.phone)}</p>
+                          <p><span className="font-medium text-gray-900">Primary phone:</span> {displayValue(member.phone)}</p>
+                          <p><span className="font-medium text-gray-900">Alternate phone:</span> {displayValue(member.alternate_phone)}</p>
                           <p className="whitespace-pre-line"><span className="font-medium text-gray-900">Address:</span> {displayValue(member.address)}</p>
+                          <p><span className="font-medium text-gray-900">Spouse:</span> {displayValue(member.spouse_name)}</p>
                         </dd>
                       </div>
 

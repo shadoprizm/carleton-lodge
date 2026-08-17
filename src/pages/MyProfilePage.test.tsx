@@ -18,7 +18,9 @@ const memberProfile: MyMemberProfile = {
   id: 'member-1',
   full_name: 'Bro. Example Member',
   phone: '613-555-0100',
+  alternate_phone: '613-555-0101',
   address: '1 Lodge Lane\nCarp, ON',
+  spouse_name: 'Alex Example',
   join_date: '2020-01-04',
   position_id: null,
   position_name: null,
@@ -76,17 +78,21 @@ describe('MyProfilePage', () => {
     expect(await screen.findByRole('heading', { name: 'Bro. Example Member' })).toBeInTheDocument();
     expect(screen.getByText('GL-00465')).toBeInTheDocument();
     expect(screen.getByDisplayValue(/1 Lodge Lane/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('613-555-0101')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Alex Example')).toBeInTheDocument();
     expect(screen.getByText('Hidden from the member directory')).toBeInTheDocument();
     expect(screen.getByText('Lodge Historian · Lodge Auditor')).toBeInTheDocument();
     expect(rpcMock).toHaveBeenCalledWith('get_my_member_profile');
     expect(rpcMock).toHaveBeenCalledWith('get_my_lodge_positions');
   });
 
-  it('saves only phone, address, and biography and refreshes the form', async () => {
+  it('saves the member-editable profile fields and refreshes the form', async () => {
     const updatedProfile = {
       ...memberProfile,
       phone: '613-555-0199',
+      alternate_phone: '',
       address: null,
+      spouse_name: 'Jamie Example',
       bio: 'Updated biography.',
     };
     rpcMock.mockImplementation((functionName: string) => {
@@ -102,19 +108,24 @@ describe('MyProfilePage', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Bro. Example Member' });
 
-    fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '613-555-0199' } });
+    fireEvent.change(screen.getByLabelText('Primary phone number'), { target: { value: '613-555-0199' } });
+    fireEvent.change(screen.getByLabelText('Alternate phone number'), { target: { value: '' } });
     fireEvent.change(screen.getByLabelText('Home address'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Spouse name'), { target: { value: 'Jamie Example' } });
     fireEvent.change(screen.getByLabelText('Biography'), { target: { value: 'Updated biography.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => expect(rpcMock).toHaveBeenCalledWith('update_my_member_profile', {
       new_phone: '613-555-0199',
+      new_alternate_phone: '',
       new_address: '',
+      new_spouse_name: 'Jamie Example',
       new_bio: 'Updated biography.',
     }));
     expect(await screen.findByText('Your member profile has been updated.')).toBeInTheDocument();
     expect(screen.getByLabelText('Home address')).toHaveValue('');
-    expect(screen.getByLabelText('Phone number')).toHaveValue('613-555-0199');
+    expect(screen.getByLabelText('Primary phone number')).toHaveValue('613-555-0199');
+    expect(screen.getByLabelText('Spouse name')).toHaveValue('Jamie Example');
   });
 
   it('keeps the form open and presents server validation errors', async () => {

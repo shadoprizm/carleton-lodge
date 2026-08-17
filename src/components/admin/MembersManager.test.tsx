@@ -36,7 +36,9 @@ const managedMember: LodgeMemberWithPosition = {
   full_name: 'Example Member',
   email: 'member@example.com',
   phone: '613-555-0100',
+  alternate_phone: '613-555-0101',
   address: '1 Lodge Lane',
+  spouse_name: 'Alex Example',
   grand_lodge_membership_number: 'GL-00465',
   join_date: '2020-01-04',
   position_id: null,
@@ -145,6 +147,8 @@ describe('MembersManager Grand Lodge membership number', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Manage roster entry for Example Member' }));
 
     expect(await screen.findByText('GL-00465')).toBeInTheDocument();
+    expect(screen.getByText('613-555-0101')).toBeInTheDocument();
+    expect(screen.getByText('Alex Example')).toBeInTheDocument();
     expect(screen.getByText('Read only')).toBeInTheDocument();
     expect(screen.queryByTitle('Edit')).not.toBeInTheDocument();
   });
@@ -165,6 +169,8 @@ describe('MembersManager Grand Lodge membership number', () => {
     fireEvent.click(await screen.findByTitle('Edit'));
 
     const numberInput = screen.getByLabelText(/Grand Lodge Membership Number/);
+    expect(screen.getByLabelText(/Alternate Phone/)).toHaveValue('613-555-0101');
+    expect(screen.getByLabelText(/Spouse Name/)).toHaveValue('Alex Example');
     fireEvent.change(numberInput, { target: { value: 'GL-DUPLICATE' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
 
