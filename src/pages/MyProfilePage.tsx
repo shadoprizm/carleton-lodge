@@ -18,20 +18,26 @@ import { type LodgePosition, type MyMemberProfile, supabase } from '../lib/supab
 
 type EditableProfile = {
   phone: string;
+  alternatePhone: string;
   address: string;
+  spouseName: string;
   bio: string;
 };
 
 const emptyForm: EditableProfile = {
   phone: '',
+  alternatePhone: '',
   address: '',
+  spouseName: '',
   bio: '',
 };
 
 function profileForm(profile: MyMemberProfile): EditableProfile {
   return {
     phone: profile.phone ?? '',
+    alternatePhone: profile.alternate_phone ?? '',
     address: profile.address ?? '',
+    spouseName: profile.spouse_name ?? '',
     bio: profile.bio ?? '',
   };
 }
@@ -102,7 +108,9 @@ export const MyProfilePage = () => {
 
     const { data, error } = await supabase.rpc('update_my_member_profile', {
       new_phone: form.phone,
+      new_alternate_phone: form.alternatePhone,
       new_address: form.address,
+      new_spouse_name: form.spouseName,
       new_bio: form.bio,
     });
 
@@ -177,7 +185,7 @@ export const MyProfilePage = () => {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">My Lodge</p>
           <h1 className="mt-2 text-4xl font-serif sm:text-5xl">My Profile</h1>
           <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-200">
-            Keep your contact information and biography current. Official membership details remain managed by Lodge administration.
+            Keep your contact and household information current. Official membership details remain managed by Lodge administration.
           </p>
         </div>
       </section>
@@ -255,7 +263,7 @@ export const MyProfilePage = () => {
             <form onSubmit={handleSubmit} className="mt-6 space-y-6">
               <div>
                 <label htmlFor="member-phone" className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Phone size={17} className="text-amber-700" /> Phone number
+                  <Phone size={17} className="text-amber-700" /> Primary phone number
                 </label>
                 <input
                   id="member-phone"
@@ -270,6 +278,25 @@ export const MyProfilePage = () => {
               </div>
 
               <div>
+                <label htmlFor="member-alternate-phone" className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Phone size={17} className="text-amber-700" /> Alternate phone number
+                </label>
+                <input
+                  id="member-alternate-phone"
+                  type="tel"
+                  maxLength={50}
+                  value={form.alternatePhone}
+                  onChange={(event) => setForm(current => ({ ...current, alternatePhone: event.target.value }))}
+                  className="mt-2 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base text-slate-900 focus:border-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900/20"
+                  autoComplete="tel"
+                />
+                <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
+                  <ShieldCheck className="mt-0.5 shrink-0" size={15} />
+                  Private. Visible only to you and authorised roster managers.
+                </p>
+              </div>
+
+              <div>
                 <label htmlFor="member-address" className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                   <MapPinHouse size={17} className="text-amber-700" /> Home address
                 </label>
@@ -281,6 +308,25 @@ export const MyProfilePage = () => {
                   onChange={(event) => setForm(current => ({ ...current, address: event.target.value }))}
                   className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-3 text-base text-slate-900 focus:border-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900/20"
                   autoComplete="street-address"
+                />
+                <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
+                  <ShieldCheck className="mt-0.5 shrink-0" size={15} />
+                  Private. Visible only to you and authorised roster managers.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="member-spouse-name" className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <UserRound size={17} className="text-amber-700" /> Spouse name
+                </label>
+                <input
+                  id="member-spouse-name"
+                  type="text"
+                  maxLength={200}
+                  value={form.spouseName}
+                  onChange={(event) => setForm(current => ({ ...current, spouseName: event.target.value }))}
+                  className="mt-2 min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base text-slate-900 focus:border-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900/20"
+                  autoComplete="off"
                 />
                 <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
                   <ShieldCheck className="mt-0.5 shrink-0" size={15} />
