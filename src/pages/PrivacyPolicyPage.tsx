@@ -22,7 +22,7 @@ export const PrivacyPolicyPage = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 md:p-12">
             <h1 className="text-4xl md:text-5xl font-serif text-blue-900 mb-2">Privacy Policy</h1>
-            <p className="text-stone-500 text-sm mb-10">Last updated: August 15, 2026</p>
+            <p className="text-stone-500 text-sm mb-10">Last updated: August 17, 2026</p>
 
             <div className="prose prose-stone max-w-none space-y-8 text-stone-700 leading-relaxed">
 
@@ -39,7 +39,7 @@ export const PrivacyPolicyPage = () => {
                 <h2 className="text-2xl font-serif text-blue-900 mb-3">2. Information We Collect</h2>
                 <p className="mb-3">We may collect the following types of information:</p>
                 <ul className="list-disc pl-6 space-y-2">
-                  <li><strong>Account Information:</strong> Name, email address, and password when you register for member access.</li>
+                  <li><strong>Account Information:</strong> Name, email address, membership activation status, and an optional password when you activate member access.</li>
                   <li><strong>Profile Information:</strong> Membership rank and identifiers, contact details, spouse name, biography, and other information maintained in your member profile.</li>
                   <li><strong>Account Activity:</strong> The most recent successful login and the most recent authenticated visit to the website. We do not retain page-by-page browsing history, device details, or IP addresses for this feature.</li>
                   <li><strong>Communications:</strong> Records of correspondence if you contact us by email or through our website.</li>
@@ -86,7 +86,7 @@ export const PrivacyPolicyPage = () => {
                 <p>
                   We implement appropriate technical and organisational measures to protect your personal information
                   against unauthorised access, alteration, disclosure, or destruction. Your account is protected by
-                  password authentication, and all data is transmitted over encrypted connections. However, no method
+                  short-lived email codes or optional password authentication, and all data is transmitted over encrypted connections. However, no method
                   of transmission over the internet is completely secure, and we cannot guarantee absolute security.
                 </p>
               </section>

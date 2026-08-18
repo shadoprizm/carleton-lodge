@@ -20,7 +20,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  sendMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
+  requestSignInCode: (email: string) => Promise<{ error: Error | null }>;
+  verifySignInCode: (email: string, code: string) => Promise<{ error: AuthError | null }>;
   sendPasswordReset: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
   completeRequiredPasswordChange: (newPassword: string) => Promise<{ error: Error | AuthError | null }>;
@@ -133,13 +134,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
-  const sendMagicLink = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
+  const requestSignInCode = async (email: string) => {
+    const { error } = await supabase.functions.invoke('request-member-access-code', {
+      body: { email, intent: 'sign_in' },
+    });
+    return { error };
+  };
+
+  const verifySignInCode = async (email: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({
       email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/my-lodge`,
-      },
+      token: code,
+      type: 'email',
     });
     return { error };
   };
@@ -203,7 +209,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         signIn,
         signUp,
-        sendMagicLink,
+        requestSignInCode,
+        verifySignInCode,
         sendPasswordReset,
         updatePassword,
         completeRequiredPasswordChange,

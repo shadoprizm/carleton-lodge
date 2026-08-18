@@ -51,6 +51,9 @@ const managedMember: LodgeMemberWithPosition = {
   mailbox_send_limit: 100,
   mailbox_provisioned_at: '2026-08-01T12:00:00Z',
   mailbox_activated_at: '2026-08-02T12:00:00Z',
+  website_activation_invited_at: '2026-08-01T10:00:00Z',
+  website_activation_requested_at: '2026-08-01T11:00:00Z',
+  website_activated_at: '2026-08-01T12:00:00Z',
   created_at: '2020-01-04T12:00:00Z',
   updated_at: '2026-08-10T12:00:00Z',
   lodge_positions: null,
@@ -80,6 +83,9 @@ const secondManagedMember: LodgeMemberWithPosition = {
   linked_profile_id: null,
   lodge_email: null,
   mailbox_status: 'unprovisioned',
+  website_activation_invited_at: null,
+  website_activation_requested_at: null,
+  website_activated_at: null,
 };
 
 const historianPosition: LodgePosition = {

@@ -14,6 +14,16 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/member-activity/index.ts"
 
+[functions.request-member-access-code]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/request-member-access-code/index.ts"
+
+[functions.complete-member-activation]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/complete-member-activation/index.ts"
+
 [functions.delete-member]
 enabled = true
 verify_jwt = true

@@ -3,13 +3,14 @@ import { Mail, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SUPPORT_EMAIL, supportMailto } from '../lib/contact';
+import { Link } from 'react-router';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type AuthMode = 'sign-in' | 'reset';
+type AuthMode = 'sign-in' | 'code' | 'reset';
 
 const focusableSelector = [
   'a[href]',
@@ -23,6 +24,7 @@ const focusableSelector = [
 export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [mode, setMode] = useState<AuthMode>('sign-in');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -31,11 +33,12 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
   const emailRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const { signIn, sendMagicLink, sendPasswordReset } = useAuth();
+  const { signIn, requestSignInCode, verifySignInCode, sendPasswordReset } = useAuth();
 
   const closeModal = useCallback(() => {
     setError('');
     setMessage('');
+    setCode('');
     setMode('sign-in');
     onClose();
   }, [onClose]);
@@ -106,6 +109,27 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
       return;
     }
 
+    if (mode === 'code') {
+      const normalizedCode = code.replace(/\D/g, '').slice(0, 6);
+      if (normalizedCode.length !== 6) {
+        setLoading(false);
+        setError('Enter the six-digit code from your email.');
+        return;
+      }
+
+      const { error: codeError } = await verifySignInCode(email.trim(), normalizedCode);
+      setLoading(false);
+      if (codeError) {
+        setError('That code is incorrect or has expired. Request a new code and try again.');
+      } else {
+        setEmail('');
+        setPassword('');
+        setCode('');
+        closeModal();
+      }
+      return;
+    }
+
     const { error: signInError } = await signIn(email.trim(), password);
     setLoading(false);
 
@@ -118,18 +142,19 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
     }
   };
 
-  const handleMagicLink = async () => {
+  const handleSignInCode = async () => {
     if (!validateEmail()) return;
     setError('');
     setMessage('');
     setLoading(true);
-    const { error: magicLinkError } = await sendMagicLink(email.trim());
+    const { error: codeError } = await requestSignInCode(email.trim());
     setLoading(false);
 
-    if (magicLinkError) {
-      setError('We could not send a sign-in link. Please try again or contact the Secretary.');
+    if (codeError) {
+      setError('We could not send a sign-in code. Please wait a few minutes and try again.');
     } else {
-      setMessage('If this email belongs to a lodge account, a one-time sign-in link is on its way.');
+      setMode('code');
+      setMessage('If this email belongs to a lodge account, a six-digit sign-in code is on its way.');
     }
   };
 
@@ -167,12 +192,14 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
             </button>
 
             <h2 id={titleId} className="pr-10 text-3xl font-serif text-gray-900">
-              {mode === 'reset' ? 'Reset Your Password' : 'Member Sign In'}
+              {mode === 'reset' ? 'Reset Your Password' : mode === 'code' ? 'Enter Your Sign-In Code' : 'Member Sign In'}
             </h2>
             <p id={descriptionId} className="mb-6 mt-2 text-base leading-relaxed text-gray-600">
               {mode === 'reset'
                 ? 'Enter your lodge account email and we will send a secure reset link.'
-                : 'Sign in with your password, or ask us to email you a one-time sign-in link.'}
+                : mode === 'code'
+                  ? 'Enter the six-digit code sent to your personal email address.'
+                  : 'Sign in with your password, or ask us to email you a one-time code.'}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -186,6 +213,7 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  readOnly={mode === 'code'}
                   autoComplete="email"
                   maxLength={254}
                   className="min-h-12 w-full rounded-md border border-gray-400 px-4 py-2 text-base outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-900"
@@ -210,6 +238,26 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                 </div>
               )}
 
+              {mode === 'code' && (
+                <div>
+                  <label htmlFor="member-sign-in-code" className="mb-1 block text-base font-medium text-gray-800">
+                    Six-digit code
+                  </label>
+                  <input
+                    id="member-sign-in-code"
+                    type="text"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    className="min-h-12 w-full rounded-md border border-gray-400 px-4 py-2 text-center text-2xl font-semibold tracking-[0.35em] outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-900"
+                    required
+                  />
+                </div>
+              )}
+
               <div aria-live="polite" aria-atomic="true">
                 {error && <p className="rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p>}
                 {message && <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-900">{message}</p>}
@@ -220,7 +268,7 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                 disabled={loading}
                 className="min-h-12 w-full rounded-md bg-blue-900 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 focus-visible:ring-offset-2 disabled:opacity-50"
               >
-                {loading ? 'Please wait…' : mode === 'reset' ? 'Email My Reset Link' : 'Sign In'}
+                {loading ? 'Please wait…' : mode === 'reset' ? 'Email My Reset Link' : mode === 'code' ? 'Verify Code' : 'Sign In'}
               </button>
             </form>
 
@@ -228,12 +276,12 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
               <div className="mt-5 space-y-3 border-t border-gray-200 pt-5">
                 <button
                   type="button"
-                  onClick={handleMagicLink}
+                  onClick={handleSignInCode}
                   disabled={loading}
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-blue-900 px-4 py-3 text-base font-semibold text-blue-900 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   <Mail size={19} />
-                  Email Me a One-Time Sign-In Link
+                  Email Me a One-Time Code
                 </button>
                 <button
                   type="button"
@@ -245,6 +293,29 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                   className="min-h-11 w-full rounded-md text-base font-medium text-blue-900 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900"
                 >
                   I forgot my password
+                </button>
+              </div>
+            ) : mode === 'code' ? (
+              <div className="mt-5 space-y-2 border-t border-gray-200 pt-5">
+                <button
+                  type="button"
+                  onClick={handleSignInCode}
+                  disabled={loading}
+                  className="min-h-11 w-full rounded-md text-base font-medium text-blue-900 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 disabled:opacity-50"
+                >
+                  Send another code
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('sign-in');
+                    setCode('');
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="min-h-11 w-full rounded-md text-base font-medium text-blue-900 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900"
+                >
+                  Use my password instead
                 </button>
               </div>
             ) : (
@@ -262,6 +333,17 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
             )}
 
             <p className="mt-5 text-center text-sm leading-relaxed text-gray-600">
+              Haven&apos;t used the members&apos; website before?{' '}
+              <Link
+                to="/activate"
+                onClick={closeModal}
+                className="font-semibold text-blue-900 underline"
+              >
+                Activate your membership
+              </Link>
+            </p>
+
+            <p className="mt-3 text-center text-sm leading-relaxed text-gray-600">
               Still need help? Email{' '}
               <a className="font-semibold text-blue-900 underline" href={supportMailto('Help signing in')}>
                 {SUPPORT_EMAIL}

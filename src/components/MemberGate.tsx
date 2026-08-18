@@ -30,7 +30,7 @@ export const MemberGate = ({ children, onSignIn, title = 'Member information' }:
         </div>
         <h1 className="text-3xl font-serif text-slate-900">{title} is for lodge members</h1>
         <p className="mx-auto mt-3 max-w-md text-lg leading-relaxed text-slate-600">
-          Sign in with your lodge account to continue. You can use your password or ask us to email you a one-time sign-in link.
+          Sign in with your lodge account to continue. You can use your password or ask us to email you a one-time six-digit code.
         </p>
         <button
           type="button"
@@ -40,7 +40,14 @@ export const MemberGate = ({ children, onSignIn, title = 'Member information' }:
           Sign In to Continue
         </button>
         <div className="mt-7 border-t border-slate-200 pt-6">
-          <p className="text-base text-slate-600">Need an account or help signing in?</p>
+          <p className="text-base text-slate-600">Haven&apos;t activated your membership yet?</p>
+          <a
+            href="/activate"
+            className="mt-2 inline-flex min-h-11 items-center rounded-md px-3 font-semibold text-blue-900 underline underline-offset-4"
+          >
+            Activate your membership
+          </a>
+          <p className="mt-3 text-base text-slate-600">Or ask a person for help:</p>
           <a
             href={supportMailto('Help with my lodge account')}
             className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-md px-3 font-semibold text-blue-900 underline underline-offset-4"

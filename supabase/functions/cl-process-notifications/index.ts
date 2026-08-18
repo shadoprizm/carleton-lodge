@@ -114,6 +114,7 @@ const renderEmail = (
   job: NotificationJob,
   siteUrl: string,
   secureActionUrl = "",
+  secureActionCode = "",
 ): BrandedEmail => {
   const title = payloadString(job.payload, "title") || "Lodge event";
   const eventDate = formatEventDate(payloadString(job.payload, "event_date"));
@@ -270,7 +271,8 @@ const renderEmail = (
   }
 
   if (job.notification_type === "external_link_failure") {
-    const linkName = payloadString(job.payload, "link_name") || "External website";
+    const linkName = payloadString(job.payload, "link_name") ||
+      "External website";
     const targetUrl = payloadString(job.payload, "target_url");
     const failureReason = payloadString(job.payload, "failure_reason");
     const detectedAt = payloadString(job.payload, "first_failed_at");
@@ -351,6 +353,66 @@ const renderEmail = (
         { label: "Delivery", value: "Resend" },
       ],
       cta: { label: "Visit carpmasons.ca", url: siteUrl.replace(/\/$/, "") },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "member_activation_invitation") {
+    const memberName = payloadString(job.payload, "member_name") || "Brother";
+    const activationUrl = `${siteUrl.replace(/\/$/, "")}/activate`;
+
+    return renderBrandedEmail({
+      subject: "Activate your Carleton Lodge website membership",
+      preheader:
+        "Activate whenever you are ready; these instructions do not expire.",
+      eyebrow: "Member website access",
+      heading: `Your Lodge membership is ready online, ${memberName}`,
+      paragraphs: [
+        "Carleton Lodge now has a secure members' website for the Lodge calendar, summons, member directory, documents, and other Lodge information.",
+        "When you are ready, open the activation page and enter this personal email address. The website will send you a fresh six-digit code at that time. This instruction email does not expire, and you can request another code whenever you need one.",
+        "Website access is separate from any optional carpmasons.ca Lodge mailbox.",
+      ],
+      details: [
+        { label: "Your sign-in email", value: job.recipient_email },
+        { label: "Activation page", value: activationUrl },
+      ],
+      cta: { label: "Activate my membership", url: activationUrl },
+      siteUrl,
+    });
+  }
+
+  if (job.notification_type === "member_access_code") {
+    if (!secureActionCode) {
+      throw new Error("The one-time member access code was not generated");
+    }
+
+    const memberName = payloadString(job.payload, "member_name") || "Brother";
+    const intent = payloadString(job.payload, "intent");
+    const isActivation = intent === "activation";
+    const destination = `${siteUrl.replace(/\/$/, "")}${
+      isActivation ? "/activate" : "/my-lodge"
+    }`;
+
+    return renderBrandedEmail({
+      subject: isActivation
+        ? "Your Carleton Lodge activation code"
+        : "Your Carleton Lodge sign-in code",
+      preheader: `Your one-time code is ${secureActionCode}.`,
+      eyebrow: isActivation ? "Membership activation" : "Member sign in",
+      heading: isActivation
+        ? `Your activation code, ${memberName}`
+        : `Your sign-in code, ${memberName}`,
+      paragraphs: [
+        `Enter the six-digit code below on the Carleton Lodge website. It can be used once and is valid only for a short time.`,
+        "If you did not request this code, you can safely ignore this message. Never forward or share the code.",
+      ],
+      details: [{ label: "Your code", value: secureActionCode }],
+      cta: {
+        label: isActivation
+          ? "Return to activation"
+          : "Return to member sign in",
+        url: destination,
+      },
       siteUrl,
     });
   }
@@ -695,7 +757,21 @@ Deno.serve(async (req: Request) => {
   for (const job of jobs) {
     try {
       let secureActionUrl = "";
-      if (job.notification_type === "member_account_invitation") {
+      let secureActionCode = "";
+      if (job.notification_type === "member_access_code") {
+        const { data: linkData, error: linkError } = await supabase.auth.admin
+          .generateLink({
+            type: "magiclink",
+            email: job.recipient_email,
+          });
+
+        if (linkError) throw linkError;
+        const properties = linkData.properties as { email_otp?: string };
+        secureActionCode = properties.email_otp ?? "";
+        if (!secureActionCode) {
+          throw new Error("Supabase Auth did not return a one-time email code");
+        }
+      } else if (job.notification_type === "member_account_invitation") {
         const { data: linkData, error: linkError } = await supabase.auth.admin
           .generateLink({
             type: "recovery",
@@ -762,7 +838,12 @@ Deno.serve(async (req: Request) => {
         }&purpose=${encodeURIComponent(purpose)}`;
       }
 
-      const rendered = renderEmail(job, siteUrl, secureActionUrl);
+      const rendered = renderEmail(
+        job,
+        siteUrl,
+        secureActionUrl,
+        secureActionCode,
+      );
       const providerMessageId = provider === "resend"
         ? await sendWithResend(job, rendered, apiKey, fromAddress!)
         : await sendWithAgentMail(job, rendered, apiKey, inboxId!);
