@@ -149,6 +149,9 @@ export type LodgeMember = {
   mailbox_send_limit: number;
   mailbox_provisioned_at: string | null;
   mailbox_activated_at: string | null;
+  website_activation_invited_at: string | null;
+  website_activation_requested_at: string | null;
+  website_activated_at: string | null;
   created_at: string;
   updated_at: string;
 };

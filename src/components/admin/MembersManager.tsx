@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase, LodgeMemberPosition, LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
-import { ChevronDown, X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, KeyRound, Loader2, Mail, Search, UserRound } from 'lucide-react';
+import { ChevronDown, X, Plus, Edit2, Trash2, Link, Unlink, CheckCircle, Loader2, Mail, Search, UserRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { proposedLodgeEmail } from '../../../supabase/functions/_shared/mailbox-address';
 import { memberPositions, positionNames, sortedPositions } from '../../lib/lodgePositions';
 
 type LinkModalState = {
@@ -43,6 +42,19 @@ const mailboxStatusClass = (status: LodgeMemberWithPosition['mailbox_status']) =
       ? 'bg-red-100 text-red-800'
       : 'bg-amber-100 text-amber-800';
 
+const websiteActivationStatus = (member: LodgeMemberWithPosition) => {
+  if (member.website_activated_at) {
+    return { label: 'Website active', className: 'bg-green-100 text-green-800' };
+  }
+  if (member.website_activation_requested_at || member.linked_profile_id) {
+    return { label: 'Activation started', className: 'bg-amber-100 text-amber-800' };
+  }
+  if (member.website_activation_invited_at) {
+    return { label: 'Invitation sent', className: 'bg-blue-100 text-blue-800' };
+  }
+  return { label: 'Not invited', className: 'bg-gray-100 text-gray-600' };
+};
+
 const displayValue = (value: string | null | undefined, fallback = 'Not recorded') =>
   value || fallback;
 
@@ -54,6 +66,14 @@ const formatMemberDate = (date: string | null) =>
         year: 'numeric',
       })
     : 'Not recorded';
+
+const formatMemberTimestamp = (date: string | null) =>
+  date
+    ? new Date(date).toLocaleString('en-CA', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : 'Not yet';
 
 const functionErrorMessage = async (
   error: unknown,
@@ -384,10 +404,9 @@ export const MembersManager = () => {
       return;
     }
 
-    const lodgeEmail = typeof data?.lodgeEmail === 'string' ? data.lodgeEmail : proposedLodgeEmail(loginModal.member.full_name);
     const delivered = data?.notificationStatus === 'sent';
     setLoginSuccess(
-      `${lodgeEmail} is ready for the member to activate. The welcome email ${delivered ? 'has been sent' : 'is safely queued for delivery'}.`
+      `The non-expiring activation instructions ${delivered ? 'have been sent' : 'are safely queued for delivery'}. No website password or Lodge mailbox was created.`
     );
     fetchData();
   };
@@ -732,15 +751,15 @@ export const MembersManager = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <h4 className="text-lg font-serif text-gray-900">Send Member Account Email</h4>
+              <h4 className="text-lg font-serif text-gray-900">Send Activation Instructions</h4>
               <button onClick={closeLoginModal} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                Create or reset secure website access for <strong>{loginModal.member.full_name}</strong> and prepare their lodge mailbox.
-                You will not create or see either password—the member will choose their own.
+                Send <strong>{loginModal.member.full_name}</strong> a permanent link to the membership activation page.
+                The member requests a fresh six-digit code only when they are ready.
               </p>
 
               <div>
@@ -760,8 +779,8 @@ export const MembersManager = () => {
                   <div>
                     <p className="text-sm font-medium text-amber-900">What the member receives</p>
                     <p className="mt-1 text-xs leading-5 text-amber-800">
-                      A branded welcome message sent to their personal address, their new <strong>{loginModal.member.lodge_email || proposedLodgeEmail(loginModal.member.full_name)}</strong> address,
-                      and one secure link that guides them through website and mailbox activation.
+                      A branded message sent to their personal address with a link to <strong>carpmasons.ca/activate</strong>.
+                      The instructions do not expire and website activation does not create a Lodge mailbox.
                     </p>
                   </div>
                 </div>
@@ -786,11 +805,7 @@ export const MembersManager = () => {
                 disabled={loginSaving || !!loginSuccess}
                 className="px-6 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors disabled:opacity-60"
               >
-                {loginSaving
-                  ? 'Queuing...'
-                  : loginModal.member.linked_profile_id
-                    ? 'Send Access Email'
-                    : 'Set Up Account & Send'}
+                {loginSaving ? 'Queuing...' : 'Send Instructions'}
               </button>
             </div>
           </div>
@@ -1001,9 +1016,9 @@ export const MembersManager = () => {
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${mailboxStatusClass(member.mailbox_status)}`}>
                       Mailbox: {mailboxStatusLabel(member.mailbox_status)}
                     </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${member.linked_profile_id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                      {member.linked_profile_id ? <CheckCircle size={12} aria-hidden="true" /> : null}
-                      {member.linked_profile_id ? 'Account linked' : 'No account'}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteActivationStatus(member).className}`}>
+                      {member.website_activated_at ? <CheckCircle size={12} aria-hidden="true" /> : null}
+                      {websiteActivationStatus(member).label}
                     </span>
                   </span>
 
@@ -1054,6 +1069,11 @@ export const MembersManager = () => {
                           ) : (
                             <span className="text-gray-500">No website account linked</span>
                           )}
+                          <dl className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-600">
+                            <div><dt className="inline font-medium text-gray-800">Invited:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_invited_at)}</dd></div>
+                            <div><dt className="inline font-medium text-gray-800">Code requested:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_requested_at)}</dd></div>
+                            <div><dt className="inline font-medium text-gray-800">Activated:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activated_at)}</dd></div>
+                          </dl>
                         </dd>
                       </div>
 
@@ -1114,10 +1134,10 @@ export const MembersManager = () => {
                           type="button"
                           onClick={() => openLoginModal(member)}
                           className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                          aria-label={`${member.linked_profile_id ? 'Send account access email to' : 'Set up account for'} ${member.full_name}`}
+                          aria-label={`Send activation instructions to ${member.full_name}`}
                         >
-                          <KeyRound size={15} aria-hidden="true" />
-                          {member.linked_profile_id ? 'Send account email' : 'Set up account'}
+                          <Mail size={15} aria-hidden="true" />
+                          {member.website_activation_invited_at ? 'Resend activation instructions' : 'Send activation instructions'}
                         </button>
 
                         <button
