@@ -42,11 +42,26 @@ const mailboxStatusClass = (status: LodgeMemberWithPosition['mailbox_status']) =
       ? 'bg-red-100 text-red-800'
       : 'bg-amber-100 text-amber-800';
 
-const websiteAccountStatus = (member: LodgeMemberWithPosition) => {
-  if (member.website_activated_at) {
+const websiteAccountReady = (
+  member: LodgeMemberWithPosition,
+  linkedProfile: Profile | undefined,
+) => Boolean(
+  member.linked_profile_id
+  && member.website_activated_at
+  && linkedProfile?.force_password_change === false
+);
+
+const websiteAccountStatus = (
+  member: LodgeMemberWithPosition,
+  linkedProfile: Profile | undefined,
+) => {
+  if (websiteAccountReady(member, linkedProfile)) {
     return { label: 'Website active', className: 'bg-green-100 text-green-800' };
   }
-  if (member.website_activation_requested_at || member.linked_profile_id) {
+  if (linkedProfile?.force_password_change) {
+    return { label: 'Password setup needed', className: 'bg-amber-100 text-amber-800' };
+  }
+  if (member.website_activation_requested_at || member.website_activated_at || member.linked_profile_id) {
     return { label: 'Activation started', className: 'bg-amber-100 text-amber-800' };
   }
   return { label: 'Website not started', className: 'bg-gray-100 text-gray-600' };
@@ -986,6 +1001,10 @@ export const MembersManager = () => {
             const buttonId = `roster-member-button-${member.id}`;
             const panelId = `roster-member-panel-${member.id}`;
             const roleLabel = positionNames(member, 'Regular member');
+            const linkedProfile = profiles.find(profile => profile.id === member.linked_profile_id);
+            const accountReady = websiteAccountReady(member, linkedProfile);
+            const accountStatus = websiteAccountStatus(member, linkedProfile);
+            const invitationStatus = websiteInvitationStatus(member);
 
             return (
               <article key={member.id}>
@@ -1018,12 +1037,14 @@ export const MembersManager = () => {
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${mailboxStatusClass(member.mailbox_status)}`}>
                       Mailbox: {mailboxStatusLabel(member.mailbox_status)}
                     </span>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteInvitationStatus(member).className}`}>
-                      {websiteInvitationStatus(member).label}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteAccountStatus(member).className}`}>
-                      {member.website_activated_at ? <CheckCircle size={12} aria-hidden="true" /> : null}
-                      {websiteAccountStatus(member).label}
+                    {!accountReady ? (
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${invitationStatus.className}`}>
+                        {invitationStatus.label}
+                      </span>
+                    ) : null}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${accountStatus.className}`}>
+                      {accountReady ? <CheckCircle size={12} aria-hidden="true" /> : null}
+                      {accountStatus.label}
                     </span>
                   </span>
 
@@ -1068,16 +1089,29 @@ export const MembersManager = () => {
                         <dd className="mt-3 text-sm text-gray-700">
                           {member.linked_profile_id ? (
                             <div className="flex items-start gap-2">
-                              <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" aria-hidden="true" />
+                              {accountReady ? (
+                                <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" aria-hidden="true" />
+                              ) : (
+                                <UserRound size={16} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                              )}
                               <span className="break-all">{getProfileEmail(member.linked_profile_id)}</span>
                             </div>
                           ) : (
                             <span className="text-gray-500">No website account linked</span>
                           )}
+                          <span className={`mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${accountStatus.className}`}>
+                            {accountReady ? <CheckCircle size={12} aria-hidden="true" /> : null}
+                            {accountStatus.label}
+                          </span>
                           <dl className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-600">
-                            <div><dt className="inline font-medium text-gray-800">Invited:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_invited_at)}</dd></div>
-                            <div><dt className="inline font-medium text-gray-800">Code requested:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_requested_at)}</dd></div>
-                            <div><dt className="inline font-medium text-gray-800">Activated:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activated_at)}</dd></div>
+                            {accountReady ? (
+                              <div><dt className="inline font-medium text-gray-800">Activated:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activated_at)}</dd></div>
+                            ) : (
+                              <>
+                                <div><dt className="inline font-medium text-gray-800">Invitation sent:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_invited_at)}</dd></div>
+                                <div><dt className="inline font-medium text-gray-800">Code requested:</dt> <dd className="inline">{formatMemberTimestamp(member.website_activation_requested_at)}</dd></div>
+                              </>
+                            )}
                           </dl>
                         </dd>
                       </div>
@@ -1135,15 +1169,17 @@ export const MembersManager = () => {
                           </button>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={() => openLoginModal(member)}
-                          className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                          aria-label={`Send activation instructions to ${member.full_name}`}
-                        >
-                          <Mail size={15} aria-hidden="true" />
-                          {member.website_activation_invited_at ? 'Resend activation instructions' : 'Send activation instructions'}
-                        </button>
+                        {!accountReady ? (
+                          <button
+                            type="button"
+                            onClick={() => openLoginModal(member)}
+                            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                            aria-label={`Send activation instructions to ${member.full_name}`}
+                          >
+                            <Mail size={15} aria-hidden="true" />
+                            {member.website_activation_invited_at ? 'Resend activation instructions' : 'Send activation instructions'}
+                          </button>
+                        ) : null}
 
                         <button
                           type="button"
