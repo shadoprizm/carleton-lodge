@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LodgeMemberWithPosition, LodgePosition } from '../../lib/supabase';
 import { MembersManager } from './MembersManager';
@@ -212,6 +212,24 @@ describe('MembersManager Grand Lodge membership number', () => {
     expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Manage roster entry for Example Member' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage roster entry for Second Member' })).not.toBeInTheDocument();
+  });
+
+  it('shows invitation delivery separately from website activation progress', async () => {
+    hasAdminPermissionMock.mockReturnValue(false);
+    rpcMock.mockResolvedValue({
+      data: [{
+        ...managedMember,
+        website_activated_at: null,
+      }],
+      error: null,
+    });
+
+    render(<MembersManager />);
+    fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
+
+    const memberCard = await screen.findByRole('button', { name: 'Manage roster entry for Example Member' });
+    expect(within(memberCard).getByText('Invitation sent')).toBeInTheDocument();
+    expect(within(memberCard).getByText('Activation started')).toBeInTheDocument();
   });
 
   it('edits and saves more than one concurrent Lodge position', async () => {
