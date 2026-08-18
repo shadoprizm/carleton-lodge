@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LodgeMemberWithPosition, LodgePosition } from '../../lib/supabase';
+import type { LodgeMemberWithPosition, LodgePosition, Profile } from '../../lib/supabase';
 import { MembersManager } from './MembersManager';
 
 const {
@@ -58,6 +58,15 @@ const managedMember: LodgeMemberWithPosition = {
   updated_at: '2026-08-10T12:00:00Z',
   lodge_positions: null,
   positions: [],
+};
+
+const activeProfile: Profile = {
+  id: 'profile-1',
+  email: 'member@example.com',
+  is_admin: false,
+  force_password_change: false,
+  created_at: '2026-08-01T12:00:00Z',
+  updated_at: '2026-08-01T12:00:00Z',
 };
 
 const deletionTestMember: LodgeMemberWithPosition = {
@@ -120,6 +129,21 @@ function selectedResult(data: unknown[]) {
   };
 }
 
+function configureRosterTables(profiles: Profile[] = [activeProfile]) {
+  fromMock.mockImplementation((table: string) => {
+    if (table === 'lodge_positions') return orderedResult([]);
+    if (table === 'lodge_member_positions') return selectedResult([]);
+    if (table === 'profiles') return orderedResult(profiles);
+    if (table === 'lodge_members') {
+      return {
+        update: vi.fn(() => ({ eq: updateEqMock })),
+        insert: vi.fn(),
+      };
+    }
+    throw new Error(`Unexpected table: ${table}`);
+  });
+}
+
 describe('MembersManager Grand Lodge membership number', () => {
   beforeEach(() => {
     fromMock.mockReset();
@@ -129,18 +153,7 @@ describe('MembersManager Grand Lodge membership number', () => {
     updateEqMock.mockReset();
 
     rpcMock.mockResolvedValue({ data: [managedMember], error: null });
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'lodge_positions') return orderedResult([]);
-      if (table === 'lodge_member_positions') return selectedResult([]);
-      if (table === 'profiles') return orderedResult([{ id: 'profile-1', email: 'member@example.com' }]);
-      if (table === 'lodge_members') {
-        return {
-          update: vi.fn(() => ({ eq: updateEqMock })),
-          insert: vi.fn(),
-        };
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
+    configureRosterTables();
   });
 
   afterEach(() => cleanup());
@@ -214,12 +227,12 @@ describe('MembersManager Grand Lodge membership number', () => {
     expect(screen.queryByRole('button', { name: 'Manage roster entry for Second Member' })).not.toBeInTheDocument();
   });
 
-  it('shows invitation delivery separately from website activation progress', async () => {
-    hasAdminPermissionMock.mockReturnValue(false);
+  it('shows only the completed website state for a usable account', async () => {
+    hasAdminPermissionMock.mockReturnValue(true);
     rpcMock.mockResolvedValue({
       data: [{
         ...managedMember,
-        website_activated_at: null,
+        website_activation_invited_at: null,
       }],
       error: null,
     });
@@ -228,8 +241,33 @@ describe('MembersManager Grand Lodge membership number', () => {
     fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
 
     const memberCard = await screen.findByRole('button', { name: 'Manage roster entry for Example Member' });
+    expect(within(memberCard).getByText('Website active')).toBeInTheDocument();
+    expect(within(memberCard).queryByText('Invitation sent')).not.toBeInTheDocument();
+    expect(within(memberCard).queryByText('Not invited')).not.toBeInTheDocument();
+
+    fireEvent.click(memberCard);
+    expect(screen.getByText('Activated:')).toBeInTheDocument();
+    expect(screen.queryByText('Invitation sent:')).not.toBeInTheDocument();
+    expect(screen.queryByText('Code requested:')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send activation instructions to Example Member' })).not.toBeInTheDocument();
+  });
+
+  it('keeps invitation actions visible when an earlier sign-in still requires password setup', async () => {
+    hasAdminPermissionMock.mockReturnValue(true);
+    configureRosterTables([{ ...activeProfile, force_password_change: true }]);
+
+    render(<MembersManager />);
+    fireEvent.click(screen.getByRole('button', { name: /Regular Members/ }));
+
+    const memberCard = await screen.findByRole('button', { name: 'Manage roster entry for Example Member' });
     expect(within(memberCard).getByText('Invitation sent')).toBeInTheDocument();
-    expect(within(memberCard).getByText('Activation started')).toBeInTheDocument();
+    expect(within(memberCard).getByText('Password setup needed')).toBeInTheDocument();
+    expect(within(memberCard).queryByText('Website active')).not.toBeInTheDocument();
+
+    fireEvent.click(memberCard);
+    expect(screen.getByText('Invitation sent:')).toBeInTheDocument();
+    expect(screen.queryByText('Activated:')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send activation instructions to Example Member' })).toHaveTextContent('Resend activation instructions');
   });
 
   it('edits and saves more than one concurrent Lodge position', async () => {
