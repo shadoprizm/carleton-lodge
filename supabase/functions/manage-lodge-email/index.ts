@@ -1347,6 +1347,8 @@ Deno.serve(async (req: Request) => {
           outgoing_member_id: account.current_authorized_member_id,
           incoming_member_id: incomingMember.id,
           initiated_by: user.id,
+          initiated_by_email_snapshot: user.email?.trim().toLowerCase() ||
+            "[not recorded]",
           confirmed_at: now,
           state: "REVOKING_ACCESS",
           reason,
