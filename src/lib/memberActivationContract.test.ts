@@ -37,6 +37,13 @@ describe('member self-service activation contract', () => {
     expect(invitationFunction).not.toContain('createUser');
   });
 
+  it('identifies the webmaster who sent the activation invitation', () => {
+    const processor = source('cl-process-notifications');
+    expect(processor).toContain(
+      'Fraternally,\\nBro. Jeramy Ratelle\\nWebmaster\\nCarleton Lodge No. 465',
+    );
+  });
+
   it('tracks invitation, request, and successful activation separately', () => {
     const migration = source('member_self_service_activation.sql');
     expect(migration).toContain('website_activation_invited_at');

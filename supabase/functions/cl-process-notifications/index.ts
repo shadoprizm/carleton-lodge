@@ -377,6 +377,8 @@ const renderEmail = (
         { label: "Activation page", value: activationUrl },
       ],
       cta: { label: "Activate my membership", url: activationUrl },
+      closing:
+        "Fraternally,\nBro. Jeramy Ratelle\nWebmaster\nCarleton Lodge No. 465",
       siteUrl,
     });
   }
