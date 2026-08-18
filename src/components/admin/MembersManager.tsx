@@ -42,18 +42,20 @@ const mailboxStatusClass = (status: LodgeMemberWithPosition['mailbox_status']) =
       ? 'bg-red-100 text-red-800'
       : 'bg-amber-100 text-amber-800';
 
-const websiteActivationStatus = (member: LodgeMemberWithPosition) => {
+const websiteAccountStatus = (member: LodgeMemberWithPosition) => {
   if (member.website_activated_at) {
     return { label: 'Website active', className: 'bg-green-100 text-green-800' };
   }
   if (member.website_activation_requested_at || member.linked_profile_id) {
     return { label: 'Activation started', className: 'bg-amber-100 text-amber-800' };
   }
-  if (member.website_activation_invited_at) {
-    return { label: 'Invitation sent', className: 'bg-blue-100 text-blue-800' };
-  }
-  return { label: 'Not invited', className: 'bg-gray-100 text-gray-600' };
+  return { label: 'Website not started', className: 'bg-gray-100 text-gray-600' };
 };
+
+const websiteInvitationStatus = (member: LodgeMemberWithPosition) =>
+  member.website_activation_invited_at
+    ? { label: 'Invitation sent', className: 'bg-blue-100 text-blue-800' }
+    : { label: 'Not invited', className: 'bg-gray-100 text-gray-600' };
 
 const displayValue = (value: string | null | undefined, fallback = 'Not recorded') =>
   value || fallback;
@@ -1016,9 +1018,12 @@ export const MembersManager = () => {
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${mailboxStatusClass(member.mailbox_status)}`}>
                       Mailbox: {mailboxStatusLabel(member.mailbox_status)}
                     </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteActivationStatus(member).className}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteInvitationStatus(member).className}`}>
+                      {websiteInvitationStatus(member).label}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${websiteAccountStatus(member).className}`}>
                       {member.website_activated_at ? <CheckCircle size={12} aria-hidden="true" /> : null}
-                      {websiteActivationStatus(member).label}
+                      {websiteAccountStatus(member).label}
                     </span>
                   </span>
 
