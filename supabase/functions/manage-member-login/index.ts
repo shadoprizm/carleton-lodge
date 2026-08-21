@@ -10,6 +10,11 @@ import {
   isPlausibleMemberEmail,
   normalizeMemberEmail,
 } from "../_shared/member-access.ts";
+import {
+  PERSONAL_MAILBOX_MEMBER_SELECT,
+  type PersonalMailboxMember,
+  provisionPersonalMailbox,
+} from "../_shared/personal-mailbox-provisioning.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
 type RequestBody = {
@@ -177,11 +182,31 @@ Deno.serve(async (req: Request) => {
 
     const { data: member, error: memberError } = await supabaseAdmin
       .from("lodge_members")
-      .select("id, full_name, linked_profile_id")
+      .select(PERSONAL_MAILBOX_MEMBER_SELECT)
       .eq("id", memberId)
       .maybeSingle();
     if (memberError) throw memberError;
     if (!member) return jsonResponse(req, { error: "Member not found" }, 404);
+
+    let personalMailbox;
+    try {
+      personalMailbox = await provisionPersonalMailbox(
+        supabaseAdmin,
+        member as PersonalMailboxMember,
+        { actorProfileId: userResult.user.id },
+      );
+    } catch (mailboxError) {
+      console.error(
+        `Personal mailbox provisioning failed for member ${memberId}:`,
+        mailboxError instanceof Error
+          ? mailboxError.message
+          : String(mailboxError),
+      );
+      return jsonResponse(req, {
+        error:
+          "The personal Lodge mailbox could not be provisioned, so no activation email was sent. Retry from Lodge Email administration.",
+      }, 503);
+    }
 
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseAdmin
@@ -203,6 +228,7 @@ Deno.serve(async (req: Request) => {
         payload: {
           member_id: member.id,
           member_name: member.full_name,
+          lodge_email: personalMailbox.address,
           requested_by_profile_id: userResult.user.id,
         },
         idempotency_key: idempotencyKey,
@@ -235,6 +261,8 @@ Deno.serve(async (req: Request) => {
       queued: true,
       memberName: member.full_name,
       email,
+      lodgeEmail: personalMailbox.address,
+      mailboxStatus: personalMailbox.status,
       notificationId: notification.id,
       notificationStatus: deliveryStatus,
     });

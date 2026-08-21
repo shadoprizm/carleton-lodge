@@ -69,7 +69,7 @@ export const ActivateMembershipPage = () => {
       return;
     }
 
-    const { error: completionError } = await supabase.functions.invoke(
+    const { data: completionData, error: completionError } = await supabase.functions.invoke(
       'complete-member-activation',
       { body: {} },
     );
@@ -81,7 +81,11 @@ export const ActivateMembershipPage = () => {
     }
 
     setStep('password');
-    setMessage('Your membership is active. You can choose a password now or continue using emailed sign-in codes.');
+    const mailboxReady = completionData?.mailboxReady === true;
+    const lodgeEmail = typeof completionData?.lodgeEmail === 'string' ? completionData.lodgeEmail : '';
+    setMessage(mailboxReady
+      ? `Your membership is active, and your personal Lodge mailbox${lodgeEmail ? ` (${lodgeEmail})` : ''} is ready for setup in My Lodge. You can choose a website password now or continue using emailed sign-in codes.`
+      : 'Your membership is active. Your personal Lodge mailbox is still being prepared, and Lodge administration can safely retry it without repeating this activation. You can choose a website password now or continue using emailed sign-in codes.');
   };
 
   const savePassword = async (event: FormEvent) => {

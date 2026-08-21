@@ -47,13 +47,16 @@ Connection settings are currently Webmail `https://webmail.mxroute.com/`, IMAP `
 
 ## Personal mailbox activation
 
-1. An administrator creates or activates a verified member login.
-2. `manage-member-login` deterministically reserves the member address, checks collisions, preserves an existing MXroute mailbox or creates a missing one, associates the canonical account, and queues the invitation.
-3. The member signs in, opens **My Lodge → Lodge Email**, reviews the active Member Email Account Agreement, deliberately checks the acknowledgement, and chooses an eight-or-more-character mixed-case-and-number password when credentials are required.
-4. `activate-member-mailbox` independently verifies the authenticated member, account ownership, policy version, and acknowledgement. It submits a new password directly to MXroute and immediately discards it.
-5. The application creates an immutable acceptance receipt, activates the canonical and compatibility records, writes audit events, and sends confirmation.
+1. Every roster member receives a personal Lodge mailbox. Sending activation instructions provisions the mailbox first; a verified self-service activation also repairs a missing mailbox automatically.
+2. `provisionPersonalMailbox` deterministically reserves the member address, checks database and MXroute collisions, preserves an existing governed mailbox, or creates a locked MXroute mailbox with the member's configured quota and send limit.
+3. The member activates website access at `/activate` with a fresh six-digit code sent to the personal email recorded on the Lodge roster. The non-expiring instruction email and website activation remain distinct from the short-lived verification code.
+4. After signing in, the member opens **My Lodge → Lodge Email**, reviews the active Member Email Account Agreement, deliberately checks the acknowledgement, and chooses a separate eight-or-more-character mixed-case-and-number mailbox password when credentials are required.
+5. `activate-member-mailbox` independently verifies the authenticated member, account ownership, policy version, and acknowledgement. It submits the new password directly to MXroute and immediately discards it.
+6. The application creates an immutable acceptance receipt, activates the canonical and compatibility records, writes audit events, and sends confirmation.
 
 Existing active MXroute mailboxes are associated in place. Their contents and passwords are untouched; the member only accepts outstanding terms.
+
+Administrators can recover missing personal mailboxes from **Administration → Lodge Email → Personal Mailboxes**. Recovery runs in small, idempotent batches, reports each failure, preserves existing provider mailboxes, and never sends bulk member email. Previously sent website activation instructions remain valid and do not need to be resent.
 
 ## Role mailbox activation and handover
 

@@ -24,6 +24,11 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/complete-member-activation/index.ts"
 
+[functions.provision-member-mailboxes]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/provision-member-mailboxes/index.ts"
+
 [functions.delete-member]
 enabled = true
 verify_jwt = true

@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LodgeEmailAccount, LodgeMember, LodgePosition } from '../../lib/supabase';
 import { LodgeEmailAccountsManager } from './LodgeEmailAccountsManager';
 
-const { fromMock, hasAdminPermissionMock, rpcMock } = vi.hoisted(() => ({
+const { fromMock, functionInvokeMock, hasAdminPermissionMock, rpcMock } = vi.hoisted(() => ({
   fromMock: vi.fn(),
+  functionInvokeMock: vi.fn(),
   hasAdminPermissionMock: vi.fn(),
   rpcMock: vi.fn(),
 }));
@@ -16,7 +17,7 @@ vi.mock('../../contexts/AuthContext', () => ({
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: fromMock,
-    functions: { invoke: vi.fn() },
+    functions: { invoke: functionInvokeMock },
     rpc: rpcMock,
   },
 }));
@@ -122,6 +123,7 @@ function orderedResult(data: unknown[]) {
 describe('LodgeEmailAccountsManager compact mailbox management', () => {
   beforeEach(() => {
     fromMock.mockReset();
+    functionInvokeMock.mockReset();
     hasAdminPermissionMock.mockReset();
     rpcMock.mockReset();
     hasAdminPermissionMock.mockReturnValue(true);
@@ -197,6 +199,65 @@ describe('LodgeEmailAccountsManager compact mailbox management', () => {
     expect(screen.getByRole('button', { name: 'Suspend' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Details & History' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Handover' })).not.toBeInTheDocument();
+  });
+
+  it('offers an explicit recovery action for roster members missing personal mailboxes', async () => {
+    rpcMock.mockResolvedValue({
+      data: [{
+        ...member,
+        id: 'member-2',
+        full_name: 'Missing Mailbox',
+        lodge_email: null,
+        mailbox_status: 'unprovisioned',
+        mailbox_provisioned_at: null,
+        mailbox_activated_at: null,
+      }],
+      error: null,
+    });
+
+    render(<LodgeEmailAccountsManager />);
+    fireEvent.click(await screen.findByRole('tab', { name: /Personal Mailboxes/ }));
+
+    expect(screen.getByText('1 roster member needs a personal Lodge mailbox.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Provision 1 Mailbox' })).toBeInTheDocument();
+    expect(screen.getByText(/sends no bulk member email/i)).toBeInTheDocument();
+  });
+
+  it('requires confirmation and runs mailbox recovery without a notification request', async () => {
+    const missingMember = {
+      ...member,
+      id: '28f31769-45d5-4dc3-b4bd-e1ce454a54ae',
+      lodge_email: null,
+      mailbox_status: 'unprovisioned' as const,
+    };
+    rpcMock.mockResolvedValue({ data: [missingMember], error: null });
+    functionInvokeMock.mockResolvedValue({
+      data: {
+        results: [{ memberName: missingMember.full_name, ok: true }],
+        notificationsSent: 0,
+      },
+      error: null,
+    });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<LodgeEmailAccountsManager />);
+    fireEvent.click(await screen.findByRole('tab', { name: /Personal Mailboxes/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Provision 1 Mailbox' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('does not send bulk member email'));
+    await waitFor(() => expect(functionInvokeMock).toHaveBeenCalledWith(
+      'provision-member-mailboxes',
+      {
+        body: {
+          mode: 'run',
+          confirmed: true,
+          memberIds: [missingMember.id],
+        },
+      },
+    ));
+    expect(await screen.findByText('1 personal Lodge mailbox was provisioned. No member email was sent.'))
+      .toBeInTheDocument();
+    confirm.mockRestore();
   });
 
   it('shows mailbox details but no administrative actions to read-only managers', async () => {

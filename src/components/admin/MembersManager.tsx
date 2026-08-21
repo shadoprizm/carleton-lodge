@@ -142,6 +142,10 @@ export const MembersManager = () => {
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [rosterNotice, setRosterNotice] = useState<{
+    kind: 'success' | 'warning';
+    message: string;
+  } | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -231,6 +235,7 @@ export const MembersManager = () => {
       visible_to_members: formData.visible_to_members,
     };
 
+    const isNewMember = !editingMember;
     let memberId = editingMember?.id ?? null;
     let result;
 
@@ -274,6 +279,42 @@ export const MembersManager = () => {
       setFormError(assignmentResult.error.message || 'The Lodge positions could not be saved.');
       setFormSaving(false);
       return;
+    }
+
+    if (isNewMember) {
+      const { data: mailboxData, error: mailboxError } = await supabase.functions.invoke(
+        'provision-member-mailboxes',
+        {
+          body: {
+            mode: 'run',
+            confirmed: true,
+            memberIds: [memberId],
+          },
+        },
+      );
+      const mailboxResult = mailboxData?.results?.[0] as {
+        address?: unknown;
+        error?: unknown;
+        ok?: unknown;
+      } | undefined;
+
+      if (mailboxError || mailboxResult?.ok !== true) {
+        const fallback = typeof mailboxResult?.error === 'string'
+          ? mailboxResult.error
+          : 'The mailbox could not be provisioned.';
+        setRosterNotice({
+          kind: 'warning',
+          message: `${memberData.full_name} was added to the roster, but the personal Lodge mailbox needs a retry from Lodge Email administration. ${await functionErrorMessage(mailboxError, mailboxData, fallback)}`,
+        });
+      } else {
+        const address = typeof mailboxResult.address === 'string'
+          ? mailboxResult.address
+          : 'The personal Lodge mailbox';
+        setRosterNotice({
+          kind: 'success',
+          message: `${memberData.full_name} was added to the roster and ${address} was provisioned. No activation email was sent.`,
+        });
+      }
     }
 
     setShowForm(false);
@@ -422,8 +463,9 @@ export const MembersManager = () => {
     }
 
     const delivered = data?.notificationStatus === 'sent';
+    const lodgeEmail = typeof data?.lodgeEmail === 'string' ? data.lodgeEmail : 'the personal Lodge mailbox';
     setLoginSuccess(
-      `The non-expiring activation instructions ${delivered ? 'have been sent' : 'are safely queued for delivery'}. No website password or Lodge mailbox was created.`
+      `${lodgeEmail} is provisioned. The non-expiring activation instructions ${delivered ? 'have been sent' : 'are safely queued for delivery'}.`
     );
     fetchData();
   };
@@ -481,6 +523,7 @@ export const MembersManager = () => {
               resetForm();
               setEditingMember(null);
               setFormError(null);
+              setRosterNotice(null);
               setShowForm(true);
             }}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 transition-colors"
@@ -494,6 +537,20 @@ export const MembersManager = () => {
           </span>
         )}
       </div>
+
+      {rosterNotice ? (
+        <p
+          role={rosterNotice.kind === 'warning' ? 'alert' : undefined}
+          aria-live="polite"
+          className={`rounded-md border px-3 py-2 text-sm ${
+            rosterNotice.kind === 'success'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}
+        >
+          {rosterNotice.message}
+        </p>
+      ) : null}
 
       {deleteSuccess ? (
         <p aria-live="polite" className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
@@ -515,8 +572,9 @@ export const MembersManager = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label htmlFor="member-full-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
+                  id="member-full-name"
                   type="text"
                   required
                   value={formData.full_name}
@@ -527,11 +585,12 @@ export const MembersManager = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="member-personal-email" className="block text-sm font-medium text-gray-700 mb-1">
                   Personal Email Address
                   <span className="ml-1 text-xs font-normal text-gray-400">(private sign-in, recovery, and welcome delivery)</span>
                 </label>
                 <input
+                  id="member-personal-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -797,7 +856,7 @@ export const MembersManager = () => {
                     <p className="text-sm font-medium text-amber-900">What the member receives</p>
                     <p className="mt-1 text-xs leading-5 text-amber-800">
                       A branded message sent to their personal address with a link to <strong>carpmasons.ca/activate</strong>.
-                      The instructions do not expire and website activation does not create a Lodge mailbox.
+                      The instructions do not expire. Their personal Lodge mailbox is provisioned before this message is sent.
                     </p>
                   </div>
                 </div>

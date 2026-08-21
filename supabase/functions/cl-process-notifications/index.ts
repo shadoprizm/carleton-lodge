@@ -359,6 +359,7 @@ const renderEmail = (
 
   if (job.notification_type === "member_activation_invitation") {
     const memberName = payloadString(job.payload, "member_name") || "Brother";
+    const lodgeEmail = payloadString(job.payload, "lodge_email");
     const activationUrl = `${siteUrl.replace(/\/$/, "")}/activate`;
 
     return renderBrandedEmail({
@@ -370,10 +371,15 @@ const renderEmail = (
       paragraphs: [
         "Carleton Lodge now has a secure members' website for the Lodge calendar, summons, member directory, documents, and other Lodge information.",
         "When you are ready, open the activation page and enter this personal email address. The website will send you a fresh six-digit code at that time. This instruction email does not expire, and you can request another code whenever you need one.",
-        "Website access is separate from any optional carpmasons.ca Lodge mailbox.",
+        lodgeEmail
+          ? `Your personal Lodge mailbox, ${lodgeEmail}, has also been created. After activating your website membership, open My Lodge → Lodge Email to accept the member email agreement and choose a separate mailbox password.`
+          : "Your personal Lodge mailbox is being prepared and will appear under My Lodge when it is ready.",
       ],
       details: [
         { label: "Your sign-in email", value: job.recipient_email },
+        ...(lodgeEmail
+          ? [{ label: "Your personal Lodge email", value: lodgeEmail }]
+          : []),
         { label: "Activation page", value: activationUrl },
       ],
       cta: { label: "Activate my membership", url: activationUrl },

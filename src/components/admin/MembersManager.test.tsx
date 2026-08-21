@@ -312,6 +312,65 @@ describe('MembersManager Grand Lodge membership number', () => {
       target_position_ids: [historianPosition.id, auditorPosition.id],
     }));
   });
+
+  it('provisions a personal mailbox when a new roster member is added', async () => {
+    hasAdminPermissionMock.mockReturnValue(true);
+    const newMemberId = '28f31769-45d5-4dc3-b4bd-e1ce454a54ae';
+    rpcMock.mockImplementation((functionName: string) => Promise.resolve(
+      functionName === 'get_managed_lodge_members'
+        ? { data: [], error: null }
+        : { data: null, error: null },
+    ));
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'lodge_positions' || table === 'profiles') return orderedResult([]);
+      if (table === 'lodge_member_positions') return selectedResult([]);
+      if (table === 'lodge_members') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: { id: newMemberId },
+                error: null,
+              }),
+            })),
+          })),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    functionInvokeMock.mockResolvedValue({
+      data: {
+        results: [{
+          memberId: newMemberId,
+          ok: true,
+          address: 'new.member@carpmasons.ca',
+        }],
+        notificationsSent: 0,
+      },
+      error: null,
+    });
+
+    render(<MembersManager />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Member' }));
+    fireEvent.change(screen.getByLabelText('Full Name'), {
+      target: { value: 'New Member' },
+    });
+    const addMemberButtons = screen.getAllByRole('button', { name: 'Add Member' });
+    fireEvent.click(addMemberButtons[addMemberButtons.length - 1]);
+
+    await waitFor(() => expect(functionInvokeMock).toHaveBeenCalledWith(
+      'provision-member-mailboxes',
+      {
+        body: {
+          mode: 'run',
+          confirmed: true,
+          memberIds: [newMemberId],
+        },
+      },
+    ));
+    expect(await screen.findByText(/new\.member@carpmasons\.ca was provisioned/i))
+      .toHaveTextContent('No activation email was sent.');
+  });
 });
 
 describe('MembersManager member deletion', () => {
