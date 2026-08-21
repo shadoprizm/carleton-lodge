@@ -6,6 +6,11 @@ import {
   jsonResponse,
   rejectDisallowedOrigin,
 } from "../_shared/http-security.ts";
+import {
+  PERSONAL_MAILBOX_MEMBER_SELECT,
+  type PersonalMailboxMember,
+  provisionPersonalMailbox,
+} from "../_shared/personal-mailbox-provisioning.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req: Request) => {
@@ -68,7 +73,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: member, error: memberReadError } = await supabaseAdmin
       .from("lodge_members")
-      .select("id, website_activated_at")
+      .select(`${PERSONAL_MAILBOX_MEMBER_SELECT}, website_activated_at`)
       .eq("linked_profile_id", userResult.user.id)
       .maybeSingle();
     if (memberReadError) throw memberReadError;
@@ -94,9 +99,33 @@ Deno.serve(async (req: Request) => {
       .eq("id", userResult.user.id);
     if (profileError) throw profileError;
 
+    let mailboxReady = false;
+    let lodgeEmail: string | null = member.lodge_email ?? null;
+    try {
+      const mailbox = await provisionPersonalMailbox(
+        supabaseAdmin,
+        member as PersonalMailboxMember,
+        { actorProfileId: userResult.user.id },
+      );
+      mailboxReady = true;
+      lodgeEmail = mailbox.address;
+    } catch (mailboxError) {
+      // Website membership remains active even if MXroute is temporarily
+      // unavailable. The failed mailbox is visible to Lodge administration and
+      // can be retried idempotently without asking the member to verify again.
+      console.error(
+        `Membership activated but personal mailbox provisioning failed for ${member.id}:`,
+        mailboxError instanceof Error
+          ? mailboxError.message
+          : String(mailboxError),
+      );
+    }
+
     return jsonResponse(req, {
       activated: true,
       activatedAt: member.website_activated_at ?? now,
+      mailboxReady,
+      lodgeEmail,
     });
   } catch (error) {
     console.error(

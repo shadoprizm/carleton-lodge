@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 const sourceFiles = import.meta.glob([
   '/supabase/functions/request-member-access-code/index.ts',
   '/supabase/functions/manage-member-login/index.ts',
+  '/supabase/functions/complete-member-activation/index.ts',
+  '/supabase/functions/provision-member-mailboxes/index.ts',
+  '/supabase/functions/_shared/personal-mailbox-provisioning.ts',
   '/supabase/functions/cl-process-notifications/index.ts',
   '/supabase/migrations/*_member_self_service_activation.sql',
 ], { eager: true, import: 'default', query: '?raw' }) as Record<string, string>;
@@ -29,12 +32,26 @@ describe('member self-service activation contract', () => {
     expect(requestFunction).not.toContain('secureActionCode');
   });
 
-  it('decouples activation invitations from Lodge mailbox provisioning', () => {
+  it('provisions a personal Lodge mailbox before activation instructions are sent', () => {
     const invitationFunction = source('manage-member-login');
+    const provisioningHelper = source('personal-mailbox-provisioning');
     expect(invitationFunction).toContain('member_activation_invitation');
-    expect(invitationFunction).not.toContain('lodge_email_accounts');
-    expect(invitationFunction).not.toContain('createMxrouteProvider');
+    expect(invitationFunction).toContain('provisionPersonalMailbox');
+    expect(invitationFunction).toContain('lodge_email: personalMailbox.address');
     expect(invitationFunction).not.toContain('createUser');
+    expect(provisioningHelper).toContain('createMxrouteProvider');
+    expect(provisioningHelper).toContain('account_type: "MEMBER"');
+    expect(provisioningHelper).toContain('const finalMemberStatus = wasActive ? "active" : "pending_activation"');
+    expect(provisioningHelper).toContain('mailbox_status: finalMemberStatus');
+  });
+
+  it('repairs missing personal mailboxes without blocking verified website membership', () => {
+    const completionFunction = source('complete-member-activation');
+    const recoveryFunction = source('provision-member-mailboxes');
+    expect(completionFunction).toContain('provisionPersonalMailbox');
+    expect(completionFunction).toContain('mailboxReady');
+    expect(recoveryFunction).toContain('Explicit confirmation is required');
+    expect(recoveryFunction).toContain('notificationsSent: 0');
   });
 
   it('identifies the webmaster who sent the activation invitation', () => {

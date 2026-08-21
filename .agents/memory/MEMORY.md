@@ -7,7 +7,7 @@
 - [2026-07-25] Events approval is a delegated `can_approve` capability independent of Events read/write access; full admins retain implicit approval.
 - [2026-07-25] Resend is the active email provider: `carpmasons.ca` sends as `notifications@carpmasons.ca`, `inbound.carpmasons.ca` receives through a signed webhook, and a Vault-backed Supabase Cron job processes the outbox every minute.
 - [2026-07-25] All lodge transactional emails use the shared responsive HTML/plain-text template in `supabase/functions/_shared/branded-email.ts`, aligned to the carpmasons.ca navy, gold, serif, and lodge-seal visual system.
-- [2026-07-26] Member account emails never contain administrator-created passwords; Members writers queue a branded welcome email whose single-use Supabase Auth link is generated only at send time and requires the member to choose a password.
+- [2026-08-21] Every roster member must receive a personal `@carpmasons.ca` mailbox. Non-expiring, Webmaster-signed website activation instructions provision that mailbox first; `/activate` then uses a fresh six-digit code sent to the roster personal email, and website passwords remain optional. Existing missing mailboxes require an idempotent backfill without resending invitations or bulk-emailing members automatically.
 
 ## Open questions
 - Consider a named website/community-inquiry steward role with a dedicated address for prospective-member and website questions; no implementation or routing decision yet.

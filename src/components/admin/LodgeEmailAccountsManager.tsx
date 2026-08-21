@@ -59,6 +59,8 @@ export const LodgeEmailAccountsManager = () => {
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [bulkProvisioning, setBulkProvisioning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState('');
   const [workingId, setWorkingId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -153,6 +155,9 @@ export const LodgeEmailAccountsManager = () => {
 
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members]);
   const latestHandover = (accountId: string) => handovers.find(handover => handover.email_account_id === accountId) ?? null;
+  const membersMissingPersonalMailbox = members.filter(member =>
+    ['unprovisioned', 'provisioning', 'error'].includes(member.mailbox_status)
+  );
   const displayedAccounts = activeMailboxTab === 'role' ? accounts : personalAccounts;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredAccounts = normalizedSearch
@@ -180,6 +185,69 @@ export const LodgeEmailAccountsManager = () => {
     }
     await fetchData();
     return data;
+  };
+
+  const provisionMissingPersonalMailboxes = async () => {
+    const missingMembers = membersMissingPersonalMailbox;
+    if (!missingMembers.length || bulkProvisioning) return;
+    const totalQuotaGb = missingMembers.reduce(
+      (total, member) => total + member.mailbox_quota_mb,
+      0,
+    ) / 1024;
+    const confirmed = window.confirm(
+      `Provision ${missingMembers.length} missing personal Lodge mailboxes at MXroute with up to ${totalQuotaGb.toFixed(1)} GB of configured quota? This creates locked mailboxes but does not send bulk member email.`,
+    );
+    if (!confirmed) return;
+
+    setBulkProvisioning(true);
+    setBulkProgress(`Starting 0 of ${missingMembers.length}…`);
+    setError('');
+    setNotice('');
+    let provisioned = 0;
+    const failures: string[] = [];
+    let stoppedMessage = '';
+
+    for (let index = 0; index < missingMembers.length; index += 5) {
+      const batch = missingMembers.slice(index, index + 5);
+      const { data, error: provisioningError } = await supabase.functions.invoke(
+        'provision-member-mailboxes',
+        {
+          body: {
+            mode: 'run',
+            confirmed: true,
+            memberIds: batch.map(member => member.id),
+          },
+        },
+      );
+      if (provisioningError) {
+        stoppedMessage = await functionErrorMessage(
+          provisioningError,
+          'Personal mailbox provisioning stopped before every member was processed.',
+        );
+        break;
+      }
+
+      const results = Array.isArray(data?.results) ? data.results as Array<{
+        memberName?: unknown;
+        ok?: unknown;
+      }> : [];
+      provisioned += results.filter(result => result.ok === true).length;
+      failures.push(...results
+        .filter(result => result.ok !== true)
+        .map(result => typeof result.memberName === 'string' ? result.memberName : 'Unknown member'));
+      setBulkProgress(`Processed ${Math.min(index + batch.length, missingMembers.length)} of ${missingMembers.length}…`);
+    }
+
+    await fetchData();
+    setBulkProvisioning(false);
+    setBulkProgress('');
+    if (stoppedMessage) {
+      setError(`${provisioned} mailboxes were provisioned before processing stopped. ${stoppedMessage}`);
+    } else if (failures.length > 0) {
+      setError(`${provisioned} mailboxes were provisioned. ${failures.length} need attention: ${failures.join(', ')}.`);
+    } else {
+      setNotice(`${provisioned} personal Lodge ${provisioned === 1 ? 'mailbox was' : 'mailboxes were'} provisioned. No member email was sent.`);
+    }
   };
 
   const syncAccount = async (account: AdminEmailAccount) => {
@@ -380,9 +448,35 @@ export const LodgeEmailAccountsManager = () => {
       </div>
 
       {activeMailboxTab === 'personal' && (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Personal Lodge email stays with the verified individual and is never handed to a successor.
-        </p>
+        <div className="space-y-3">
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Personal Lodge email stays with the verified individual and is never handed to a successor.
+          </p>
+          {!loading && membersMissingPersonalMailbox.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold">
+                  {membersMissingPersonalMailbox.length} roster {membersMissingPersonalMailbox.length === 1 ? 'member needs' : 'members need'} a personal Lodge mailbox.
+                </p>
+                <p className="mt-1 text-amber-900">Provisioning is idempotent, preserves existing mailboxes, and sends no bulk member email.</p>
+                {bulkProgress && <p className="mt-2 font-medium" role="status">{bulkProgress}</p>}
+              </div>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={provisionMissingPersonalMailboxes}
+                  disabled={bulkProvisioning}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 font-semibold text-amber-300 disabled:opacity-60"
+                >
+                  <RefreshCw size={17} className={bulkProvisioning ? 'animate-spin' : ''} aria-hidden="true" />
+                  {bulkProvisioning
+                    ? 'Provisioning…'
+                    : `Provision ${membersMissingPersonalMailbox.length} ${membersMissingPersonalMailbox.length === 1 ? 'Mailbox' : 'Mailboxes'}`}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {loading ? (
