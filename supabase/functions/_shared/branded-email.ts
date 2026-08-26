@@ -14,6 +14,11 @@ export type BrandedEmailInput = {
     label: string;
     url: string;
   };
+  preferenceLink?: {
+    lead: string;
+    label: string;
+    url: string;
+  };
   closing?: string;
   siteUrl: string;
 };
@@ -43,6 +48,7 @@ export const renderBrandedEmail = ({
   paragraphs,
   details = [],
   cta,
+  preferenceLink,
   closing = "Fraternally,\nCarleton Lodge No. 465",
   siteUrl,
 }: BrandedEmailInput): BrandedEmail => {
@@ -57,6 +63,12 @@ export const renderBrandedEmail = ({
     ...detailText,
     ...(details.length ? [""] : []),
     ...(cta ? [`${cta.label}: ${cta.url}`, ""] : []),
+    ...(preferenceLink
+      ? [
+        `${preferenceLink.lead} ${preferenceLink.label}: ${preferenceLink.url}`,
+        "",
+      ]
+      : []),
     closing,
     "",
     `Carleton Lodge No. 465 · Carp, Ontario · ${normalizedSiteUrl}`,
@@ -172,6 +184,20 @@ export const renderBrandedEmail = ({
                       </td>
                     </tr>
                   </table>
+                `
+      : ""
+  }
+                ${
+    preferenceLink
+      ? `
+                <p style="margin:20px 0 0;color:#64748b;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:21px;">
+                  ${escapeHtml(preferenceLink.lead)}
+                  <a href="${
+        escapeHtml(preferenceLink.url)
+      }" style="color:#475569;text-decoration:underline;">${
+        escapeHtml(preferenceLink.label)
+      }</a>.
+                </p>
                 `
       : ""
   }

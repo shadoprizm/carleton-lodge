@@ -49,6 +49,11 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/cl-process-notifications/index.ts"
 
+[functions.manage-role-mailbox-reminders]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/manage-role-mailbox-reminders/index.ts"
+
 [functions.check-external-link]
 enabled = true
 verify_jwt = false

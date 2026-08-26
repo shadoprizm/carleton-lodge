@@ -27,6 +27,10 @@ import {
   roleMailboxReminderIdempotencyKey,
   shouldQueueRoleMailboxActivationReminder,
 } from "../_shared/role-mailbox-activation.ts";
+import {
+  createRoleMailboxReminderOptOutToken,
+  hashRoleMailboxReminderOptOutToken,
+} from "../_shared/role-mailbox-reminder-opt-out.ts";
 
 type NotificationJob = {
   id: string;
@@ -74,6 +78,13 @@ type PendingRoleInvitation = {
   payload: Record<string, unknown>;
 };
 
+type PendingRoleAssignment = {
+  id: string;
+  email_account_id: string;
+  member_id: string;
+  activation_reminders_opted_out_at: string | null;
+};
+
 const payloadString = (payload: Record<string, unknown>, key: string) =>
   typeof payload[key] === "string" ? payload[key] as string : "";
 
@@ -91,10 +102,29 @@ const activationWindowFromPayload = (payload: Record<string, unknown>) =>
 const assignmentKey = (accountId: string, memberId: string) =>
   `${accountId}:${memberId}`;
 
+const createRawActionToken = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+};
+
+const sha256 = async (value: string) => {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 async function roleMailboxActivationIsStillPending(
   supabase: LodgeSupabaseClient,
   accountId: string,
   memberId: string,
+  isAutomatedReminder: boolean,
 ) {
   const [{ data: account, error: accountError }, {
     data: assignment,
@@ -110,7 +140,7 @@ async function roleMailboxActivationIsStillPending(
       .maybeSingle(),
     supabase
       .from("officer_mailbox_assignments")
-      .select("id")
+      .select("id, activation_reminders_opted_out_at")
       .eq("email_account_id", accountId)
       .eq("member_id", memberId)
       .eq("status", "PENDING")
@@ -118,12 +148,16 @@ async function roleMailboxActivationIsStillPending(
   ]);
   if (accountError) throw accountError;
   if (assignmentError) throw assignmentError;
-  return Boolean(account && assignment);
+  return Boolean(
+    account && assignment &&
+      (!isAutomatedReminder || !assignment.activation_reminders_opted_out_at),
+  );
 }
 
 async function queueDueRoleMailboxActivationReminders(
   supabase: LodgeSupabaseClient,
   now: string,
+  optOutSecret: string,
 ) {
   const { data, error } = await supabase
     .from("email_account_action_tokens")
@@ -181,7 +215,9 @@ async function queueDueRoleMailboxActivationReminders(
       .in("id", memberIds),
     supabase
       .from("officer_mailbox_assignments")
-      .select("email_account_id, member_id")
+      .select(
+        "id, email_account_id, member_id, activation_reminders_opted_out_at",
+      )
       .in("email_account_id", accountIds)
       .in("member_id", memberIds)
       .eq("status", "PENDING"),
@@ -206,10 +242,11 @@ async function queueDueRoleMailboxActivationReminders(
   const membersById = new Map(
     ((members ?? []) as ReminderMember[]).map((member) => [member.id, member]),
   );
-  const pendingAssignments = new Set(
-    (assignments ?? []).map((assignment) =>
-      assignmentKey(assignment.email_account_id, assignment.member_id)
-    ),
+  const pendingAssignments = new Map(
+    ((assignments ?? []) as PendingRoleAssignment[]).map((assignment) => [
+      assignmentKey(assignment.email_account_id, assignment.member_id),
+      assignment,
+    ]),
   );
   const pendingInvitationKeys = new Set(
     ((pendingInvitations ?? []) as PendingRoleInvitation[]).flatMap((job) => {
@@ -219,13 +256,13 @@ async function queueDueRoleMailboxActivationReminders(
     }),
   );
 
-  const reminderJobs = candidates.flatMap(({ token, nextWindow }) => {
+  const preparedReminders = candidates.flatMap(({ token, nextWindow }) => {
     const account = accountsById.get(token.email_account_id);
     const member = membersById.get(token.member_id);
     if (!account || !member || !member.email || !member.linked_profile_id) {
       return [];
     }
-    const hasPendingAssignment = pendingAssignments.has(
+    const assignment = pendingAssignments.get(
       assignmentKey(account.id, member.id),
     );
     const hasPendingInvitation = pendingInvitationKeys.has(
@@ -233,6 +270,8 @@ async function queueDueRoleMailboxActivationReminders(
     );
     if (
       hasPendingInvitation ||
+      !assignment ||
+      assignment.activation_reminders_opted_out_at ||
       !shouldQueueRoleMailboxActivationReminder({
         accountType: account.account_type,
         accountStatus: account.status,
@@ -240,14 +279,22 @@ async function queueDueRoleMailboxActivationReminders(
         memberId: member.id,
         memberEmail: member.email,
         linkedProfileId: member.linked_profile_id,
-        hasPendingAssignment,
+        hasPendingAssignment: true,
       })
     ) return [];
 
+    const idempotencyKey = roleMailboxReminderIdempotencyKey(
+      token.id,
+      nextWindow,
+    );
     return [{
-      notification_type: "role_mailbox_invitation",
-      recipient_profile_id: member.linked_profile_id,
-      recipient_email: member.email.toLowerCase(),
+      assignment,
+      token,
+      nextWindow,
+      account,
+      idempotencyKey,
+      recipientProfileId: member.linked_profile_id,
+      recipientEmail: member.email,
       payload: {
         email_account_id: account.id,
         lodge_email: account.address,
@@ -262,42 +309,55 @@ async function queueDueRoleMailboxActivationReminders(
         activation_reminder: true,
         previous_token_id: token.id,
       },
-      idempotency_key: roleMailboxReminderIdempotencyKey(token.id, nextWindow),
-      max_attempts: 3,
     }];
   });
-  if (reminderJobs.length === 0) return 0;
+  if (preparedReminders.length === 0) return 0;
 
-  const { data: insertedJobs, error: reminderError } = await supabase
-    .from("notification_outbox")
-    .upsert(reminderJobs, {
-      onConflict: "idempotency_key",
-      ignoreDuplicates: true,
-    })
-    .select("id, idempotency_key");
-  if (reminderError) throw reminderError;
-
-  const insertedKeys = new Set(
-    (insertedJobs ?? []).map((job) => job.idempotency_key),
+  const insertionResults = await Promise.all(preparedReminders.map(
+    async (reminder) => {
+      const optOutToken = await createRoleMailboxReminderOptOutToken(
+        optOutSecret,
+        reminder.idempotencyKey,
+      );
+      const { data: insertedJobId, error: reminderError } = await supabase.rpc(
+        "queue_role_mailbox_activation_reminder",
+        {
+          p_assignment_id: reminder.assignment.id,
+          p_recipient_profile_id: reminder.recipientProfileId,
+          p_recipient_email: reminder.recipientEmail,
+          p_payload: reminder.payload,
+          p_idempotency_key: reminder.idempotencyKey,
+          p_opt_out_token_hash: await hashRoleMailboxReminderOptOutToken(
+            optOutToken,
+          ),
+          p_max_attempts: 3,
+        },
+      );
+      if (reminderError) throw reminderError;
+      return insertedJobId ? reminder : null;
+    },
+  ));
+  const insertedReminders = insertionResults.filter((reminder) =>
+    reminder !== null
   );
-  const auditEvents = candidates.flatMap(({ token, nextWindow }) => {
-    const key = roleMailboxReminderIdempotencyKey(token.id, nextWindow);
-    if (!insertedKeys.has(key)) return [];
-    const account = accountsById.get(token.email_account_id);
-    return [{
-      event_type: "ROLE_MAILBOX_ACTIVATION_REMINDER_QUEUED",
-      email_account_id: token.email_account_id,
-      member_id: token.member_id,
-      position_id: account?.position_id ?? null,
-      handover_id: token.handover_id,
-      outcome: "SUCCESS",
-      details: {
-        activation_window: nextWindow,
-        expired_token_id: token.id,
-        expired_at: token.expires_at,
-      },
-    }];
-  });
+
+  const auditEvents = insertedReminders.map(({
+    token,
+    nextWindow,
+    account,
+  }) => ({
+    event_type: "ROLE_MAILBOX_ACTIVATION_REMINDER_QUEUED",
+    email_account_id: token.email_account_id,
+    member_id: token.member_id,
+    position_id: account?.position_id ?? null,
+    handover_id: token.handover_id,
+    outcome: "SUCCESS",
+    details: {
+      activation_window: nextWindow,
+      expired_token_id: token.id,
+      expired_at: token.expires_at,
+    },
+  }));
   if (auditEvents.length > 0) {
     const { error: auditError } = await supabase
       .from("lodge_email_audit_events")
@@ -305,7 +365,7 @@ async function queueDueRoleMailboxActivationReminders(
     if (auditError) throw auditError;
   }
 
-  return insertedJobs?.length ?? 0;
+  return insertedReminders.length;
 }
 
 const payloadPlainText = (payload: Record<string, unknown>, key: string) =>
@@ -322,24 +382,6 @@ const payloadPlainText = (payload: Record<string, unknown>, key: string) =>
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-
-const createRawActionToken = () => {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-};
-
-const sha256 = async (value: string) => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-};
 
 const isServiceRoleJwtForProject = (token: string, supabaseUrl: string) => {
   try {
@@ -386,6 +428,7 @@ const renderEmail = (
   siteUrl: string,
   secureActionUrl = "",
   secureActionCode = "",
+  secureOptOutUrl = "",
 ): BrandedEmail => {
   const title = payloadString(job.payload, "title") || "Lodge event";
   const eventDate = formatEventDate(payloadString(job.payload, "event_date"));
@@ -832,6 +875,13 @@ const renderEmail = (
         },
       ],
       cta: { label: "Activate the role mailbox", url: secureActionUrl },
+      preferenceLink: isReminder && secureOptOutUrl
+        ? {
+          lead: "Do not want any more automated reminders for this assignment?",
+          label: "Stop these reminders",
+          url: secureOptOutUrl,
+        }
+        : undefined,
       siteUrl,
     });
   }
@@ -977,6 +1027,9 @@ Deno.serve(async (req: Request) => {
   const apiKey = Deno.env.get("EMAIL_API_KEY");
   const fromAddress = Deno.env.get("EMAIL_FROM");
   const inboxId = Deno.env.get("EMAIL_INBOX_ID");
+  const roleMailboxReminderSecret = Deno.env.get(
+    "ROLE_MAILBOX_REMINDER_SECRET",
+  ) ?? "";
   // Welcome and recovery links must never inherit a development/localhost URL
   // from a stale secret. Only the two production origins are accepted.
   const siteUrl = productionSiteUrl(Deno.env.get("SITE_URL"));
@@ -1058,6 +1111,7 @@ Deno.serve(async (req: Request) => {
     activationRemindersQueued = await queueDueRoleMailboxActivationReminders(
       supabase,
       new Date().toISOString(),
+      roleMailboxReminderSecret,
     );
   } catch (reminderError) {
     // A reminder scan must never prevent already-queued transactional email
@@ -1089,6 +1143,7 @@ Deno.serve(async (req: Request) => {
     try {
       let secureActionUrl = "";
       let secureActionCode = "";
+      let secureOptOutUrl = "";
       if (job.notification_type === "member_access_code") {
         const { data: linkData, error: linkError } = await supabase.auth.admin
           .generateLink({
@@ -1129,6 +1184,9 @@ Deno.serve(async (req: Request) => {
         const purpose = job.notification_type === "role_mailbox_invitation"
           ? "ROLE_ACTIVATION"
           : "PASSWORD_RESET";
+        const isAutomatedReminder = purpose === "ROLE_ACTIVATION" &&
+          (payloadBoolean(job.payload, "activation_reminder") ||
+            activationWindowFromPayload(job.payload) > 1);
         if (!accountId || !memberId) {
           throw new Error(
             "The mailbox action notification is missing its account or member",
@@ -1141,6 +1199,7 @@ Deno.serve(async (req: Request) => {
             supabase,
             accountId,
             memberId,
+            isAutomatedReminder,
           ))
         ) {
           const { error: cancellationError } = await supabase
@@ -1195,6 +1254,18 @@ Deno.serve(async (req: Request) => {
         }/my-lodge/email?account=${encodeURIComponent(accountId)}#token=${
           encodeURIComponent(rawActionToken)
         }&purpose=${encodeURIComponent(purpose)}`;
+
+        if (isAutomatedReminder) {
+          const optOutToken = await createRoleMailboxReminderOptOutToken(
+            roleMailboxReminderSecret,
+            job.idempotency_key,
+          );
+          secureOptOutUrl = `${
+            supabaseUrl.replace(/\/$/, "")
+          }/functions/v1/manage-role-mailbox-reminders?token=${
+            encodeURIComponent(optOutToken)
+          }`;
+        }
       }
 
       const rendered = renderEmail(
@@ -1202,6 +1273,7 @@ Deno.serve(async (req: Request) => {
         siteUrl,
         secureActionUrl,
         secureActionCode,
+        secureOptOutUrl,
       );
       const providerMessageId = provider === "resend"
         ? await sendWithResend(job, rendered, apiKey, fromAddress!)
