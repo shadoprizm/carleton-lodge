@@ -32,12 +32,13 @@ const pages = [
   { match: (path: string) => path === '/library', title: 'Lodge Library | Carleton Lodge No. 465', description: 'Secure access to approved Carleton Lodge documents and forms.' },
   { match: (path: string) => path === '/reset-password', title: 'Reset Password | Carleton Lodge No. 465', description: 'Choose a new password for your Carleton Lodge account.' },
   { match: (path: string) => path === '/activate', title: 'Activate Membership | Carleton Lodge No. 465', description: 'Activate secure access to the Carleton Lodge members website.' },
+  { match: (path: string) => path === '/email-reminders', title: 'Mailbox Reminder Preferences | Carleton Lodge No. 465', description: 'Manage private officer and functional mailbox activation reminder preferences.' },
   { match: (path: string) => path === '/privacy-policy', title: 'Privacy Policy | Carleton Lodge No. 465', description: 'How the Carleton Lodge website handles personal information and website data.' },
   { match: (path: string) => path === '/terms-and-conditions', title: 'Terms and Conditions | Carleton Lodge No. 465', description: 'Terms and conditions for using the Carleton Lodge website.' },
   { match: (path: string) => path.startsWith('/admin'), title: 'Website Administration | Carleton Lodge No. 465', description: 'Secure Carleton Lodge website administration.' },
 ];
 
-const privatePrefixes = ['/my-lodge', '/lodge-guide', '/ask-carleton', '/summons', '/district', '/members', '/library', '/admin', '/reset-password', '/activate', '/links/open', '/links/external-unavailable'];
+const privatePrefixes = ['/my-lodge', '/lodge-guide', '/ask-carleton', '/summons', '/district', '/members', '/library', '/admin', '/reset-password', '/activate', '/email-reminders', '/links/open', '/links/external-unavailable'];
 
 const setMeta = (selector: string, attribute: string, value: string) => {
   const element = document.querySelector<HTMLMetaElement>(selector);

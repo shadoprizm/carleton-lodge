@@ -1261,10 +1261,8 @@ Deno.serve(async (req: Request) => {
             job.idempotency_key,
           );
           secureOptOutUrl = `${
-            supabaseUrl.replace(/\/$/, "")
-          }/functions/v1/manage-role-mailbox-reminders?token=${
-            encodeURIComponent(optOutToken)
-          }`;
+            siteUrl.replace(/\/$/, "")
+          }/email-reminders#token=${encodeURIComponent(optOutToken)}`;
         }
       }
 

@@ -43,6 +43,7 @@ const MailboxSetupPage = lazy(() => import('./pages/MailboxSetupPage').then((mod
 const MemberProfilePage = lazy(() => import('./pages/MemberProfilePage').then((module) => ({ default: module.MemberProfilePage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
 const ActivateMembershipPage = lazy(() => import('./pages/ActivateMembershipPage').then((module) => ({ default: module.ActivateMembershipPage })));
+const RoleMailboxReminderPreferencesPage = lazy(() => import('./pages/RoleMailboxReminderPreferencesPage').then((module) => ({ default: module.RoleMailboxReminderPreferencesPage })));
 const SearchPage = lazy(() => import('./pages/SearchPage').then((module) => ({ default: module.SearchPage })));
 const HelpPage = lazy(() => import('./pages/HelpPage').then((module) => ({ default: module.HelpPage })));
 const AskCarletonPage = lazy(() => import('./pages/AskCarletonPage').then((module) => ({ default: module.AskCarletonPage })));
@@ -105,6 +106,7 @@ const AppShell = () => {
           <Route path="/library" element={<MemberGate onSignIn={() => setIsAuthModalOpen(true)} title="The lodge library"><LibraryPage /></MemberGate>} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/activate" element={<ActivateMembershipPage />} />
+          <Route path="/email-reminders" element={<RoleMailboxReminderPreferencesPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/history" element={<HistoryLandingPage />} />
