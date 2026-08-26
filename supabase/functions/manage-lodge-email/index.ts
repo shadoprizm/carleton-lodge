@@ -17,6 +17,7 @@ import {
   normalizeLodgeEmailAddress,
 } from "../_shared/lodge-email-provider.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
+import { ROLE_MAILBOX_ACTIVATION_INITIAL_WINDOW } from "../_shared/role-mailbox-activation.ts";
 
 const minMailboxPasswordLength = 8;
 const uuidPattern =
@@ -202,6 +203,9 @@ async function queueAccountEmail(
         member_name: input.recipient.full_name,
         handover_id: input.handoverId ?? null,
         token_purpose: input.purpose ?? null,
+        activation_window: input.notificationType === "role_mailbox_invitation"
+          ? ROLE_MAILBOX_ACTIVATION_INITIAL_WINDOW
+          : null,
       },
       idempotency_key: input.idempotencyKey,
       max_attempts: 3,

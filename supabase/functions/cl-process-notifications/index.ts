@@ -1,5 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.110.8";
+import {
+  createClient,
+  type SupabaseClient,
+} from "npm:@supabase/supabase-js@2.110.8";
 import {
   type BrandedEmail,
   renderBrandedEmail,
@@ -15,6 +18,15 @@ import {
   validateAccountSetupActionLink,
 } from "../_shared/auth-action-link.ts";
 import { renderExternalLinkAlertEmail } from "../_shared/external-link-alert-email.ts";
+import {
+  nextRoleMailboxActivationWindow,
+  normalizeRoleMailboxActivationWindow,
+  ROLE_MAILBOX_ACTIVATION_MAX_WINDOWS,
+  ROLE_MAILBOX_ACTIVATION_WINDOW_HOURS,
+  type RoleMailboxActivationWindow,
+  roleMailboxReminderIdempotencyKey,
+  shouldQueueRoleMailboxActivationReminder,
+} from "../_shared/role-mailbox-activation.ts";
 
 type NotificationJob = {
   id: string;
@@ -24,6 +36,42 @@ type NotificationJob = {
   attempt_count: number;
   max_attempts: number;
   idempotency_key: string;
+};
+
+// The project has no generated Edge Function database type yet; keep the
+// schema-aware client usable until Supabase types are generated.
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LodgeSupabaseClient = SupabaseClient<any, any, any, any, any>;
+
+type DueRoleActivationToken = {
+  id: string;
+  email_account_id: string;
+  member_id: string;
+  handover_id: string | null;
+  activation_window: number;
+  expires_at: string;
+};
+
+type ReminderRoleAccount = {
+  id: string;
+  address: string;
+  account_type: "OFFICER" | "FUNCTIONAL";
+  status: string;
+  position_id: string | null;
+  current_authorized_member_id: string | null;
+  display_name: string;
+};
+
+type ReminderMember = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  linked_profile_id: string | null;
+};
+
+type PendingRoleInvitation = {
+  payload: Record<string, unknown>;
 };
 
 const payloadString = (payload: Record<string, unknown>, key: string) =>
@@ -36,6 +84,229 @@ const payloadStringArray = (payload: Record<string, unknown>, key: string) =>
 
 const payloadBoolean = (payload: Record<string, unknown>, key: string) =>
   payload[key] === true;
+
+const activationWindowFromPayload = (payload: Record<string, unknown>) =>
+  normalizeRoleMailboxActivationWindow(payload.activation_window);
+
+const assignmentKey = (accountId: string, memberId: string) =>
+  `${accountId}:${memberId}`;
+
+async function roleMailboxActivationIsStillPending(
+  supabase: LodgeSupabaseClient,
+  accountId: string,
+  memberId: string,
+) {
+  const [{ data: account, error: accountError }, {
+    data: assignment,
+    error: assignmentError,
+  }] = await Promise.all([
+    supabase
+      .from("lodge_email_accounts")
+      .select("id")
+      .eq("id", accountId)
+      .in("account_type", ["OFFICER", "FUNCTIONAL"])
+      .eq("status", "INVITATION_PENDING")
+      .eq("current_authorized_member_id", memberId)
+      .maybeSingle(),
+    supabase
+      .from("officer_mailbox_assignments")
+      .select("id")
+      .eq("email_account_id", accountId)
+      .eq("member_id", memberId)
+      .eq("status", "PENDING")
+      .maybeSingle(),
+  ]);
+  if (accountError) throw accountError;
+  if (assignmentError) throw assignmentError;
+  return Boolean(account && assignment);
+}
+
+async function queueDueRoleMailboxActivationReminders(
+  supabase: LodgeSupabaseClient,
+  now: string,
+) {
+  const { data, error } = await supabase
+    .from("email_account_action_tokens")
+    .select(
+      "id, email_account_id, member_id, handover_id, activation_window, expires_at",
+    )
+    .eq("purpose", "ROLE_ACTIVATION")
+    .is("consumed_at", null)
+    .is("revoked_at", null)
+    .lt("activation_window", ROLE_MAILBOX_ACTIVATION_MAX_WINDOWS)
+    .lte("expires_at", now)
+    .order("expires_at", { ascending: true })
+    .limit(100);
+  if (error) throw error;
+
+  const candidates = ((data ?? []) as DueRoleActivationToken[])
+    .map((token) => ({
+      token,
+      nextWindow: nextRoleMailboxActivationWindow(token.activation_window),
+    }))
+    .filter((candidate): candidate is {
+      token: DueRoleActivationToken;
+      nextWindow: RoleMailboxActivationWindow;
+    } => candidate.nextWindow !== null);
+  if (candidates.length === 0) return 0;
+
+  const accountIds = [
+    ...new Set(candidates.map(({ token }) => token.email_account_id)),
+  ];
+  const memberIds = [
+    ...new Set(candidates.map(({ token }) => token.member_id)),
+  ];
+  const [
+    { data: accounts, error: accountsError },
+    {
+      data: members,
+      error: membersError,
+    },
+    { data: assignments, error: assignmentsError },
+    {
+      data: pendingInvitations,
+      error: pendingInvitationsError,
+    },
+  ] = await Promise.all([
+    supabase
+      .from("lodge_email_accounts")
+      .select(
+        "id, address, account_type, status, position_id, current_authorized_member_id, display_name",
+      )
+      .in("id", accountIds)
+      .in("account_type", ["OFFICER", "FUNCTIONAL"]),
+    supabase
+      .from("lodge_members")
+      .select("id, full_name, email, linked_profile_id")
+      .in("id", memberIds),
+    supabase
+      .from("officer_mailbox_assignments")
+      .select("email_account_id, member_id")
+      .in("email_account_id", accountIds)
+      .in("member_id", memberIds)
+      .eq("status", "PENDING"),
+    supabase
+      .from("notification_outbox")
+      .select("payload")
+      .eq("notification_type", "role_mailbox_invitation")
+      .in("status", ["queued", "processing"])
+      .limit(500),
+  ]);
+  if (accountsError) throw accountsError;
+  if (membersError) throw membersError;
+  if (assignmentsError) throw assignmentsError;
+  if (pendingInvitationsError) throw pendingInvitationsError;
+
+  const accountsById = new Map(
+    ((accounts ?? []) as ReminderRoleAccount[]).map((account) => [
+      account.id,
+      account,
+    ]),
+  );
+  const membersById = new Map(
+    ((members ?? []) as ReminderMember[]).map((member) => [member.id, member]),
+  );
+  const pendingAssignments = new Set(
+    (assignments ?? []).map((assignment) =>
+      assignmentKey(assignment.email_account_id, assignment.member_id)
+    ),
+  );
+  const pendingInvitationKeys = new Set(
+    ((pendingInvitations ?? []) as PendingRoleInvitation[]).flatMap((job) => {
+      const accountId = payloadString(job.payload, "email_account_id");
+      const memberId = payloadString(job.payload, "member_id");
+      return accountId && memberId ? [assignmentKey(accountId, memberId)] : [];
+    }),
+  );
+
+  const reminderJobs = candidates.flatMap(({ token, nextWindow }) => {
+    const account = accountsById.get(token.email_account_id);
+    const member = membersById.get(token.member_id);
+    if (!account || !member || !member.email || !member.linked_profile_id) {
+      return [];
+    }
+    const hasPendingAssignment = pendingAssignments.has(
+      assignmentKey(account.id, member.id),
+    );
+    const hasPendingInvitation = pendingInvitationKeys.has(
+      assignmentKey(account.id, member.id),
+    );
+    if (
+      hasPendingInvitation ||
+      !shouldQueueRoleMailboxActivationReminder({
+        accountType: account.account_type,
+        accountStatus: account.status,
+        currentAuthorizedMemberId: account.current_authorized_member_id,
+        memberId: member.id,
+        memberEmail: member.email,
+        linkedProfileId: member.linked_profile_id,
+        hasPendingAssignment,
+      })
+    ) return [];
+
+    return [{
+      notification_type: "role_mailbox_invitation",
+      recipient_profile_id: member.linked_profile_id,
+      recipient_email: member.email.toLowerCase(),
+      payload: {
+        email_account_id: account.id,
+        lodge_email: account.address,
+        account_type: account.account_type,
+        display_name: account.display_name,
+        position_id: account.position_id,
+        member_id: member.id,
+        member_name: member.full_name,
+        handover_id: token.handover_id,
+        token_purpose: "ROLE_ACTIVATION",
+        activation_window: nextWindow,
+        activation_reminder: true,
+        previous_token_id: token.id,
+      },
+      idempotency_key: roleMailboxReminderIdempotencyKey(token.id, nextWindow),
+      max_attempts: 3,
+    }];
+  });
+  if (reminderJobs.length === 0) return 0;
+
+  const { data: insertedJobs, error: reminderError } = await supabase
+    .from("notification_outbox")
+    .upsert(reminderJobs, {
+      onConflict: "idempotency_key",
+      ignoreDuplicates: true,
+    })
+    .select("id, idempotency_key");
+  if (reminderError) throw reminderError;
+
+  const insertedKeys = new Set(
+    (insertedJobs ?? []).map((job) => job.idempotency_key),
+  );
+  const auditEvents = candidates.flatMap(({ token, nextWindow }) => {
+    const key = roleMailboxReminderIdempotencyKey(token.id, nextWindow);
+    if (!insertedKeys.has(key)) return [];
+    const account = accountsById.get(token.email_account_id);
+    return [{
+      event_type: "ROLE_MAILBOX_ACTIVATION_REMINDER_QUEUED",
+      email_account_id: token.email_account_id,
+      member_id: token.member_id,
+      position_id: account?.position_id ?? null,
+      handover_id: token.handover_id,
+      outcome: "SUCCESS",
+      details: {
+        activation_window: nextWindow,
+        expired_token_id: token.id,
+        expired_at: token.expires_at,
+      },
+    }];
+  });
+  if (auditEvents.length > 0) {
+    const { error: auditError } = await supabase
+      .from("lodge_email_audit_events")
+      .insert(auditEvents);
+    if (auditError) throw auditError;
+  }
+
+  return insertedJobs?.length ?? 0;
+}
 
 const payloadPlainText = (payload: Record<string, unknown>, key: string) =>
   payloadString(payload, key)
@@ -509,22 +780,56 @@ const renderEmail = (
     const lodgeEmail = payloadString(job.payload, "lodge_email");
     const displayName = payloadString(job.payload, "display_name") ||
       "Lodge role";
+    const activationWindow = activationWindowFromPayload(job.payload);
+    const isReminder = payloadBoolean(job.payload, "activation_reminder") ||
+      activationWindow > 1;
+    const isFinalReminder = activationWindow === 3;
     return renderBrandedEmail({
-      subject: `Activate the ${displayName} Lodge mailbox`,
-      preheader:
-        `Your temporary access to ${lodgeEmail} is ready for secure setup.`,
-      eyebrow: "Officer account",
-      heading: `Your ${displayName} mailbox is ready`,
+      subject: isFinalReminder
+        ? `Final reminder: Activate the ${displayName} Lodge mailbox`
+        : isReminder
+        ? `Reminder: Activate the ${displayName} Lodge mailbox`
+        : `Activate the ${displayName} Lodge mailbox`,
+      preheader: isFinalReminder
+        ? `Your final 72-hour activation window for ${lodgeEmail} is ready.`
+        : isReminder
+        ? `A new 72-hour activation window for ${lodgeEmail} is ready.`
+        : `Your 72-hour activation window for ${lodgeEmail} is ready.`,
+      eyebrow: isFinalReminder
+        ? "Final officer account reminder"
+        : isReminder
+        ? "Officer account reminder"
+        : "Officer account",
+      heading: isFinalReminder
+        ? `Final reminder for your ${displayName} mailbox`
+        : isReminder
+        ? `A new ${displayName} activation link is ready`
+        : `Your ${displayName} mailbox is ready`,
       paragraphs: [
         `${memberName}, Carleton Lodge No. 465 has assigned you temporary access to its ${displayName} mailbox.`,
         "This mailbox belongs permanently to the Lodge and retains its existing messages, folders, attachments, and correspondence when office holders change.",
-        "Use the secure button below to review the Officer and Functional Email Account Agreement and choose a new mailbox password. The link is time-limited and can only be used once.",
+        ...(isReminder
+          ? [
+            "The previous secure activation link expired before the mailbox was claimed. This message contains a new one-time link that remains valid for a complete 72-hour window.",
+          ]
+          : [
+            "Use the secure button below to review the Officer and Functional Email Account Agreement and choose a new mailbox password. The one-time link remains valid for 72 hours.",
+          ]),
+        ...(isFinalReminder
+          ? [
+            "This is the final automated activation reminder. If this link expires, contact the Lodge Webmaster through support@carpmasons.ca to restart the claim process.",
+          ]
+          : []),
       ],
       details: [
         { label: "Lodge role", value: displayName },
         { label: "Lodge mailbox", value: lodgeEmail },
         { label: "Ownership", value: "Carleton Lodge No. 465" },
         { label: "Access", value: "Temporary while assigned to this role" },
+        {
+          label: "Activation window",
+          value: `${activationWindow} of 3 · valid for 72 hours`,
+        },
       ],
       cta: { label: "Activate the role mailbox", url: secureActionUrl },
       siteUrl,
@@ -748,6 +1053,23 @@ Deno.serve(async (req: Request) => {
     : 25;
   const batchSize = Math.min(Math.max(requestedBatchSize, 1), 100);
 
+  let activationRemindersQueued = 0;
+  try {
+    activationRemindersQueued = await queueDueRoleMailboxActivationReminders(
+      supabase,
+      new Date().toISOString(),
+    );
+  } catch (reminderError) {
+    // A reminder scan must never prevent already-queued transactional email
+    // from being delivered. The next scheduled run retries the scan.
+    console.error(
+      "Could not queue role mailbox activation reminders:",
+      reminderError instanceof Error
+        ? reminderError.message
+        : String(reminderError),
+    );
+  }
+
   const { data, error: claimError } = await supabase.rpc(
     "claim_notification_outbox",
     { batch_size: batchSize },
@@ -761,6 +1083,7 @@ Deno.serve(async (req: Request) => {
   const jobs = (data ?? []) as NotificationJob[];
   let sent = 0;
   let failed = 0;
+  let cancelled = 0;
 
   for (const job of jobs) {
     try {
@@ -812,9 +1135,34 @@ Deno.serve(async (req: Request) => {
           );
         }
 
+        if (
+          purpose === "ROLE_ACTIVATION" &&
+          !(await roleMailboxActivationIsStillPending(
+            supabase,
+            accountId,
+            memberId,
+          ))
+        ) {
+          const { error: cancellationError } = await supabase
+            .from("notification_outbox")
+            .update({
+              status: "cancelled",
+              locked_at: null,
+              last_error:
+                "Role mailbox assignment is no longer pending for this recipient",
+            })
+            .eq("id", job.id);
+          if (cancellationError) throw cancellationError;
+          cancelled += 1;
+          continue;
+        }
+
         const rawActionToken = createRawActionToken();
         const tokenHash = await sha256(rawActionToken);
-        const expiresInHours = purpose === "ROLE_ACTIVATION" ? 72 : 2;
+        const activationWindow = activationWindowFromPayload(job.payload);
+        const expiresInHours = purpose === "ROLE_ACTIVATION"
+          ? ROLE_MAILBOX_ACTIVATION_WINDOW_HOURS
+          : 2;
         const now = new Date().toISOString();
         const { error: revokeError } = await supabase
           .from("email_account_action_tokens")
@@ -834,6 +1182,9 @@ Deno.serve(async (req: Request) => {
             email_account_id: accountId,
             member_id: memberId,
             handover_id: handoverId,
+            activation_window: purpose === "ROLE_ACTIVATION"
+              ? activationWindow
+              : 1,
             expires_at: new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
               .toISOString(),
           });
@@ -898,5 +1249,11 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return jsonResponse(req, { claimed: jobs.length, sent, failed });
+  return jsonResponse(req, {
+    claimed: jobs.length,
+    sent,
+    failed,
+    cancelled,
+    activationRemindersQueued,
+  });
 });

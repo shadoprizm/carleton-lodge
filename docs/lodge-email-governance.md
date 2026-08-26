@@ -67,9 +67,11 @@ For a new or vacant role mailbox:
 1. Add or select the role configuration.
 2. Choose **Provision** or **Verify**. This is non-destructive.
 3. Choose **Assign**, select a verified member, review the confirmation, and confirm.
-4. The system rotates MXroute credentials, creates a pending assignment, and sends an expiring one-use activation link to the member's verified personal/contact email.
+4. The system rotates MXroute credentials, creates a pending assignment, and sends a one-use activation link to the member's verified personal/contact email. The link is valid for 72 hours.
 5. The member accepts the separate Officer and Functional Email Account Agreement and chooses a new mailbox password.
 6. The account and assignment become active. The role mailbox appears separately from the member's personal mailbox.
+
+If the mailbox remains unclaimed when the first 72-hour window expires, the scheduled notification processor sends a new one-use link for a second complete 72-hour window. It repeats once for a third and final 72-hour window. Claiming the mailbox, cancelling or replacing the assignment, suspending the mailbox, or otherwise ending the pending assignment stops the sequence. After the third link expires, no further email is sent automatically; the intended holder must contact the Lodge Webmaster through `support@carpmasons.ca` to restart the claim process.
 
 For a successor, choose **Handover**. The state machine removes the outgoing member's website authorization first, ends the previous assignment, rotates the existing mailbox password, creates the successor's pending assignment, and queues the invitation. Inbox, Sent, folders, attachments, and correspondence remain in the same MXroute mailbox.
 
@@ -100,7 +102,7 @@ Members and administrators can load the durable receipt. It contains the member,
 
 ## Secure action links
 
-Activation and reset links use cryptographically random tokens. Only a SHA-256 hash is stored. Tokens are scoped to an account, member, purpose, and optional handover; they expire, are single-use, and are revoked when a replacement is generated. The raw token is carried in the URL fragment so it is not sent in the initial HTTP request or referrer. Passwords are never placed in links or notification records.
+Activation and reset links use cryptographically random tokens. Only a SHA-256 hash is stored. Tokens are scoped to an account, member, purpose, optional handover, and activation-window number; they expire, are single-use, and are revoked when a replacement is generated. Role-mailbox activation uses at most three 72-hour windows. Password resets remain separate two-hour actions and do not receive the activation reminder sequence. The raw token is carried in the URL fragment so it is not sent in the initial HTTP request or referrer. Passwords are never placed in links or notification records.
 
 ## Adding a future role mailbox
 
