@@ -28,6 +28,23 @@ export function roleMailboxReminderIdempotencyKey(
   return `role-mailbox-activation-reminder:${expiredTokenId}:window-${nextWindow}`;
 }
 
+export function expiredRoleMailboxActivationTokenCanRenew(input: {
+  activationWindow: unknown;
+  expiresAt: string;
+  revokedAt: string | null;
+  consumedAt: string | null;
+  now: string;
+}) {
+  const expiresAt = new Date(input.expiresAt).getTime();
+  const now = new Date(input.now).getTime();
+  const consumedAtIsValid = input.consumedAt === null ||
+    Number.isFinite(new Date(input.consumedAt).getTime());
+  return input.revokedAt === null &&
+    nextRoleMailboxActivationWindow(input.activationWindow) !== null &&
+    consumedAtIsValid && Number.isFinite(expiresAt) && Number.isFinite(now) &&
+    expiresAt <= now;
+}
+
 export function shouldQueueRoleMailboxActivationReminder(input: {
   accountType: unknown;
   accountStatus: unknown;
