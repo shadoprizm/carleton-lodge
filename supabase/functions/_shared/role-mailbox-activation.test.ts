@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
 import {
+  expiredRoleMailboxActivationTokenCanRenew,
   nextRoleMailboxActivationWindow,
   normalizeRoleMailboxActivationWindow,
   ROLE_MAILBOX_ACTIVATION_INITIAL_WINDOW,
@@ -71,6 +72,46 @@ Deno.test("role mailbox reminders require the same pending assignment", () => {
     shouldQueueRoleMailboxActivationReminder({
       ...pending,
       hasPendingAssignment: false,
+    }),
+    false,
+  );
+});
+
+Deno.test("an expired consumed token can recover an incomplete pending activation", () => {
+  const expiredToken = {
+    activationWindow: 1,
+    expiresAt: "2026-08-24T12:00:00.000Z",
+    revokedAt: null,
+    now: "2026-08-25T12:00:00.000Z",
+  };
+
+  assertEquals(
+    expiredRoleMailboxActivationTokenCanRenew({
+      ...expiredToken,
+      consumedAt: null,
+    }),
+    true,
+  );
+  assertEquals(
+    expiredRoleMailboxActivationTokenCanRenew({
+      ...expiredToken,
+      consumedAt: "2026-08-21T12:00:00.000Z",
+    }),
+    true,
+  );
+  assertEquals(
+    expiredRoleMailboxActivationTokenCanRenew({
+      ...expiredToken,
+      activationWindow: 3,
+      consumedAt: "2026-08-21T12:00:00.000Z",
+    }),
+    false,
+  );
+  assertEquals(
+    expiredRoleMailboxActivationTokenCanRenew({
+      ...expiredToken,
+      revokedAt: "2026-08-22T12:00:00.000Z",
+      consumedAt: null,
     }),
     false,
   );

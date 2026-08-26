@@ -47,6 +47,7 @@ describe('role mailbox activation reminder contract', () => {
     expect(activation).toContain('ROLE_MAILBOX_ACTIVATION_MAX_WINDOWS = 3');
     expect(processor).toContain('nextRoleMailboxActivationWindow');
     expect(processor).toContain('.lte("expires_at", now)');
+    expect(processor).toContain('expiredRoleMailboxActivationTokenCanRenew');
     expect(manager).toContain('ROLE_MAILBOX_ACTIVATION_INITIAL_WINDOW');
   });
 
@@ -72,6 +73,12 @@ describe('role mailbox activation reminder contract', () => {
     expect(processor).toContain('Final reminder: Activate the');
     expect(processor).toContain('final automated activation reminder');
     expect(processor).toContain('support@carpmasons.ca');
+  });
+
+  it('recovers a consumed token when the role activation never completed', () => {
+    expect(activation).toContain('expiredRoleMailboxActivationTokenCanRenew');
+    expect(processor).toContain('previous_activation_incomplete');
+    expect(processor).toContain('previous secure setup attempt did not finish');
   });
 
   it('lets each pending assignment opt out of automated reminders', () => {

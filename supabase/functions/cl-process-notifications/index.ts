@@ -19,6 +19,7 @@ import {
 } from "../_shared/auth-action-link.ts";
 import { renderExternalLinkAlertEmail } from "../_shared/external-link-alert-email.ts";
 import {
+  expiredRoleMailboxActivationTokenCanRenew,
   nextRoleMailboxActivationWindow,
   normalizeRoleMailboxActivationWindow,
   ROLE_MAILBOX_ACTIVATION_MAX_WINDOWS,
@@ -55,6 +56,7 @@ type DueRoleActivationToken = {
   handover_id: string | null;
   activation_window: number;
   expires_at: string;
+  consumed_at: string | null;
 };
 
 type ReminderRoleAccount = {
@@ -162,18 +164,26 @@ async function queueDueRoleMailboxActivationReminders(
   const { data, error } = await supabase
     .from("email_account_action_tokens")
     .select(
-      "id, email_account_id, member_id, handover_id, activation_window, expires_at",
+      "id, email_account_id, member_id, handover_id, activation_window, expires_at, consumed_at",
     )
     .eq("purpose", "ROLE_ACTIVATION")
-    .is("consumed_at", null)
     .is("revoked_at", null)
     .lt("activation_window", ROLE_MAILBOX_ACTIVATION_MAX_WINDOWS)
     .lte("expires_at", now)
-    .order("expires_at", { ascending: true })
-    .limit(100);
+    .order("expires_at", { ascending: false })
+    .limit(500);
   if (error) throw error;
 
   const candidates = ((data ?? []) as DueRoleActivationToken[])
+    .filter((token) =>
+      expiredRoleMailboxActivationTokenCanRenew({
+        activationWindow: token.activation_window,
+        expiresAt: token.expires_at,
+        revokedAt: null,
+        consumedAt: token.consumed_at,
+        now,
+      })
+    )
     .map((token) => ({
       token,
       nextWindow: nextRoleMailboxActivationWindow(token.activation_window),
@@ -307,6 +317,7 @@ async function queueDueRoleMailboxActivationReminders(
         token_purpose: "ROLE_ACTIVATION",
         activation_window: nextWindow,
         activation_reminder: true,
+        previous_activation_incomplete: Boolean(token.consumed_at),
         previous_token_id: token.id,
       },
     }];
@@ -356,6 +367,7 @@ async function queueDueRoleMailboxActivationReminders(
       activation_window: nextWindow,
       expired_token_id: token.id,
       expired_at: token.expires_at,
+      previous_activation_incomplete: Boolean(token.consumed_at),
     },
   }));
   if (auditEvents.length > 0) {
@@ -826,6 +838,10 @@ const renderEmail = (
     const activationWindow = activationWindowFromPayload(job.payload);
     const isReminder = payloadBoolean(job.payload, "activation_reminder") ||
       activationWindow > 1;
+    const previousActivationIncomplete = payloadBoolean(
+      job.payload,
+      "previous_activation_incomplete",
+    );
     const isFinalReminder = activationWindow === 3;
     return renderBrandedEmail({
       subject: isFinalReminder
@@ -853,7 +869,9 @@ const renderEmail = (
         "This mailbox belongs permanently to the Lodge and retains its existing messages, folders, attachments, and correspondence when office holders change.",
         ...(isReminder
           ? [
-            "The previous secure activation link expired before the mailbox was claimed. This message contains a new one-time link that remains valid for a complete 72-hour window.",
+            previousActivationIncomplete
+              ? "The previous secure setup attempt did not finish activating the mailbox. This message contains a fresh one-time link so you can complete the remaining steps during a full 72-hour window."
+              : "The previous secure activation link expired before the mailbox was claimed. This message contains a new one-time link that remains valid for a complete 72-hour window.",
           ]
           : [
             "Use the secure button below to review the Officer and Functional Email Account Agreement and choose a new mailbox password. The one-time link remains valid for 72 hours.",
