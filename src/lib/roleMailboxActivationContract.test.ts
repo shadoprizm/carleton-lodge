@@ -24,6 +24,11 @@ const optOutEndpoint = Object.entries(functionSources).find(([path]) =>
 const optOutTokens = Object.entries(functionSources).find(([path]) =>
   path.includes('_shared/role-mailbox-reminder-opt-out')
 )?.[1] ?? '';
+const frontendSources = import.meta.glob(
+  '/src/pages/RoleMailboxReminderPreferencesPage.tsx',
+  { eager: true, import: 'default', query: '?raw' },
+) as Record<string, string>;
+const optOutPage = Object.values(frontendSources)[0] ?? '';
 
 const migrationSources = import.meta.glob(
   '/supabase/migrations/*_add_role_mailbox_activation_reminder_windows.sql',
@@ -78,8 +83,10 @@ describe('role mailbox activation reminder contract', () => {
   });
 
   it('requires confirmation before changing the reminder preference', () => {
-    expect(optOutEndpoint).toContain('if (req.method === "GET") return confirmationPage(token)');
-    expect(optOutEndpoint).toContain('method="post"');
+    expect(processor).toContain('/email-reminders#token=');
+    expect(optOutPage).toContain('Stop future reminders?');
+    expect(optOutPage).toContain("'manage-role-mailbox-reminders'");
+    expect(optOutEndpoint).toContain('if (req.method !== "POST")');
     expect(optOutEndpoint).toContain('activation_reminders_opted_out_at: now');
   });
 

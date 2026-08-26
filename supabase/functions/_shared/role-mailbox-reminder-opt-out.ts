@@ -6,7 +6,9 @@ const base64Url = (bytes: Uint8Array) =>
     .replaceAll("/", "_")
     .replaceAll("=", "");
 
-export const isValidRoleMailboxReminderOptOutToken = (value: unknown) =>
+export const isValidRoleMailboxReminderOptOutToken = (
+  value: unknown,
+): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
 
 export async function createRoleMailboxReminderOptOutToken(
