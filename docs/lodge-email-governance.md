@@ -71,7 +71,7 @@ For a new or vacant role mailbox:
 5. The member accepts the separate Officer and Functional Email Account Agreement and chooses a new mailbox password.
 6. The account and assignment become active. The role mailbox appears separately from the member's personal mailbox.
 
-If the mailbox remains unclaimed when the first 72-hour window expires, the scheduled notification processor sends a new one-use link for a second complete 72-hour window. It repeats once for a third and final 72-hour window. Claiming the mailbox, cancelling or replacing the assignment, suspending the mailbox, or otherwise ending the pending assignment stops the sequence. After the third link expires, no further email is sent automatically; the intended holder must contact the Lodge Webmaster through `support@carpmasons.ca` to restart the claim process.
+If the mailbox remains unclaimed when the first 72-hour window expires, the scheduled notification processor sends a new one-use link for a second complete 72-hour window. It repeats once for a third and final 72-hour window. Every reminder includes a private **Stop these reminders** link. Opening that link displays a confirmation page; confirming suppresses all future automated reminders for that assignment without changing the mailbox, assignment, or member website access. Claiming the mailbox, opting out, cancelling or replacing the assignment, suspending the mailbox, or otherwise ending the pending assignment stops the sequence. After the third link expires, no further email is sent automatically; the intended holder must contact the Lodge Webmaster through `support@carpmasons.ca` to restart the claim process.
 
 For a successor, choose **Handover**. The state machine removes the outgoing member's website authorization first, ends the previous assignment, rotates the existing mailbox password, creates the successor's pending assignment, and queues the invitation. Inbox, Sent, folders, attachments, and correspondence remain in the same MXroute mailbox.
 
@@ -102,7 +102,7 @@ Members and administrators can load the durable receipt. It contains the member,
 
 ## Secure action links
 
-Activation and reset links use cryptographically random tokens. Only a SHA-256 hash is stored. Tokens are scoped to an account, member, purpose, optional handover, and activation-window number; they expire, are single-use, and are revoked when a replacement is generated. Role-mailbox activation uses at most three 72-hour windows. Password resets remain separate two-hour actions and do not receive the activation reminder sequence. The raw token is carried in the URL fragment so it is not sent in the initial HTTP request or referrer. Passwords are never placed in links or notification records.
+Activation and reset links use cryptographically random tokens. Only a SHA-256 hash is stored. Tokens are scoped to an account, member, purpose, optional handover, and activation-window number; they expire, are single-use, and are revoked when a replacement is generated. Role-mailbox activation uses at most three 72-hour windows. Password resets remain separate two-hour actions and do not receive the activation reminder sequence. The raw activation token is carried in the URL fragment so it is not sent in the initial HTTP request or referrer. Reminder opt-out tokens are separately HMAC-derived per notification, stored only as hashes, and do not activate or reveal a mailbox. Passwords are never placed in links or notification records.
 
 ## Adding a future role mailbox
 
@@ -123,10 +123,11 @@ The website does not copy, index, or display mailbox messages. Legitimate contin
 ## Deployment order
 
 1. Apply `supabase/migrations/20260809184357_lodge_email_governance.sql` through the normal Supabase migration process.
-2. Deploy `manage-member-login`, `activate-member-mailbox`, `manage-lodge-email`, and `cl-process-notifications` with their shared dependencies.
-3. Deploy the frontend.
-4. In the admin page, Provision/Verify the six initial role mailboxes. Only send invitations to intended, verified holders.
-5. Run the personal activation, role activation, reset, receipt, and reversible handover acceptance checks. Never use an actual member as a temporary handover target without explicit authorization.
+2. Set `ROLE_MAILBOX_REMINDER_SECRET` to a dedicated random secret of at least 32 characters.
+3. Deploy `manage-member-login`, `activate-member-mailbox`, `manage-lodge-email`, `manage-role-mailbox-reminders`, and `cl-process-notifications` with their shared dependencies.
+4. Deploy the frontend.
+5. In the admin page, Provision/Verify the six initial role mailboxes. Only send invitations to intended, verified holders.
+6. Run the personal activation, role activation, reset, receipt, and reversible handover acceptance checks. Never use an actual member as a temporary handover target without explicit authorization.
 
 ## Operational cautions
 
