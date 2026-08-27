@@ -12,6 +12,8 @@ import {
 import {
   createUnknownPassword,
   isPlausibleMemberEmail,
+  MEMBER_ACCESS_CODE_EMAIL_MAX_REQUESTS,
+  MEMBER_ACCESS_CODE_EMAIL_WINDOW_SECONDS,
   MEMBER_ACCESS_GENERIC_MESSAGE,
   normalizeMemberEmail,
 } from "../_shared/member-access.ts";
@@ -129,8 +131,8 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin,
         "member-access-code-email",
         email || "invalid",
-        4,
-        10 * 60,
+        MEMBER_ACCESS_CODE_EMAIL_MAX_REQUESTS,
+        MEMBER_ACCESS_CODE_EMAIL_WINDOW_SECONDS,
       ),
     ]);
 
@@ -139,7 +141,7 @@ Deno.serve(async (req: Request) => {
         req,
         {
           error:
-            "Too many code requests. Please wait a few minutes and try again.",
+            "A code was sent recently. Please wait up to 10 minutes before requesting another.",
         },
         429,
         {
